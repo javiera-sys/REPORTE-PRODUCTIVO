@@ -174,7 +174,10 @@ function filterItems(){
   document.querySelectorAll('.nave-card').forEach(naveCard=>{
     if(!q){
       naveCard.style.display='';
-      naveCard.querySelectorAll('.item-card').forEach(ic=>ic.style.display='');
+      naveCard.querySelectorAll('.item-card').forEach(ic=>{
+        ic.style.display='';
+        clearHighlight(ic);
+      });
       return;
     }
     const badge = naveCard.querySelector('.nave-badge');
@@ -187,10 +190,40 @@ function filterItems(){
       const itemText = normalizeSearch(itemCard.textContent);
       const itemMatches = naveMatches || itemText.includes(q);
       itemCard.style.display = itemMatches ? '' : 'none';
-      if(itemMatches) anyItemVisible = true;
+      if(itemMatches){
+        anyItemVisible = true;
+        applyHighlight(itemCard, rawQ.trim());
+      } else {
+        clearHighlight(itemCard);
+      }
     });
 
     naveCard.style.display = (naveMatches || anyItemVisible) ? '' : 'none';
+  });
+}
+
+function escRegex(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function highlightText(str, rawQ){
+  const escaped = escHtml(str);
+  if(!rawQ) return escaped;
+  const re = new RegExp('(' + escRegex(escHtml(rawQ)) + ')', 'gi');
+  return escaped.replace(re, '<mark class="search-highlight">$1</mark>');
+}
+
+function applyHighlight(itemCard, rawQ){
+  ['.item-title-text', '.item-desc-text'].forEach(sel=>{
+    const el = itemCard.querySelector(sel);
+    if(!el) return;
+    if(el.dataset.raw === undefined) el.dataset.raw = el.textContent;
+    el.innerHTML = highlightText(el.dataset.raw, rawQ);
+  });
+}
+
+function clearHighlight(itemCard){
+  ['.item-title-text', '.item-desc-text'].forEach(sel=>{
+    const el = itemCard.querySelector(sel);
+    if(el && el.dataset.raw !== undefined) el.textContent = el.dataset.raw;
   });
 }
 
@@ -291,7 +324,7 @@ function renderItemCard(item, naveId){
      }
   }
 
-  return `<div class="item-card" id="ic-${item.id}">
+  return `<div class="item-card ${proc.planoTerminado ? 'plano-done' : ''}" id="ic-${item.id}">
     <div class="item-dot ${dotClass(item.type)}" style="margin-top:5px"></div>
     <div class="item-content">
       ${planoTerminadoHtml}
@@ -342,19 +375,14 @@ function renderNave(nave, index, total){
   galleryHtml += '</div>';
 
   const modelsHtml=nave.models.map((m,idx)=>{
-    let hrefAttr = '';
+    let linkBtn = '';
     if(m.link) {
-        let safeLink = m.link.trim();
-        if(safeLink.startsWith('\\\\')) {
-            safeLink = 'file:' + safeLink.replace(/\\/g, '/');
-        } else if (!/^https?:\/\//i.test(safeLink) && !safeLink.startsWith('file:')) {
-            safeLink = 'http://' + safeLink;
-        }
-        hrefAttr = `<a href="${safeLink}" target="_blank" title="Abrir enlace" style="color:var(--navy); text-decoration:none; margin-right:4px;"><i class="ti ti-link"></i></a>`;
+        const rawLink = escHtml(m.link.trim());
+        linkBtn = `<button class="model-link-btn" title="Abrir enlace" onclick='abrirEnlaceModelo(${JSON.stringify(m.link.trim())}, event)' style="color:var(--navy); background:none; border:none; cursor:pointer; padding:0; margin-right:4px; display:flex; align-items:center;"><i class="ti ti-link"></i></button>`;
     }
     
     return `<div class="model-chip">
-      ${hrefAttr}
+      ${linkBtn}
       <span>${m.name}</span>
       <div style="display:flex; gap:4px" class="only-editable">
         <button class="edit-model" title="Editar modelo y enlace" onclick="openEditModel('${nave.id}', ${idx})"><i class="ti ti-pencil"></i></button>
@@ -456,6 +484,42 @@ function removeModel(naveId,idx){
   if (!isEditableMode) return;
   const nave=data.naves.find(n=>n.id===naveId);
   if(nave){nave.models.splice(idx,1);render();}
+}
+
+/* ---- Abrir enlace de un modelo ----
+   Los links http(s) normales se abren en pestaña nueva sin problema.
+   Las rutas de red tipo \\servidor\carpeta (o su versión file://) NO se
+   pueden abrir desde una página https por una restricción de seguridad
+   del navegador (la bloquea en silencio, por eso "no hacía nada"). En
+   ese caso copiamos la ruta para pegarla en el explorador de archivos. */
+function abrirEnlaceModelo(rawLink, event){
+  if(event){ event.preventDefault(); event.stopPropagation(); }
+  const link = (rawLink || '').trim();
+  if(!link) return;
+
+  const isNetworkPath = link.startsWith('\\\\') || link.toLowerCase().startsWith('file:');
+
+  if(!isNetworkPath){
+    let url = link;
+    if(!/^https?:\/\//i.test(url)) url = 'http://' + url;
+    window.open(url, '_blank');
+    return;
+  }
+
+  // Ruta de red / archivo local: los navegadores bloquean abrir esto
+  // automáticamente desde una página https, así que copiamos la ruta.
+  const copyFallback = () => {
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(link).then(()=>{
+        alert('Tu navegador no permite abrir carpetas de red automáticamente desde esta página por seguridad.\n\nLa ruta se copió al portapapeles:\n' + link + '\n\nPégala en el Explorador de Archivos (Windows) para abrirla.');
+      }).catch(()=>{
+        alert('Tu navegador no permite abrir carpetas de red automáticamente desde esta página por seguridad.\n\nCopia esta ruta manualmente y pégala en el Explorador de Archivos:\n\n' + link);
+      });
+    } else {
+      alert('Tu navegador no permite abrir carpetas de red automáticamente desde esta página por seguridad.\n\nCopia esta ruta manualmente y pégala en el Explorador de Archivos:\n\n' + link);
+    }
+  };
+  copyFallback();
 }
 
 function openEditModel(naveId, idx){

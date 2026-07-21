@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reporte de Errores - Editable</title>
+<link rel="stylesheet" href="css/styles.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body class="is-locked">
+
+<div class="app">
+  <div class="top-bar">
+    <div class="top-header-row">
+      <div class="top-bar-left">
+        <div>
+          <h1>Errores y Mejoras de Producción</h1>
+          <p>Fecha: <span id="current-date">20/07/2026</span></p>
+          <p style="font-size: 11px; margin-top: 4px; color: var(--color-text-secondary);">
+            ✔️ = Correcto (no requiere cambios). &nbsp;|&nbsp; ❌ = Cambiar el plano, habilitado o etiqueta.
+          </p>
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-amber" id="btn-lock-toggle" onclick="handleLockToggle()" title="Controlar modo de edición"><i class="ti ti-lock"></i> MODO LECTURA 🔒</button>
+      </div>
+    </div>
+    <div class="search-bar-row">
+      <i class="ti ti-search"></i>
+      <input type="text" id="search-input" placeholder="Buscar por número, nombre, título o palabra clave..." oninput="filterItems()">
+      <button class="search-clear-btn" id="search-clear-btn" style="display:none" onclick="clearSearch()" title="Limpiar búsqueda"><i class="ti ti-x"></i></button>
+    </div>
+  </div>
+
+  <div id="naves-container"></div>
+</div>
+
+<!-- Barra de Herramientas Inferior -->
+<div class="bottom-toolbar only-editable">
+    <button class="btn btn-green" onclick="triggerImport()" title="Recupera información de un archivo anterior"><i class="ti ti-upload" aria-hidden="true"></i> Importar Datos</button>
+    <button class="btn btn-purple" onclick="openAddNave()"><i class="ti ti-plus" aria-hidden="true"></i> Nuevo mueble</button>
+    <button class="btn" onclick="openExport('html')" title="Guarda el proyecto en el archivo original de forma rápida"><i class="ti ti-device-floppy" aria-hidden="true"></i> Guardar Proyecto HTML</button>
+    <button class="btn btn-github" onclick="openGithubModal()" title="Sube los cambios directamente a un repositorio de GitHub"><i class="ti ti-brand-github" aria-hidden="true"></i> Guardar en GitHub</button>
+    <button class="btn btn-navy" onclick="openExport('pdf')" title="Exporta un documento limpio listo para imprimir"><i class="ti ti-file-text" aria-hidden="true"></i> Exportar PDF Final</button>
+</div>
+
+<!-- Botón Flotante Inteligente -->
+<button class="scroll-top-btn" id="scroll-top-btn" title="Navegar" aria-label="Navegar"><i class="ti ti-arrow-down"></i></button>
+
+<!-- Modal de Autenticación -->
+<div class="modal-bg" id="modal-auth">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Permiso de Edición</h2>
+      <button class="btn-ghost btn" onclick="closeModal('modal-auth')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="auth-icon-wrap"><i class="ti ti-shield-lock"></i></div>
+    <div class="auth-title">Permiso de Edición</div>
+    <div class="auth-subtitle">Ingresa la contraseña de producción para desbloquear</div>
+    <div class="form-group">
+      <input class="form-input" type="password" id="auth-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')validatePassword()">
+    </div>
+    <div class="form-footer" style="justify-content: center; padding-top: 1rem; border-top: none; margin-top: 0.5rem;">
+      <button class="btn" onclick="closeModal('modal-auth')">Cancelar</button>
+      <button class="btn btn-navy" onclick="validatePassword()">Desbloquear</button>
+    </div>
+    <button class="auth-hidden-trigger" onclick="openManageAccess()" aria-label=""><i class="ti ti-point"></i></button>
+  </div>
+</div>
+
+<!-- Modal Oculto: Gestión de Accesos -->
+<div class="modal-bg" id="modal-manage-access">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Administrar Accesos</h2>
+      <button class="btn-ghost btn" onclick="closeModal('modal-manage-access')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Contraseñas activas</label>
+      <div class="access-list" id="access-list"></div>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label">Agregar nueva contraseña</label>
+      <div class="access-add-row">
+        <input class="form-input" type="text" id="new-access-password" placeholder="Ej. Inge12345" onkeydown="if(event.key==='Enter')addAccessPassword()">
+        <button class="btn btn-purple btn-sm" onclick="addAccessPassword()" style="flex-shrink:0;"><i class="ti ti-plus"></i> Agregar</button>
+      </div>
+    </div>
+    <div class="form-footer" style="justify-content: center;">
+      <button class="btn btn-navy" onclick="closeModal('modal-manage-access')">Listo</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-nave">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Nuevo mueble</h2>
+      <button class="btn-ghost btn" onclick="closeModal('modal-nave')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nave</label>
+      <div class="select-group" id="nave-select">
+        <div class="select-opt selected" onclick="selectNave(this,'NAVE 2')">Nave 2</div>
+        <div class="select-opt" onclick="selectNave(this,'NAVE 4')">Nave 4</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Consola (ej: CONSOLA 6531)</label>
+      <input class="form-input" type="text" id="new-consola" placeholder="CONSOLA 6531">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Códigos de mueble <span style="color:var(--color-text-secondary);font-weight:400">(escribe y presiona Enter o coma)</span></label>
+      <div class="tag-input-area" id="tag-area" onclick="document.getElementById('tag-input').focus()">
+        <input class="tag-real-input" id="tag-input" placeholder="IFD6531CNSBL" onkeydown="handleTagKey(event)" oninput="handleTagInput(event)">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tipo de registro</label>
+      <div class="radio-group" id="tipo-select">
+        <label class="radio-opt selected" onclick="selectTipo(this,'ambos')"><input type="radio" name="tipo" value="ambos" checked=""> Errores y mejoras</label>
+        <label class="radio-opt" onclick="selectTipo(this,'errores')"><input type="radio" name="tipo" value="errores"> Solo errores</label>
+        <label class="radio-opt" onclick="selectTipo(this,'mejoras')"><input type="radio" name="tipo" value="mejoras"> Solo mejoras</label>
+      </div>
+    </div>
+    <div class="form-footer">
+      <button class="btn" onclick="closeModal('modal-nave')">Cancelar</button>
+      <button class="btn btn-purple" onclick="addNave()">Agregar mueble</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-item">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-item-h">Agregar elemento</h2>
+      <button class="btn-ghost btn" onclick="closeModal('modal-item')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Categoría</label>
+      <div class="radio-group" id="cat-select">
+        <label class="radio-opt" onclick="selectCat(this,'error')"><input type="radio" name="cat" value="error" checked=""> Error</label>
+        <label class="radio-opt selected" onclick="selectCat(this,'ajuste')"><input type="radio" name="cat" value="ajuste"> Ajuste</label>
+        <label class="radio-opt" onclick="selectCat(this,'mejora')"><input type="radio" name="cat" value="mejora"> Mejora</label>
+      </div>
+    </div>
+    
+    <div style="display:flex; gap:12px;">
+      <div class="form-group" style="flex:1;">
+        <label class="form-label">Fecha</label>
+        <input class="form-input" type="date" id="new-item-fecha">
+      </div>
+      <div class="form-group" style="flex:1;">
+        <label class="form-label">Código ODT</label>
+        <input class="form-input" type="text" id="new-item-odt" placeholder="Ej: ODT-1234">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Título</label>
+      <input class="form-input" type="text" id="new-item-title" placeholder="Ej: Falla en el plano">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Descripción</label>
+      <textarea class="form-input" id="new-item-desc" rows="3" placeholder="Descripción detallada..."></textarea>
+    </div>
+    <div class="form-footer">
+      <button class="btn" onclick="closeModal('modal-item')">Cancelar</button>
+      <button class="btn btn-purple" onclick="saveItem()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-edit-model">
+  <div class="modal" style="width:400px">
+    <div class="modal-header">
+      <h2>Editar Modelo</h2>
+      <button class="btn-ghost btn" onclick="closeModal('modal-edit-model')"><i class="ti ti-x"></i></button>
+    </div>
+    <input type="hidden" id="edit-model-nave-id" value="">
+    <input type="hidden" id="edit-model-idx" value="">
+    <div class="form-group">
+      <label class="form-label">Nombre del Modelo</label>
+      <input class="form-input" type="text" id="edit-model-name" placeholder="Ej: IFD6531CNSBL">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Enlace (Opcional - link para el PDF)</label>
+      <input class="form-input" type="url" id="edit-model-link" placeholder="https://...">
+    </div>
+    <div class="form-footer">
+      <button class="btn" onclick="closeModal('modal-edit-model')">Cancelar</button>
+      <button class="btn btn-green" onclick="saveEditedModel()">Actualizar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-view-img" onclick="closeModal('modal-view-img')" title="Haz clic en cualquier lugar para cerrar">
+  <img id="view-img-element" src="">
+</div>
+
+<div class="modal-bg" id="modal-export">
+  <div class="modal" style="width:400px">
+    <div class="modal-header">
+      <h2 id="export-modal-title">Guardar Proyecto (Editable)</h2>
+      <button class="btn-ghost btn" onclick="closeModal('modal-export')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nombre del archivo</label>
+      <input class="form-input" type="text" id="export-filename" placeholder="reporte_produccion">
+    </div>
+    <p style="font-size:12px;color:var(--color-text-secondary);margin-top:-6px;line-height:1.4" id="export-hint">Se creará o sobrescribirá una copia de esta página .html con todo lo que has avanzado. Ábrela mañana para seguir editando.</p>
+    <div class="form-footer">
+      <button class="btn" onclick="closeModal('modal-export')">Cancelar</button>
+      <button class="btn btn-navy" onclick="doExport()" id="export-btn">Guardando...</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Guardar en GitHub -->
+<div class="modal-bg" id="modal-github">
+  <div class="modal" style="width:460px">
+    <div class="modal-header">
+      <h2><i class="ti ti-brand-github" style="vertical-align:-2px;margin-right:6px"></i>Guardar en GitHub</h2>
+      <button class="btn-ghost btn" onclick="closeModal('modal-github')"><i class="ti ti-x"></i></button>
+    </div>
+    <p style="font-size:12px;color:var(--color-text-secondary);margin-top:-6px;margin-bottom:14px;line-height:1.45">
+      Sube tus cambios (datos e imágenes nuevas) al repositorio de GitHub donde vive tu <b>index.html</b>. El HTML/CSS/JS no se vuelven a subir aquí — solo se actualiza <code>data/cambios.json</code> y, si agregaste fotos nuevas, los archivos dentro de <code>data/images/</code>.
+    </p>
+    <div class="form-group">
+      <label class="form-label">Repositorio</label>
+      <input class="form-input" type="text" id="gh-repo" placeholder="ej. javiera-sys/PROCESO-DE-PRODUCCION-IFD">
+      <p style="font-size:11px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">
+        Formato <b>usuario/repositorio</b> (no la URL del sitio publicado). Si pegas un link de github.com o de tu página *.github.io, se convierte automáticamente.
+      </p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Ruta de tu index.html dentro del repo</label>
+      <input class="form-input" type="text" id="gh-path" placeholder="ej. index.html">
+      <p style="font-size:11px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">
+        Igual que siempre: la ruta de tu <b>index.html</b> (ej. "index.html" o "carpeta/index.html"). A partir de esa ruta, la app guarda los datos en una carpeta "data" junto a él.
+      </p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Rama</label>
+      <input class="form-input" type="text" id="gh-branch" placeholder="main" value="main">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Token de acceso personal (GitHub)</label>
+      <input class="form-input" type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+      <p style="font-size:11px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">
+        Necesita permiso "repo" (o "Contents: Read and write" si es un token fino). Se guarda solo en este navegador, nunca se comparte con nadie más.
+      </p>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:8px;margin-bottom:0;">
+      <input type="checkbox" id="gh-remember" style="width:16px;height:16px;cursor:pointer" checked="">
+      <label for="gh-remember" style="font-size:12px;font-weight:600;color:var(--color-text-secondary);cursor:pointer">Recordar estos datos en este navegador</label>
+    </div>
+    <p id="gh-status" style="font-size:12px;margin-top:14px;line-height:1.4;display:none"></p>
+    <div class="form-footer">
+      <button class="btn" onclick="closeModal('modal-github')">Cancelar</button>
+      <button class="btn btn-github" onclick="pushToGithub()" id="gh-save-btn"><i class="ti ti-brand-github"></i> Subir cambios</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="img-input" accept="image/*" style="display:none" onchange="handleImg(event)">
+<input type="file" id="import-input" accept=".html" style="display:none" onchange="handleImport(event)">
+
+<script src="js/app.js"></script></body></html>

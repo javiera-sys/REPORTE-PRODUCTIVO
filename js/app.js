@@ -11,6 +11,12 @@ let fileHandle = null;
 // Datos de la app (se cargan desde data/cambios.json al iniciar)
 let data = { naves: [], accessPasswords: [] };
 
+// Base de datos de modelos (código -> colección), viene de data/modelos.json
+let modelosDB = [];
+let modelosDBIndex = new Map(); // codigo (mayúsculas) -> coleccion
+let modelosDBChanged = false; // true si se importó un xlsx nuevo en esta sesión
+
+
 
 function uid(){return 'x'+Math.random().toString(36).slice(2,9)}
 
@@ -145,7 +151,11 @@ function render(){
     data.naves.forEach(nave => {
       if (nave.models) {
         nave.models = nave.models.map(m => {
-          return (typeof m === 'string') ? { name: m, link: '' } : m;
+          const obj = (typeof m === 'string') ? { name: m, link: '' } : m;
+          if(obj.coleccion === undefined || obj.coleccion === null || obj.coleccion === ''){
+            obj.coleccion = coleccionParaCodigo(obj.name) || obj.coleccion || '';
+          }
+          return obj;
         });
       }
     });
@@ -182,7 +192,9 @@ function filterItems(){
     }
     const badge = naveCard.querySelector('.nave-badge');
     const title = naveCard.querySelector('.nave-title');
-    const naveText = normalizeSearch((badge?badge.textContent:'') + ' ' + (title?title.textContent:''));
+    const modelChips = naveCard.querySelectorAll('.model-chip');
+    const modelsText = normalizeSearch(Array.from(modelChips).map(el=>el.textContent).join(' '));
+    const naveText = normalizeSearch((badge?badge.textContent:'') + ' ' + (title?title.textContent:'') + ' ' + modelsText);
     const naveMatches = naveText.includes(q);
 
     let anyItemVisible = false;
@@ -304,13 +316,14 @@ function renderItemCard(item, naveId){
     </div>
   `;
 
-  const planoTerminadoHtml = `
-    <div class="plano-terminado-badge ${proc.planoTerminado ? 'done' : ''}" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Marcar/desmarcar plano terminado">
-      <i class="ti ${proc.planoTerminado ? 'ti-circle-check-filled' : 'ti-circle-dashed'}"></i>
-      <span>Plano Terminado</span>
-      <span class="status-icon">${proc.planoTerminado ? '✔️' : '❌'}</span>
-    </div>
-  `;
+  const planoTerminadoHtml = proc.planoTerminado
+    ? `<div class="plano-terminado-badge done" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Plano terminado - clic para desmarcar">
+         <i class="ti ti-circle-check-filled"></i>
+       </div>`
+    : `<div class="plano-terminado-badge pendiente" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Marcar plano como terminado">
+         <i class="ti ti-alert-triangle"></i>
+         <span>PENDIENTE</span>
+       </div>`;
 
   // Botones fantasma punteados para los elementos viejos que no tienen esta info. 
   // Así el usuario sabe exactamente dónde cliquear para agregarlos rápidamente.
@@ -383,9 +396,9 @@ function renderNave(nave, index, total){
     
     return `<div class="model-chip">
       ${linkBtn}
-      <span>${m.name}</span>
+      <span>${m.name}${m.coleccion ? `<span class="model-coleccion-tag">${escHtml(m.coleccion)}</span>` : ''}</span>
       <div style="display:flex; gap:4px" class="only-editable">
-        <button class="edit-model" title="Editar modelo y enlace" onclick="openEditModel('${nave.id}', ${idx})"><i class="ti ti-pencil"></i></button>
+        <button class="edit-model" title="Editar modelo, colección y enlace" onclick="openEditModel('${nave.id}', ${idx})"><i class="ti ti-pencil"></i></button>
         <button class="del-model" title="Quitar modelo" onclick="removeModel('${nave.id}', ${idx})"><i class="ti ti-x"></i></button>
       </div>
     </div>`;
@@ -427,9 +440,10 @@ function renderNave(nave, index, total){
         <div>
           <div class="panel-label">Modelos</div>
           <div class="models-chip-list">${modelsHtml}</div>
-          <div class="add-model-row only-editable">
-            <input id="addm-${nave.id}" placeholder="Nuevo código" onkeydown="if(event.key==='Enter')addModel('${nave.id}')" />
+          <div class="add-model-row only-editable" style="position:relative;">
+            <input id="addm-${nave.id}" placeholder="Nuevo código" autocomplete="off" oninput="mostrarSugerenciasAddModelo('${nave.id}')" onblur="setTimeout(()=>ocultarSugerenciasAddModelo('${nave.id}'), 150)" onkeydown="if(event.key==='Enter')addModel('${nave.id}')" />
             <button class="btn btn-xs" onclick="addModel('${nave.id}')"><i class="ti ti-plus"></i></button>
+            <div class="autocomplete-list" id="addm-ac-${nave.id}"></div>
           </div>
         </div>
         <div>
@@ -469,6 +483,67 @@ function moveNaveDown(idx){
   }
 }
 
+/* ---- Autocompletado de modelos (buscador, agregar modelo, editar modelo) ---- */
+function renderAutocompleteList(container, matches, onSelectAttr){
+  if(!container) return;
+  if(!matches.length){ container.classList.remove('open'); container.innerHTML=''; return; }
+  container.innerHTML = matches.map(m => `
+    <div class="autocomplete-item" onmousedown="${onSelectAttr(m)}">
+      <span class="ac-codigo">${escHtml(m.codigo)}</span>
+      ${m.coleccion ? `<span class="ac-coleccion">${escHtml(m.coleccion)}</span>` : ''}
+    </div>`).join('');
+  container.classList.add('open');
+}
+
+function mostrarSugerenciasBuscador(){
+  const inp = document.getElementById('search-input');
+  const cont = document.getElementById('search-autocomplete');
+  const matches = buscarModelosDB(inp.value, 8);
+  renderAutocompleteList(cont, matches, (m)=>`seleccionarSugerenciaBuscador('${m.codigo.replace(/'/g,"\\'")}')`);
+}
+function ocultarSugerenciasBuscador(){
+  const cont = document.getElementById('search-autocomplete');
+  if(cont){ cont.classList.remove('open'); }
+}
+function seleccionarSugerenciaBuscador(codigo){
+  document.getElementById('search-input').value = codigo;
+  ocultarSugerenciasBuscador();
+  filterItems();
+}
+
+function mostrarSugerenciasAddModelo(naveId){
+  const inp = document.getElementById('addm-'+naveId);
+  const cont = document.getElementById('addm-ac-'+naveId);
+  const matches = buscarModelosDB(inp.value, 8);
+  renderAutocompleteList(cont, matches, (m)=>`seleccionarSugerenciaAddModelo('${naveId}','${m.codigo.replace(/'/g,"\\'")}')`);
+}
+function ocultarSugerenciasAddModelo(naveId){
+  const cont = document.getElementById('addm-ac-'+naveId);
+  if(cont){ cont.classList.remove('open'); }
+}
+function seleccionarSugerenciaAddModelo(naveId, codigo){
+  const inp = document.getElementById('addm-'+naveId);
+  inp.value = codigo;
+  ocultarSugerenciasAddModelo(naveId);
+  addModel(naveId); // inserta el código y completa la colección automáticamente
+}
+
+function mostrarSugerenciasModeloModal(){
+  const inp = document.getElementById('edit-model-name');
+  const cont = document.getElementById('edit-model-autocomplete');
+  const matches = buscarModelosDB(inp.value, 8);
+  renderAutocompleteList(cont, matches, (m)=>`seleccionarSugerenciaModeloModal('${m.codigo.replace(/'/g,"\\'")}')`);
+}
+function ocultarSugerenciasModeloModal(){
+  const cont = document.getElementById('edit-model-autocomplete');
+  if(cont){ cont.classList.remove('open'); }
+}
+function seleccionarSugerenciaModeloModal(codigo){
+  document.getElementById('edit-model-name').value = codigo;
+  document.getElementById('edit-model-coleccion').value = coleccionParaCodigo(codigo);
+  ocultarSugerenciasModeloModal();
+}
+
 /* ---- Models Management ---- */
 function addModel(naveId){
   if (!isEditableMode) return;
@@ -476,8 +551,11 @@ function addModel(naveId){
   const val=inp.value.trim().toUpperCase();
   if(!val)return;
   const nave=data.naves.find(n=>n.id===naveId);
-  if(nave&&!nave.models.find(m => m.name === val)){nave.models.push({name: val, link: ''});}
+  if(nave&&!nave.models.find(m => m.name === val)){
+    nave.models.push({name: val, link: '', coleccion: coleccionParaCodigo(val)});
+  }
   inp.value='';
+  ocultarSugerenciasAddModelo(naveId);
   render();
 }
 function removeModel(naveId,idx){
@@ -529,6 +607,7 @@ function openEditModel(naveId, idx){
   document.getElementById('edit-model-nave-id').value = naveId;
   document.getElementById('edit-model-idx').value = idx;
   document.getElementById('edit-model-name').value = model.name;
+  document.getElementById('edit-model-coleccion').value = model.coleccion || '';
   document.getElementById('edit-model-link').value = model.link || '';
   document.getElementById('modal-edit-model').classList.add('open');
 }
@@ -537,11 +616,12 @@ function saveEditedModel(){
   const naveId = document.getElementById('edit-model-nave-id').value;
   const idx = parseInt(document.getElementById('edit-model-idx').value);
   const name = document.getElementById('edit-model-name').value.trim();
+  const coleccion = document.getElementById('edit-model-coleccion').value.trim();
   const link = document.getElementById('edit-model-link').value.trim();
   if(!name) return;
   const nave = data.naves.find(n => n.id === naveId);
   if(nave) {
-    nave.models[idx] = { name, link };
+    nave.models[idx] = { name, link, coleccion };
     render();
   }
   closeModal('modal-edit-model');
@@ -601,6 +681,119 @@ document.addEventListener('paste', function(e) {
 });
 
 /* ---- Importar Archivos Anteriores ---- */
+/* ---- Menú desplegable del botón Excel ---- */
+function toggleExcelMenu(event){
+  if(event) event.stopPropagation();
+  const menu = document.getElementById('excel-menu');
+  menu.classList.toggle('open');
+}
+document.addEventListener('click', (e)=>{
+  const menu = document.getElementById('excel-menu');
+  const wrap = e.target.closest ? e.target.closest('.dropdown-wrap') : null;
+  if(menu && menu.classList.contains('open') && !wrap){
+    menu.classList.remove('open');
+  }
+});
+
+/* ---- Exportar a Excel (.xlsx) ----
+   Respeta el mismo orden en que se muestran los cambios en la app:
+   por mueble, y dentro de cada mueble primero errores/ajustes y luego mejoras. */
+function exportarExcel(){
+  if(typeof XLSX === 'undefined'){
+    alert('No se pudo cargar la librería de Excel. Revisa tu conexión a internet e intenta de nuevo.');
+    return;
+  }
+  const filas = [];
+  data.naves.forEach(nave=>{
+    const errores = nave.items.filter(i=>i.type==='error'||i.type==='ajuste');
+    const mejoras = nave.items.filter(i=>i.type==='mejora');
+    const modelosTxt = (nave.models||[]).map(m=>m.name).join(', ');
+    const coleccionTxt = Array.from(new Set((nave.models||[]).map(m=>m.coleccion).filter(Boolean))).join(', ');
+
+    [...errores, ...mejoras].forEach(item=>{
+      const proc = item.proceso || {};
+      filas.push({
+        'Fecha': item.fecha || '',
+        'Modelo(s)': modelosTxt,
+        'Colección': coleccionTxt,
+        'ODT': item.odt || '',
+        'Cambio / Reporte de Errores o Ajustes': item.title + (item.desc ? (' - ' + item.desc) : ''),
+        'Estatus': proc.planoTerminado ? 'Terminado' : 'Pendiente'
+      });
+    });
+  });
+
+  if(!filas.length){
+    alert('No hay cambios registrados todavía para exportar.');
+    return;
+  }
+
+  const ws = XLSX.utils.json_to_sheet(filas, {
+    header: ['Fecha','Modelo(s)','Colección','ODT','Cambio / Reporte de Errores o Ajustes','Estatus']
+  });
+  ws['!cols'] = [{wch:12},{wch:22},{wch:20},{wch:14},{wch:60},{wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+  const fechaHoy = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `reporte_produccion_${fechaHoy}.xlsx`);
+}
+
+/* ---- Importar base de datos de modelos (.xlsx) ---- */
+function triggerImportModelos(){
+  if (!isEditableMode) return;
+  document.getElementById('import-modelos-input').click();
+}
+function handleImportModelos(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  if(typeof XLSX === 'undefined'){
+    alert('No se pudo cargar la librería de Excel. Revisa tu conexión a internet e intenta de nuevo.');
+    e.target.value=''; return;
+  }
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{
+      const wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      if(!rows.length){ alert('El archivo está vacío.'); return; }
+
+      // Detecta qué columna es el código de modelo y cuál la colección,
+      // buscando en el encabezado (si no lo encuentra, usa las 2 primeras columnas).
+      const header = rows[0].map(h=>String(h||'').trim().toUpperCase());
+      let colCodigo = header.findIndex(h=>h.includes('MODELO') || h.includes('CODIGO') || h.includes('CÓDIGO'));
+      let colColeccion = header.findIndex(h=>h.includes('ACABADO') || h.includes('COLECCION') || h.includes('COLECCIÓN'));
+      if(colCodigo === -1) colCodigo = 0;
+      if(colColeccion === -1) colColeccion = 1;
+
+      const nuevaLista = [];
+      for(let i=1; i<rows.length; i++){
+        const r = rows[i];
+        if(!r || !r[colCodigo]) continue;
+        nuevaLista.push({
+          codigo: String(r[colCodigo]).trim().toUpperCase(),
+          coleccion: r[colColeccion] ? String(r[colColeccion]).trim() : ''
+        });
+      }
+
+      if(!nuevaLista.length){
+        alert('No se encontraron modelos en el archivo. Verifica que tenga una columna con el código del modelo.');
+        return;
+      }
+
+      setModelosDB(nuevaLista);
+      modelosDBChanged = true;
+      render();
+      alert(`Base de datos de modelos actualizada: ${nuevaLista.length} modelos cargados.\n\nEl autocompletado ya usa esta información. Recuerda darle clic a "Guardar en GitHub" para dejarla guardada de forma permanente.`);
+    }catch(err){
+      console.error('Error al importar modelos:', err);
+      alert('No se pudo leer el archivo. Verifica que sea un .xlsx válido.');
+    }
+    e.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 function triggerImport() {
   if (!isEditableMode) return;
   document.getElementById('import-input').click();
@@ -1070,6 +1263,17 @@ async function pushToGithub() {
       `Actualización del reporte desde la app (${new Date().toLocaleString('es-MX')})`
     );
 
+    // 3) Si se importó una base de datos de modelos nueva en esta sesión, guardarla también
+    if(modelosDBChanged){
+      setGithubStatus('Guardando base de datos de modelos...', 'info');
+      const modelosRepoPath = baseDir + 'data/modelos.json';
+      await putFileToGithub(
+        repo, modelosRepoPath, branch, headers, utf8ToBase64(JSON.stringify(modelosDB)),
+        `Actualización de base de datos de modelos (${new Date().toLocaleString('es-MX')})`
+      );
+      modelosDBChanged = false;
+    }
+
     setGithubStatus(`✅ Cambios subidos correctamente a GitHub${nuevasImagenes ? ` (${nuevasImagenes} imagen(es) nueva(s))` : ''}.`, 'ok');
     render();
   } catch (err) {
@@ -1261,6 +1465,49 @@ async function cargarDatosIniciales(){
       </div>`;
     }
   }
+  cargarModelosDB();
 }
+
+/* ---- Base de datos de modelos (data/modelos.json) ---- */
+async function cargarModelosDB(){
+  try{
+    const resp = await fetch('data/modelos.json', {cache:'no-store'});
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const json = await resp.json();
+    setModelosDB(json);
+    if(data && data.naves && data.naves.length) render();
+  }catch(err){
+    console.warn('No se pudo cargar data/modelos.json (autocompletado de modelos deshabilitado hasta que importes uno):', err);
+  }
+}
+
+function setModelosDB(lista){
+  modelosDB = Array.isArray(lista) ? lista : [];
+  modelosDBIndex = new Map();
+  modelosDB.forEach(m=>{
+    if(m && m.codigo) modelosDBIndex.set(String(m.codigo).trim().toUpperCase(), m.coleccion || '');
+  });
+}
+
+// Devuelve hasta `limit` modelos cuyo código empiece o contenga `query`
+function buscarModelosDB(query, limit){
+  limit = limit || 8;
+  const q = String(query||'').trim().toUpperCase();
+  if(!q) return [];
+  const startsWith = [];
+  const contains = [];
+  for(const m of modelosDB){
+    const cod = String(m.codigo||'').toUpperCase();
+    if(cod.startsWith(q)) startsWith.push(m);
+    else if(cod.includes(q)) contains.push(m);
+    if(startsWith.length >= limit) break;
+  }
+  return startsWith.concat(contains).slice(0, limit);
+}
+
+function coleccionParaCodigo(codigo){
+  return modelosDBIndex.get(String(codigo||'').trim().toUpperCase()) || '';
+}
+
 cargarDatosIniciales();
 

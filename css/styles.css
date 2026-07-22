@@ -94,13 +94,13 @@ body.is-locked .proceso-item, body.is-locked .item-star-toggle, body.is-locked .
 .proceso-item { background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); border-radius: 8px; padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; color: var(--color-text-secondary); transition: all 0.15s; font-family: var(--font-sans); user-select: none; }
 .proceso-item:hover { background: #eef2ff; color: var(--navy); border-color: var(--navy-light); }
 
-.plano-terminado-badge{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;margin-bottom:8px;transition:all 0.15s;user-select:none;letter-spacing:0.03em}
-.plano-terminado-badge i{font-size:14px}
+.plano-terminado-badge{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:4px 10px;font-size:10.5px;font-weight:800;cursor:pointer;transition:all 0.15s;user-select:none;letter-spacing:0.03em;flex-shrink:0;white-space:nowrap;margin-top:1px}
+.plano-terminado-badge i{font-size:13px}
 .plano-terminado-badge:hover{filter:brightness(0.96)}
 .plano-terminado-badge.pendiente{background:#fee2e2;border:1.5px solid #fca5a5;color:#b91c1c;box-shadow:0 1px 3px rgba(220,38,38,0.15)}
 .plano-terminado-badge.pendiente:hover{background:#fecaca;border-color:#f87171}
-.plano-terminado-badge.done{background:#dcfce7;border:1.5px solid #86efac;color:#15803d;padding:5px 8px}
-.plano-terminado-badge.done i{font-size:16px}
+.plano-terminado-badge.done{background:#dcfce7;border:1.5px solid #86efac;color:#15803d;padding:4px 6px}
+.plano-terminado-badge.done i{font-size:15px}
 body.is-locked .plano-terminado-badge{cursor:not-allowed;pointer-events:none;opacity:0.65}
 .status-icon { font-size: 12px; }
 

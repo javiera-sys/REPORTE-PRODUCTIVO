@@ -136,13 +136,9 @@ function toggleProceso(naveId, itemId, field, el, event) {
   if(!nave) return;
   const item = nave.items.find(i => i.id === itemId);
   if(item) {
-    if(!item.proceso) item.proceso = { habilitado: false, planos: false, etiquetas: false };
+    if(!item.proceso) item.proceso = { habilitado: false, planos: false, etiquetas: false, planoTerminado: false };
     item.proceso[field] = !item.proceso[field];
-    
-    const iconSpan = el.querySelector('.status-icon');
-    if(iconSpan) {
-      iconSpan.textContent = item.proceso[field] ? '✔️' : '❌';
-    }
+    render();
   }
 }
 

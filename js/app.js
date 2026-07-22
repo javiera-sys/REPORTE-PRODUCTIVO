@@ -313,13 +313,8 @@ function renderItemCard(item, naveId){
   `;
 
   const planoTerminadoHtml = proc.planoTerminado
-    ? `<div class="plano-terminado-badge done" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Plano terminado - clic para desmarcar">
-         <i class="ti ti-circle-check-filled"></i>
-       </div>`
-    : `<div class="plano-terminado-badge pendiente" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Marcar plano como terminado">
-         <i class="ti ti-alert-triangle"></i>
-         <span>PENDIENTE</span>
-       </div>`;
+    ? `<div class="plano-terminado-badge done" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Plano terminado - clic para desmarcar"><i class="ti ti-circle-check-filled"></i></div>`
+    : `<div class="plano-terminado-badge pendiente" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Marcar plano como terminado"><i class="ti ti-alert-triangle"></i><span>PENDIENTE</span></div>`;
 
   // Botones fantasma punteados para los elementos viejos que no tienen esta info. 
   // Así el usuario sabe exactamente dónde cliquear para agregarlos rápidamente.
@@ -336,9 +331,11 @@ function renderItemCard(item, naveId){
   return `<div class="item-card ${proc.planoTerminado ? 'plano-done' : ''}" id="ic-${item.id}">
     <div class="item-dot ${dotClass(item.type)}" style="margin-top:5px"></div>
     <div class="item-content">
-      ${planoTerminadoHtml}
       <div class="item-title-row">
-        <span class="item-title-text">${escHtml(item.title)}</span>
+        <div style="display:flex; align-items:flex-start; gap:8px; flex:1; min-width:0;">
+          ${planoTerminadoHtml}
+          <span class="item-title-text">${escHtml(item.title)}</span>
+        </div>
         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; margin-left:12px;">
           ${metaHtml}
           <div class="item-actions-row only-editable">

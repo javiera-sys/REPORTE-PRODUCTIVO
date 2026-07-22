@@ -44,11 +44,7 @@
     <button class="btn btn-green" onclick="triggerImport()" title="Recupera información de un archivo anterior"><i class="ti ti-upload" aria-hidden="true"></i> Importar Datos</button>
     <button class="btn btn-purple" onclick="openAddNave()"><i class="ti ti-plus" aria-hidden="true"></i> Nuevo mueble</button>
     <div class="dropdown-wrap">
-      <button class="btn btn-excel" onclick="toggleExcelMenu(event)" title="Exportar o importar información en Excel"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i> Excel <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
-      <div class="dropdown-menu" id="excel-menu">
-        <button onclick="exportarExcel(); toggleExcelMenu();"><i class="ti ti-file-export"></i> Exportar a Excel</button>
-        <button onclick="triggerImportModelos(); toggleExcelMenu();"><i class="ti ti-database-import"></i> Importar Base de Datos (Modelos)</button>
-      </div>
+      <button class="btn btn-excel" id="excel-menu-btn" onclick="toggleExcelMenu(event)" title="Exportar o importar información en Excel"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i> Excel <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
     </div>
     <button class="btn" onclick="openExport('html')" title="Guarda el proyecto en el archivo original de forma rápida"><i class="ti ti-device-floppy" aria-hidden="true"></i> Guardar Proyecto HTML</button>
     <button class="btn btn-github" onclick="openGithubModal()" title="Sube los cambios directamente a un repositorio de GitHub"><i class="ti ti-brand-github" aria-hidden="true"></i> Guardar en GitHub</button>
@@ -282,5 +278,10 @@
 <input type="file" id="img-input" accept="image/*" style="display:none" onchange="handleImg(event)">
 <input type="file" id="import-input" accept=".html" style="display:none" onchange="handleImport(event)">
 <input type="file" id="import-modelos-input" accept=".xlsx,.xls" style="display:none" onchange="handleImportModelos(event)">
+
+<div class="dropdown-menu" id="excel-menu">
+  <button onclick="exportarExcel(); toggleExcelMenu();"><i class="ti ti-file-export"></i> Exportar a Excel</button>
+  <button onclick="triggerImportModelos(); toggleExcelMenu();"><i class="ti ti-database-import"></i> Importar Base de Datos (Modelos)</button>
+</div>
 
 <script src="js/app.js"></script></body></html>

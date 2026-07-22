@@ -678,12 +678,22 @@ document.addEventListener('paste', function(e) {
 function toggleExcelMenu(event){
   if(event) event.stopPropagation();
   const menu = document.getElementById('excel-menu');
-  menu.classList.toggle('open');
+  const btn = document.getElementById('excel-menu-btn');
+  const willOpen = !menu.classList.contains('open');
+  if(willOpen && btn){
+    const rect = btn.getBoundingClientRect();
+    menu.style.left = Math.round(rect.left) + 'px';
+    menu.style.bottom = Math.round(window.innerHeight - rect.top + 8) + 'px';
+    menu.style.top = 'auto';
+  }
+  menu.classList.toggle('open', willOpen);
 }
 document.addEventListener('click', (e)=>{
   const menu = document.getElementById('excel-menu');
-  const wrap = e.target.closest ? e.target.closest('.dropdown-wrap') : null;
-  if(menu && menu.classList.contains('open') && !wrap){
+  const btn = document.getElementById('excel-menu-btn');
+  const clickedInsideMenu = menu && menu.contains(e.target);
+  const clickedBtn = btn && btn.contains(e.target);
+  if(menu && menu.classList.contains('open') && !clickedInsideMenu && !clickedBtn){
     menu.classList.remove('open');
   }
 });

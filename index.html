@@ -9,6 +9,59 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- NUEVOS ESTILOS PARA LOS 5 RECUADROS DE IMÁGENES -->
+<style>
+  .contenedor-adjuntos {
+      display: inline-flex;
+      gap: 8px;
+      margin-left: 8px;
+      vertical-align: middle;
+  }
+  .espacio-imagen {
+      position: relative;
+      width: 40px;
+      height: 32px;
+      background-color: #F3F0FF;
+      border: 1px dashed #A5B4FC;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+  }
+  .espacio-imagen:hover {
+      background-color: #E0E7FF;
+  }
+  .input-oculto {
+      display: none;
+  }
+  .label-adjuntar {
+      cursor: pointer;
+      color: #6366F1;
+      font-size: 1.2rem;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+  }
+  .espacio-imagen img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 6px;
+      display: none;
+  }
+  .espacio-imagen img.visible {
+      display: block;
+  }
+</style>
 </head>
 <body class="is-locked">
 
@@ -284,4 +337,34 @@
   <button onclick="triggerImportModelos(); toggleExcelMenu();"><i class="ti ti-database-import"></i> Importar Base de Datos (Modelos)</button>
 </div>
 
-<script src="js/app.js"></script></body></html>
+<script src="js/app.js"></script>
+
+<!-- NUEVO: FUNCIONES DE JAVASCRIPT PARA PREVISUALIZAR IMÁGENES -->
+<script>
+  function previsualizarImagen(input) {
+      const contenedor = input.closest('.espacio-imagen');
+      const vistaPrevia = contenedor.querySelector('img');
+      const label = contenedor.querySelector('.label-adjuntar');
+
+      if (input.files && input.files[0]) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+              vistaPrevia.src = e.target.result;
+              vistaPrevia.classList.add('visible');
+              label.style.display = 'none';
+          }
+          reader.readAsDataURL(input.files[0]);
+      }
+  }
+
+  function abrirVisorGrande(src) {
+      const modal = document.getElementById('modal-view-img');
+      const imgElement = document.getElementById('view-img-element');
+      if (modal && imgElement) {
+          imgElement.src = src;
+          modal.style.display = 'flex'; 
+      }
+  }
+</script>
+
+</body></html>

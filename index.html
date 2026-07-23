@@ -287,6 +287,33 @@
   </div>
 </div>
 
+<!-- NUEVO: Modal Editar Cabecera de Nave -->
+<div class="modal-bg" id="modal-edit-nave">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Editar Cabecera del Mueble</h2>
+      <button class="btn-ghost btn" onclick="closeModal('modal-edit-nave')"><i class="ti ti-x"></i></button>
+    </div>
+    <input type="hidden" id="edit-nave-id" value="">
+    <div class="form-group">
+      <label class="form-label">Nave <span style="color:var(--red)">*</span></label>
+      <div class="select-group" id="edit-nave-select">
+        <div class="select-opt" onclick="selectEditNaveOpt(this,'NAVE 4')">Nave 4</div>
+        <div class="select-opt" onclick="selectEditNaveOpt(this,'NAVE 2')">Nave 2</div>
+        <div class="select-opt" onclick="selectEditNaveOpt(this,'MAQUILADOR')">Maquilador</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Consola (ej: CONSOLA 6531)</label>
+      <input class="form-input" type="text" id="edit-nave-consola" placeholder="CONSOLA 6531">
+    </div>
+    <div class="form-footer">
+      <button class="btn" onclick="closeModal('modal-edit-nave')">Cancelar</button>
+      <button class="btn btn-green" onclick="saveEditedNaveHeader()">Actualizar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-item">
   <div class="modal">
     <div class="modal-header">

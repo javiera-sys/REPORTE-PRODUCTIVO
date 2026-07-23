@@ -315,6 +315,30 @@ textarea.form-input { resize: vertical; min-height: 80px; line-height: 1.5; }
   display: block;
 }
 
+/* NUEVO: Botón X para eliminar imagen del recuadro */
+.btn-eliminar-adjunto {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: var(--red);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  cursor: pointer;
+  display: none; /* Oculto por defecto, se muestra por JS cuando hay foto */
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
+}
+.btn-eliminar-adjunto:hover {
+  transform: scale(1.1);
+}
+
 @media(max-width:580px){
   .app{padding:0.85rem 0.7rem 6rem}
   .top-bar{border-radius:16px;padding:12px 14px;top:6px}

@@ -1,6 +1,6 @@
 document.getElementById('current-date').textContent = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
-// Forzar que el buscador inicie completamente vacío
+// Forzar que el buscador inicie completamente vacío (evita que el navegador restaure texto por error)
 const buscadorInicial = document.getElementById('search-input');
 if (buscadorInicial) {
   buscadorInicial.value = '';
@@ -212,14 +212,14 @@ function dotClass(t){return t==='error'?'dot-error':t==='ajuste'?'dot-ajuste':'d
 function setFilterStatus(status, btn) {
   filterStatus = status;
   document.querySelectorAll('.status-filter').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  if(btn) btn.classList.add('active');
   filterItems();
 }
 
 function setFilterNave(nave, btn) {
   filterNave = nave;
   document.querySelectorAll('.nave-filter').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  if(btn) btn.classList.add('active');
   filterItems();
 }
 
@@ -384,7 +384,7 @@ function renderItemCard(item, naveId){
         <button class="btn-eliminar-adjunto only-editable" style="display:flex;" onclick="eliminarAdjunto(event, '${naveId}', '${item.id}', ${i})" title="Eliminar imagen"><i class="ti ti-x"></i></button>
       </div>`;
     } else {
-      // Se añade clase pdf-hide-empty para ocultarlo al exportar a PDF
+      // Clase pdf-hide-empty oculta este bloque durante la exportación a PDF
       adjuntosHtml += `
       <div class="espacio-imagen pdf-hide-empty">
         <input type="file" accept="image/*" id="adj-${item.id}-${i}" class="input-oculto" onchange="subirAdjunto(event, '${naveId}', '${item.id}', ${i})">
@@ -467,7 +467,6 @@ function renderNave(nave, index, total){
   });
   if (nave.images.length < 10) {
     const isFullWidth = nave.images.length === 0 ? 'full-width' : '';
-    // Se añade clase pdf-hide-empty para ocultarlo al exportar a PDF
     galleryHtml += `
       <div class="img-box ${isFullWidth} pdf-hide-empty" onclick="triggerImg('${nave.id}')">
         <i class="ti ti-photo-plus" style="font-size:20px;color:var(--color-text-secondary)"></i>
@@ -1087,125 +1086,126 @@ function doExport(skipModal = false){
   else exportPDFStatic(name);
 }
 
-/* ---- NUEVO: Generador de PDF Idéntico a la Interfaz ---- */
+/* ---- Exportar PDF Idéntico a la Interfaz ---- */
 function exportPDFStatic(name) {
   const btn = document.getElementById('export-btn');
   btn.textContent = 'Generando PDF...';
   
-  const d = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  // Guardar el scroll actual
+  const currentScroll = window.scrollY;
+  // Subir al tope de la página para evitar que html2canvas genere páginas en blanco
+  window.scrollTo(0, 0); 
   
-  // Creamos un contenedor temporal fuera de la pantalla
-  const tempContainer = document.createElement('div');
-  tempContainer.id = 'pdf-temp-container';
-  tempContainer.style.position = 'absolute';
-  tempContainer.style.left = '-9999px';
-  tempContainer.style.top = '0';
-  tempContainer.style.width = '1024px';
-  tempContainer.style.background = '#ffffff';
+  // Guardamos el estado previo de los filtros
+  const prevSearch = document.getElementById('search-input').value;
+  const prevStatus = filterStatus;
+  const prevNave = filterNave;
+  
+  // Limpiamos filtros para que el PDF incluya TODO
+  document.getElementById('search-input').value = '';
+  filterStatus = 'all';
+  filterNave = 'all';
+  filterItems(); 
 
-  // Inyectamos los estilos específicos para PDF que ocultan botones interactivos
-  let h = `
-  <style>
-    #pdf-temp-container { background: #ffffff; }
-    #pdf-temp-container .app {
-      padding: 0 !important;
-      max-width: 100% !important;
-      margin: 0 !important;
-      background: #ffffff !important;
-    }
-    #pdf-temp-container .only-editable,
-    #pdf-temp-container .search-bar-row,
-    #pdf-temp-container .filter-row,
-    #pdf-temp-container #btn-lock-toggle,
-    #pdf-temp-container .pdf-hide-empty,
-    #pdf-temp-container .item-star-toggle,
-    #pdf-temp-container .model-link-btn,
-    #pdf-temp-container .add-model-row {
-      display: none !important;
-    }
-    #pdf-temp-container .top-bar {
-      position: static !important;
-      box-shadow: none !important;
-      border: 1px solid var(--color-border-tertiary) !important;
-      padding: 15px !important;
-      margin-bottom: 20px !important;
-      background: #fff !important;
-    }
-    #pdf-temp-container .nave-card {
-      box-shadow: none !important;
-      border: 1px solid var(--color-border-tertiary) !important;
-      margin-bottom: 20px !important;
-    }
-    #pdf-temp-container .nave-header {
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
-    #pdf-temp-container .item-card {
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-      box-shadow: none !important;
-    }
-    #pdf-temp-container .proceso-item,
-    #pdf-temp-container .plano-terminado-badge {
-      opacity: 1 !important;
-    }
-  </style>
-  <div class="app">
-    <div class="top-bar">
-      <div class="top-header-row">
-        <div class="top-bar-left">
-          <div style="display:flex; align-items:center; gap:12px;">
-            <div style="width:38px; height:38px; border-radius:12px; background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:18px;">
-              <i class="ti ti-report"></i>
-            </div>
-            <div>
-              <h1 style="font-size:16px; font-weight:800; color:var(--color-text-primary); margin:0;">Errores y Mejoras de Producción</h1>
-              <p style="font-size:11px; color:var(--color-text-secondary); margin:2px 0 0 0; font-weight:500;">Fecha de exportación: ${d}</p>
-              <p style="font-size: 11px; margin-top: 4px; color: var(--color-text-secondary);">
-                ✔️ = Correcto (no requiere cambios). &nbsp;|&nbsp; ❌ = Cambiar el plano, habilitado o etiqueta.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div id="pdf-naves-container">
-  `;
+  setTimeout(() => {
+    // Añadimos una clase temporal al body para ocultar elementos de la interfaz
+    document.body.classList.add('exporting-pdf');
+    
+    // Inyectamos un estilo temporal para limpiar márgenes y ocultar botones
+    const style = document.createElement('style');
+    style.id = 'pdf-temp-style';
+    style.innerHTML = `
+      .exporting-pdf { background: #fff !important; }
+      .exporting-pdf .only-editable,
+      .exporting-pdf .search-bar-row,
+      .exporting-pdf .filter-row,
+      .exporting-pdf #btn-lock-toggle,
+      .exporting-pdf .pdf-hide-empty,
+      .exporting-pdf .item-star-toggle,
+      .exporting-pdf .model-link-btn,
+      .exporting-pdf .add-model-row,
+      .exporting-pdf .bottom-toolbar,
+      .exporting-pdf .scroll-top-btn {
+        display: none !important;
+      }
+      .exporting-pdf .app {
+        padding: 0 10px !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+        background: #fff !important;
+      }
+      .exporting-pdf .top-bar {
+        position: static !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-bottom: 2px solid var(--color-border-tertiary) !important;
+        border-radius: 0 !important;
+        padding: 0 0 15px 0 !important;
+        margin-bottom: 20px !important;
+        background: #fff !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+      .exporting-pdf .nave-card {
+        box-shadow: none !important;
+        border: 1px solid var(--color-border-tertiary) !important;
+        margin-bottom: 20px !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .exporting-pdf .item-card {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        box-shadow: none !important;
+      }
+      .exporting-pdf * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    `;
+    document.head.appendChild(style);
 
-  // Para asegurar que renderizamos en modo "lectura" y no veamos inputs si estabas editando algo
-  const tempEditing = editingItemId;
-  editingItemId = null; 
+    const element = document.querySelector('.app');
 
-  // Inyectamos el HTML idéntico generado por la app directamente
-  data.naves.forEach((n, idx) => {
-     h += renderNave(n, idx, data.naves.length);
-  });
+    const opt = {
+      margin:       [10, 10, 10, 10],
+      filename:     name + '.pdf',
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, letterRendering: true, scrollY: 0 },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak:    { mode: 'css', avoid: ['.item-card', '.nave-header'] }
+    };
 
-  editingItemId = tempEditing;
+    html2pdf().set(opt).from(element).output('blob').then(async (blob) => {
+      btn.textContent = 'Exportar PDF Final';
+      await downloadWithDialog(blob, name + '.pdf', 'pdf');
+    }).catch(err => {
+      console.error("Error al exportar PDF:", err);
+      btn.textContent = 'Exportar PDF Final';
+    }).finally(() => {
+      // Restauramos la vista, los filtros y el scroll original
+      document.body.classList.remove('exporting-pdf');
+      const tempStyle = document.getElementById('pdf-temp-style');
+      if(tempStyle) tempStyle.remove();
+      
+      document.getElementById('search-input').value = prevSearch;
+      filterStatus = prevStatus;
+      filterNave = prevNave;
+      
+      document.querySelectorAll('.status-filter').forEach(b => b.classList.remove('active'));
+      const oldStatusBtn = document.querySelector(`.status-filter[onclick="setFilterStatus('${prevStatus}', this)"]`);
+      if(oldStatusBtn) oldStatusBtn.classList.add('active');
+      
+      document.querySelectorAll('.nave-filter').forEach(b => b.classList.remove('active'));
+      const oldNaveBtn = document.querySelector(`.nave-filter[onclick="setFilterNave('${prevNave}', this)"]`);
+      if(oldNaveBtn) oldNaveBtn.classList.add('active');
 
-  h += `</div></div>`;
-  tempContainer.innerHTML = h;
-  document.body.appendChild(tempContainer);
-
-  const opt = {
-    margin:       [10, 10, 10, 10],
-    filename:     name + '.pdf',
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2, useCORS: true, letterRendering: true, scrollY: 0, windowWidth: 1024 },
-    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    pagebreak:    { mode: 'css', avoid: ['.item-card', '.nave-header'] }
-  };
-
-  html2pdf().set(opt).from(tempContainer).output('blob').then(async (blob) => {
-    btn.textContent = 'Exportar PDF Final';
-    await downloadWithDialog(blob, name + '.pdf', 'pdf');
-    document.body.removeChild(tempContainer);
-  }).catch(err => {
-    console.error("Error al exportar PDF:", err);
-    btn.textContent = 'Exportar PDF Final';
-    if (tempContainer.parentNode) document.body.removeChild(tempContainer);
-  });
+      filterItems();
+      window.scrollTo(0, currentScroll);
+    });
+  }, 300); // 300ms de espera para que la vista completa se repinte antes de exportar
 }
+
 
 /* ---- Guardar en GitHub ---- */
 const GH_CONFIG_KEY = 'reporte_produccion_gh_config';

@@ -135,6 +135,21 @@
       border-color: var(--accent);
       box-shadow: 0 0 0 2px rgba(124,58,237,0.1);
   }
+
+  /* NUEVO: ESTILO PARA LA VERSIÓN (BETA 1.1) */
+  .version-badge {
+      font-size: 10px;
+      font-weight: 800;
+      background-color: #ede9fe;
+      color: var(--accent);
+      padding: 3px 8px;
+      border-radius: 12px;
+      letter-spacing: 0.05em;
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 10px;
+      border: 1px solid rgba(124,58,237,0.2);
+  }
 </style>
 </head>
 <body class="is-locked">
@@ -144,7 +159,8 @@
     <div class="top-header-row">
       <div class="top-bar-left">
         <div>
-          <h1>Errores y Mejoras de Producción</h1>
+          <!-- NUEVO: Etiqueta de versión añadida al lado del título -->
+          <h1 style="display: flex; align-items: center;">Errores y Mejoras de Producción <span class="version-badge">BETA 1.1</span></h1>
           <p>Fecha: <span id="current-date">20/07/2026</span></p>
           <p style="font-size: 11px; margin-top: 4px; color: var(--color-text-secondary);">
             ✔️ = Correcto (no requiere cambios). &nbsp;|&nbsp; ❌ = Cambiar el plano, habilitado o etiqueta.
@@ -287,7 +303,7 @@
   </div>
 </div>
 
-<!-- NUEVO: Modal Editar Cabecera de Nave -->
+<!-- Modal Editar Cabecera de Nave -->
 <div class="modal-bg" id="modal-edit-nave">
   <div class="modal">
     <div class="modal-header">

@@ -10,8 +10,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-<!-- NUEVOS ESTILOS PARA LOS 5 RECUADROS DE IMÁGENES -->
 <style>
+  /* ESTILOS DE LOS 5 ESPACIOS DE IMÁGENES */
   .contenedor-adjuntos {
       display: inline-flex;
       gap: 8px;
@@ -61,6 +61,68 @@
   .espacio-imagen img.visible {
       display: block;
   }
+  .btn-eliminar-adjunto {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      background: var(--red);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      font-size: 10px;
+      cursor: pointer;
+      display: none; 
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      transition: transform 0.2s;
+  }
+  .btn-eliminar-adjunto:hover {
+      transform: scale(1.1);
+  }
+
+  /* NUEVO: ESTILOS PARA EL FILTRO DE ESTADO */
+  .filter-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      border-top: 1px solid var(--color-border-tertiary);
+      padding-top: 12px;
+      flex-wrap: wrap;
+  }
+  .filter-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      margin-right: 4px;
+  }
+  .btn-filter {
+      background: var(--color-background-secondary);
+      border: 1px solid var(--color-border-secondary);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: var(--font-sans);
+  }
+  .btn-filter:hover {
+      background: #eef2ff;
+      color: var(--navy);
+      border-color: var(--navy-light);
+  }
+  .btn-filter.active {
+      background: #ede9fe;
+      color: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(124,58,237,0.1);
+  }
 </style>
 </head>
 <body class="is-locked">
@@ -81,12 +143,22 @@
         <button class="btn btn-amber" id="btn-lock-toggle" onclick="handleLockToggle()" title="Controlar modo de edición"><i class="ti ti-lock"></i> MODO LECTURA 🔒</button>
       </div>
     </div>
+    
     <div class="search-bar-row" style="position:relative;">
       <i class="ti ti-search"></i>
       <input type="text" id="search-input" placeholder="Buscar por código de modelo, título o palabra clave..." oninput="filterItems(); mostrarSugerenciasBuscador();" onfocus="mostrarSugerenciasBuscador()" onblur="setTimeout(ocultarSugerenciasBuscador, 150)" autocomplete="off">
       <button class="search-clear-btn" id="search-clear-btn" style="display:none" onclick="clearSearch()" title="Limpiar búsqueda"><i class="ti ti-x"></i></button>
       <div class="autocomplete-list" id="search-autocomplete"></div>
     </div>
+
+    <!-- NUEVO: Submenú de filtros por estatus -->
+    <div class="filter-row">
+      <span class="filter-label"><i class="ti ti-filter"></i> Filtrar estado:</span>
+      <button class="btn-filter active" onclick="setFilterStatus('all')">Todos</button>
+      <button class="btn-filter" onclick="setFilterStatus('pending')">⏳ Pendientes</button>
+      <button class="btn-filter" onclick="setFilterStatus('done')">✔️ Terminados</button>
+    </div>
+    
   </div>
 
   <div id="naves-container"></div>
@@ -338,33 +410,5 @@
 </div>
 
 <script src="js/app.js"></script>
-
-<!-- NUEVO: FUNCIONES DE JAVASCRIPT PARA PREVISUALIZAR IMÁGENES -->
-<script>
-  function previsualizarImagen(input) {
-      const contenedor = input.closest('.espacio-imagen');
-      const vistaPrevia = contenedor.querySelector('img');
-      const label = contenedor.querySelector('.label-adjuntar');
-
-      if (input.files && input.files[0]) {
-          const reader = new FileReader();
-          reader.onload = function(e) {
-              vistaPrevia.src = e.target.result;
-              vistaPrevia.classList.add('visible');
-              label.style.display = 'none';
-          }
-          reader.readAsDataURL(input.files[0]);
-      }
-  }
-
-  function abrirVisorGrande(src) {
-      const modal = document.getElementById('modal-view-img');
-      const imgElement = document.getElementById('view-img-element');
-      if (modal && imgElement) {
-          imgElement.src = src;
-          modal.style.display = 'flex'; 
-      }
-  }
-</script>
 
 </body></html>

@@ -315,26 +315,31 @@ function renderItemCard(item, naveId){
           <input type="file" accept="image/*" id="img-espacio-${item.id}-1" class="input-oculto" onchange="previsualizarImagen(this)">
           <label for="img-espacio-${item.id}-1" class="label-adjuntar"><i class="ti ti-plus"></i></label>
           <img onclick="viewImage(this.src)">
+          <button class="btn-eliminar-adjunto" onclick="eliminarImagenAdjunta(event, this)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
         </div>
         <div class="espacio-imagen">
           <input type="file" accept="image/*" id="img-espacio-${item.id}-2" class="input-oculto" onchange="previsualizarImagen(this)">
           <label for="img-espacio-${item.id}-2" class="label-adjuntar"><i class="ti ti-plus"></i></label>
           <img onclick="viewImage(this.src)">
+          <button class="btn-eliminar-adjunto" onclick="eliminarImagenAdjunta(event, this)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
         </div>
         <div class="espacio-imagen">
           <input type="file" accept="image/*" id="img-espacio-${item.id}-3" class="input-oculto" onchange="previsualizarImagen(this)">
           <label for="img-espacio-${item.id}-3" class="label-adjuntar"><i class="ti ti-plus"></i></label>
           <img onclick="viewImage(this.src)">
+          <button class="btn-eliminar-adjunto" onclick="eliminarImagenAdjunta(event, this)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
         </div>
         <div class="espacio-imagen">
           <input type="file" accept="image/*" id="img-espacio-${item.id}-4" class="input-oculto" onchange="previsualizarImagen(this)">
           <label for="img-espacio-${item.id}-4" class="label-adjuntar"><i class="ti ti-plus"></i></label>
           <img onclick="viewImage(this.src)">
+          <button class="btn-eliminar-adjunto" onclick="eliminarImagenAdjunta(event, this)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
         </div>
         <div class="espacio-imagen">
           <input type="file" accept="image/*" id="img-espacio-${item.id}-5" class="input-oculto" onchange="previsualizarImagen(this)">
           <label for="img-espacio-${item.id}-5" class="label-adjuntar"><i class="ti ti-plus"></i></label>
           <img onclick="viewImage(this.src)">
+          <button class="btn-eliminar-adjunto" onclick="eliminarImagenAdjunta(event, this)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
         </div>
       </div>
     </div>
@@ -344,8 +349,6 @@ function renderItemCard(item, naveId){
     ? `<div class="plano-terminado-badge done" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Plano terminado - clic para desmarcar"><i class="ti ti-circle-check-filled"></i></div>`
     : `<div class="plano-terminado-badge pendiente" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Marcar plano como terminado"><i class="ti ti-alert-triangle"></i><span>PENDIENTE</span></div>`;
 
-  // Botones fantasma punteados para los elementos viejos que no tienen esta info. 
-  // Así el usuario sabe exactamente dónde cliquear para agregarlos rápidamente.
   let metaHtml = '';
   if (safeOdt || safeFecha || isEditableMode) {
      let odtTag = safeOdt ? `<span>ODT: ${escHtml(safeOdt)}</span>` : (isEditableMode ? `<span class="dashed-add only-editable" onclick="startEdit('${item.id}')" title="Agregar Código ODT">+ ODT</span>` : '');
@@ -605,8 +608,6 @@ function abrirEnlaceModelo(rawLink, event){
     return;
   }
 
-  // Ruta de red / archivo local: los navegadores bloquean abrir esto
-  // automáticamente desde una página https, así que copiamos la ruta.
   const copyFallback = () => {
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(link).then(()=>{
@@ -726,12 +727,7 @@ document.addEventListener('click', (e)=>{
   }
 });
 
-/* ---- Exportar a Excel (.xlsx) ----
-   Replica exactamente la plantilla de referencia: columnas FECHA, ITEM, ODT,
-   CAMBIO, ESTATUS. Si un cambio tiene varios modelos, se duplica una fila
-   por cada modelo (nunca se agrupan varios modelos en una sola celda).
-   Respeta el orden mostrado en la app: por mueble, y dentro de cada mueble
-   primero errores/ajustes y luego mejoras. */
+/* ---- Exportar a Excel (.xlsx) ---- */
 function exportarExcel(){
   if(typeof XLSX === 'undefined'){
     alert('No se pudo cargar la librería de Excel. Revisa tu conexión a internet e intenta de nuevo.');
@@ -748,7 +744,6 @@ function exportarExcel(){
       const cambio = item.title + (item.desc ? (' - ' + item.desc) : '');
       const estatus = proc.planoTerminado ? 'TERMINADO' : 'PENDIENTE';
 
-      // 1 modelo = 1 fila: se duplican Fecha, ODT, Cambio y Estatus por cada modelo
       modelos.forEach(m=>{
         filas.push({
           'FECHA': item.fecha || '',
@@ -796,8 +791,6 @@ function handleImportModelos(e){
       const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
       if(!rows.length){ alert('El archivo está vacío.'); return; }
 
-      // Detecta qué columna es el código de modelo y cuál la colección,
-      // buscando en el encabezado (si no lo encuentra, usa las 2 primeras columnas).
       const header = rows[0].map(h=>String(h||'').trim().toUpperCase());
       let colCodigo = header.findIndex(h=>h.includes('MODELO') || h.includes('CODIGO') || h.includes('CÓDIGO'));
       let colColeccion = header.findIndex(h=>h.includes('ACABADO') || h.includes('COLECCION') || h.includes('COLECCIÓN'));
@@ -901,7 +894,6 @@ function mergeData(importedData) {
             existingItem.title = existingItem.title || impItem.title;
             existingItem.desc = existingItem.desc || impItem.desc;
             
-            // Si importamos algo viejo que no tiene fecha, conservamos nuestro viejo dato (o asignamos vacío)
             existingItem.fecha = existingItem.fecha || impItem.fecha || '';
             existingItem.odt = existingItem.odt || impItem.odt || '';
             
@@ -955,7 +947,6 @@ function openAddItem(naveId,defaultCat){
   document.getElementById('new-item-desc').value='';
   document.getElementById('new-item-odt').value='';
   
-  // Establecer fecha actual por defecto
   const today = new Date();
   const yyyy = today.getFullYear();
   const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -1265,14 +1256,11 @@ async function pushToGithub() {
     'Accept': 'application/vnd.github+json'
   };
 
-  // "path" apunta a tu index.html (ej. "index.html" o "carpeta/index.html").
-  // Los datos e imágenes se guardan junto a él, en una subcarpeta data/.
   const baseDir = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : '';
   const dataRepoPath = baseDir + 'data/cambios.json';
   const imagesRepoPrefix = baseDir + 'data/images/';
 
   try {
-    // 1) Subir cualquier imagen nueva (todavía en base64) como archivo individual
     let nuevasImagenes = 0;
     for (const nave of data.naves) {
       if (!Array.isArray(nave.images)) continue;
@@ -1287,13 +1275,12 @@ async function pushToGithub() {
             repo, imagesRepoPrefix + fileName, branch, headers, b64,
             `Nueva imagen (${new Date().toLocaleString('es-MX')})`
           );
-          nave.images[i] = 'data/images/' + fileName; // ruta relativa al index.html
+          nave.images[i] = 'data/images/' + fileName;
           nuevasImagenes++;
         }
       }
     }
 
-    // 2) Subir el archivo de datos (pequeño, sin imágenes incrustadas)
     setGithubStatus('Guardando datos...', 'info');
     const dataString = JSON.stringify(data);
     await putFileToGithub(
@@ -1301,7 +1288,6 @@ async function pushToGithub() {
       `Actualización del reporte desde la app (${new Date().toLocaleString('es-MX')})`
     );
 
-    // 3) Si se importó una base de datos de modelos nueva en esta sesión, guardarla también
     if(modelosDBChanged){
       setGithubStatus('Guardando base de datos de modelos...', 'info');
       const modelosRepoPath = baseDir + 'data/modelos.json';
@@ -1335,8 +1321,6 @@ function buildProjectHTMLString() {
   clone.querySelector('#naves-container').innerHTML = '';
   clone.querySelectorAll('.modal-bg').forEach(m => m.classList.remove('open'));
 
-  // Los datos ya NO se incrustan aquí: viven en data/cambios.json.
-  // Este HTML es solo la estructura/interfaz (por eso pesa poco).
   return '<!DOCTYPE html>\n' + clone.outerHTML;
 }
 
@@ -1356,8 +1340,6 @@ async function exportHTMLAsSaveGame(name) {
   const htmlString = buildProjectHTMLString();
   await downloadWithDialog(htmlString, name + '.html', 'html');
 
-  // Respaldo local de los datos (los nuevos aún incluyen sus imágenes en
-  // base64 por si no las has subido a GitHub todavía).
   downloadBlob(JSON.stringify(data, null, 2), 'cambios.json', 'application/json');
   alert('Se descargaron 2 archivos: el HTML de la interfaz y cambios.json con tus datos. Si vas a restaurar este respaldo, cambios.json debe ir dentro de una carpeta "data".');
 
@@ -1478,12 +1460,6 @@ function exportPDFStatic(name) {
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
 /* ---- Carga inicial de datos (data/cambios.json) ---- */
-// Antes los datos venían incrustados en el propio HTML (por eso el archivo
-// pesaba varios MB). Ahora viven en un archivo aparte, mucho más liviano,
-// y las imágenes son archivos individuales dentro de data/images/.
-// IMPORTANTE: esto requiere que la página se sirva por http(s) (GitHub Pages,
-// un servidor local, etc.). Si abres el index.html con doble clic (file://),
-// el navegador bloquea esta carga por seguridad y verás un aviso abajo.
 async function cargarDatosIniciales(){
   try{
     const resp = await fetch('data/cambios.json', {cache:'no-store'});
@@ -1527,7 +1503,6 @@ function setModelosDB(lista){
   });
 }
 
-// Devuelve hasta `limit` modelos cuyo código empiece o contenga `query`
 function buscarModelosDB(query, limit){
   limit = limit || 8;
   const q = String(query||'').trim().toUpperCase();
@@ -1549,11 +1524,12 @@ function coleccionParaCodigo(codigo){
 
 cargarDatosIniciales();
 
-/* ---- Previsualización de imágenes individuales ---- */
+/* ---- PREVISUALIZAR Y ELIMINAR IMÁGENES ---- */
 function previsualizarImagen(input) {
   const contenedor = input.closest('.espacio-imagen');
   const vistaPrevia = contenedor.querySelector('img');
   const label = contenedor.querySelector('.label-adjuntar');
+  const btnEliminar = contenedor.querySelector('.btn-eliminar-adjunto');
 
   if (input.files && input.files[0]) {
     const reader = new FileReader();
@@ -1561,7 +1537,24 @@ function previsualizarImagen(input) {
       vistaPrevia.src = e.target.result;
       vistaPrevia.classList.add('visible');
       label.style.display = 'none';
+      if(btnEliminar) btnEliminar.style.display = 'flex'; // Muestra el botón de la X
     }
     reader.readAsDataURL(input.files[0]);
   }
+}
+
+function eliminarImagenAdjunta(event, btn) {
+  event.stopPropagation(); // Evita que se abra el visor grande accidentalmente
+  
+  const contenedor = btn.closest('.espacio-imagen');
+  const input = contenedor.querySelector('.input-oculto');
+  const vistaPrevia = contenedor.querySelector('img');
+  const label = contenedor.querySelector('.label-adjuntar');
+
+  // Limpiar el contenido de la imagen y restaurar el botón de "+"
+  input.value = '';
+  vistaPrevia.src = '';
+  vistaPrevia.classList.remove('visible');
+  label.style.display = 'flex'; 
+  btn.style.display = 'none'; 
 }

@@ -9,7 +9,7 @@ if (buscadorInicial) {
 // Variables Globales
 let currentNaveId=null, currentImgNaveId=null, editingItemId=null, exportType=null;
 let newModels=[], newNaveSelected='', newTipo='ambos', newCat='error';
-let editNaveSelected=''; // NUEVO: Para editar la nave
+let editNaveSelected=''; 
 let isEditableMode = false;
 let filterStatus = 'all'; // 'all', 'pending', 'done'
 let filterNave = 'all'; // 'all', 'NAVE 4', 'NAVE 2', 'MAQUILADOR'
@@ -27,7 +27,7 @@ let modelosDBChanged = false; // true si se importó un xlsx nuevo en esta sesi�
 
 function uid(){return 'x'+Math.random().toString(36).slice(2,9)}
 
-// Función super-segura para escapar HTML (ignora nulos o indefinidos)
+// Función super-segura para escapar HTML
 function escHtml(s){
   if (s === null || s === undefined || s === 'undefined') return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -384,8 +384,9 @@ function renderItemCard(item, naveId){
         <button class="btn-eliminar-adjunto only-editable" style="display:flex;" onclick="eliminarAdjunto(event, '${naveId}', '${item.id}', ${i})" title="Eliminar imagen"><i class="ti ti-x"></i></button>
       </div>`;
     } else {
+      // Se añade clase pdf-hide-empty para ocultarlo al exportar a PDF
       adjuntosHtml += `
-      <div class="espacio-imagen">
+      <div class="espacio-imagen pdf-hide-empty">
         <input type="file" accept="image/*" id="adj-${item.id}-${i}" class="input-oculto" onchange="subirAdjunto(event, '${naveId}', '${item.id}', ${i})">
         <label for="adj-${item.id}-${i}" class="label-adjuntar"><i class="ti ti-plus"></i></label>
       </div>`;
@@ -466,8 +467,9 @@ function renderNave(nave, index, total){
   });
   if (nave.images.length < 10) {
     const isFullWidth = nave.images.length === 0 ? 'full-width' : '';
+    // Se añade clase pdf-hide-empty para ocultarlo al exportar a PDF
     galleryHtml += `
-      <div class="img-box ${isFullWidth}" onclick="triggerImg('${nave.id}')">
+      <div class="img-box ${isFullWidth} pdf-hide-empty" onclick="triggerImg('${nave.id}')">
         <i class="ti ti-photo-plus" style="font-size:20px;color:var(--color-text-secondary)"></i>
         <p>Agregar<br>(${nave.images.length}/10)</p>
       </div>`;
@@ -1022,178 +1024,6 @@ function mergeData(importedData) {
   });
 }
 
-/* ---- Edit item inline ---- */
-function startEdit(itemId){
-  if (!isEditableMode) return;
-  editingItemId=itemId;
-  render();
-}
-function cancelEdit(){
-  editingItemId=null;
-  render();
-}
-function saveEdit(naveId,itemId){
-  if (!isEditableMode) return;
-  const t=document.getElementById('et-'+itemId).value.trim();
-  const d=document.getElementById('ed-'+itemId).value.trim();
-  const f=document.getElementById('ef-'+itemId).value.trim();
-  const o=document.getElementById('eo-'+itemId).value.trim();
-  
-  if(!t)return;
-  const nave=data.naves.find(n=>n.id===naveId);
-  if(nave){
-    const item=nave.items.find(i=>i.id===itemId);
-    if(item){
-      item.title=t;
-      item.desc=d;
-      item.fecha=f;
-      item.odt=o;
-      item.marked=true;
-    }
-  }
-  editingItemId=null;render();
-}
-
-/* ---- Add item modal ---- */
-function openAddItem(naveId,defaultCat){
-  if (!isEditableMode) return;
-  currentNaveId=naveId;
-  document.getElementById('new-item-title').value='';
-  document.getElementById('new-item-desc').value='';
-  document.getElementById('new-item-odt').value='';
-  
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const dd = String(today.getDate()).padStart(2, '0');
-  document.getElementById('new-item-fecha').value = `${yyyy}-${mm}-${dd}`;
-
-  newCat=defaultCat||'mejora';
-  document.querySelectorAll('#cat-select .radio-opt').forEach(el=>{
-    el.classList.toggle('selected',el.querySelector('input').value===newCat);
-  });
-  document.getElementById('modal-item').classList.add('open');
-}
-function selectCat(el,val){
-  newCat=val;
-  document.querySelectorAll('#cat-select .radio-opt').forEach(x=>x.classList.remove('selected'));
-  el.classList.add('selected');
-}
-function saveItem(){
-  if (!isEditableMode) return;
-  const title=document.getElementById('new-item-title').value.trim();
-  const desc=document.getElementById('new-item-desc').value.trim();
-  const fecha=document.getElementById('new-item-fecha').value.trim();
-  const odt=document.getElementById('new-item-odt').value.trim();
-  
-  if(!title){document.getElementById('new-item-title').focus();return;}
-  const nave=data.naves.find(n=>n.id===currentNaveId);
-  if(nave){
-    nave.items.unshift({
-      id:uid(),
-      type:newCat,
-      title,
-      desc,
-      fecha,
-      odt,
-      marked:true,
-      proceso: { habilitado: false, planos: false, etiquetas: false, planoTerminado: false },
-      adjuntos: ["","","","",""]
-    });
-    if(nave.tipo === 'errores' && newCat === 'mejora') nave.tipo = 'ambos';
-    if(nave.tipo === 'mejoras' && (newCat === 'error' || newCat === 'ajuste')) nave.tipo = 'ambos';
-  }
-  closeModal('modal-item');render();
-}
-
-function removeNave(id){
-  if (!isEditableMode) return;
-  if(!confirm('¿Eliminar este mueble?'))return;
-  data.naves=data.naves.filter(n=>n.id!==id);
-  render();
-}
-function removeItem(naveId,itemId){
-  if (!isEditableMode) return;
-  const nave=data.naves.find(n=>n.id===naveId);
-  if(nave){nave.items=nave.items.filter(i=>i.id!==itemId);render();}
-}
-
-function openAddNave(){
-  if (!isEditableMode) return;
-  newModels=[];
-  newNaveSelected=''; 
-  newTipo='ambos';
-  document.getElementById('new-consola').value='';
-  document.getElementById('tag-input').value='';
-  renderTags();
-  document.querySelectorAll('#nave-select .select-opt').forEach(el=>el.classList.remove('selected'));
-  document.querySelectorAll('#tipo-select .radio-opt').forEach(el=>el.classList.toggle('selected',el.querySelector('input').value==='ambos'));
-  document.getElementById('modal-nave').classList.add('open');
-  setTimeout(()=>document.getElementById('new-consola').focus(),100);
-}
-function selectNave(el,val){
-  newNaveSelected=val;
-  document.querySelectorAll('#nave-select .select-opt').forEach(x=>x.classList.remove('selected'));
-  el.classList.add('selected');
-}
-function selectTipo(el,val){
-  newTipo=val;
-  document.querySelectorAll('#tipo-select .radio-opt').forEach(x=>x.classList.remove('selected'));
-  el.classList.add('selected');
-}
-function renderTags(){
-  const area=document.getElementById('tag-area');
-  const inp=document.getElementById('tag-input');
-  area.innerHTML='';
-  newModels.forEach((m,i)=>{
-    const tag=document.createElement('div');tag.className='model-tag';
-    tag.innerHTML=`${m}<button onclick="removeTag(${i})" title="Quitar" class="only-editable"><i class="ti ti-x"></i></button>`;
-    area.appendChild(tag);
-  });
-  area.appendChild(inp);
-}
-function removeTag(i){
-  if (!isEditableMode) return;
-  newModels.splice(i,1);renderTags();
-}
-function handleTagKey(e){
-  if (!isEditableMode) return;
-  const inp=e.target;
-  if(e.key==='Enter'||e.key===','||e.key==='Tab'){
-    e.preventDefault();
-    const val=inp.value.trim().replace(/,$/,'').toUpperCase();
-    if(val&&!newModels.includes(val)){newModels.push(val);inp.value='';renderTags();}
-  } else if(e.key==='Backspace'&&!inp.value&&newModels.length){
-    newModels.pop();renderTags();
-  }
-}
-function handleTagInput(e){
-  if (!isEditableMode) return;
-  const val=e.target.value;
-  if(val.includes(',')){
-    const parts=val.split(',');
-    parts.slice(0,-1).forEach(p=>{const v=p.trim().toUpperCase();if(v&&!newModels.includes(v))newModels.push(v);});
-    e.target.value=parts[parts.length-1];
-    renderTags();
-  }
-}
-function addNave(){
-  if (!isEditableMode) return;
-  
-  if (!newNaveSelected) {
-    alert("⚠️ Campo obligatorio: Debes seleccionar una Nave (Nave 4, Nave 2 o Maquilador).");
-    return;
-  }
-  
-  const consola=document.getElementById('new-consola').value.trim().toUpperCase();
-  const tagVal=document.getElementById('tag-input').value.trim().toUpperCase();
-  if(tagVal&&!newModels.includes(tagVal))newModels.push(tagVal);
-  if(!consola){document.getElementById('new-consola').focus();return;}
-  const modelObjects = newModels.map(m => ({name: m, link: ''}));
-  data.naves.push({id:uid(),nave:newNaveSelected,consola,tipo:newTipo,models:modelObjects,images:[],items:[]});
-  closeModal('modal-nave');render();
-}
-
 /* ---- Exportar Archivos ---- */
 async function downloadWithDialog(content, fileName, type) {
   try {
@@ -1255,6 +1085,126 @@ function doExport(skipModal = false){
   
   if(exportType==='html') exportHTMLAsSaveGame(name);
   else exportPDFStatic(name);
+}
+
+/* ---- NUEVO: Generador de PDF Idéntico a la Interfaz ---- */
+function exportPDFStatic(name) {
+  const btn = document.getElementById('export-btn');
+  btn.textContent = 'Generando PDF...';
+  
+  const d = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  
+  // Creamos un contenedor temporal fuera de la pantalla
+  const tempContainer = document.createElement('div');
+  tempContainer.id = 'pdf-temp-container';
+  tempContainer.style.position = 'absolute';
+  tempContainer.style.left = '-9999px';
+  tempContainer.style.top = '0';
+  tempContainer.style.width = '1024px';
+  tempContainer.style.background = '#ffffff';
+
+  // Inyectamos los estilos específicos para PDF que ocultan botones interactivos
+  let h = `
+  <style>
+    #pdf-temp-container { background: #ffffff; }
+    #pdf-temp-container .app {
+      padding: 0 !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      background: #ffffff !important;
+    }
+    #pdf-temp-container .only-editable,
+    #pdf-temp-container .search-bar-row,
+    #pdf-temp-container .filter-row,
+    #pdf-temp-container #btn-lock-toggle,
+    #pdf-temp-container .pdf-hide-empty,
+    #pdf-temp-container .item-star-toggle,
+    #pdf-temp-container .model-link-btn,
+    #pdf-temp-container .add-model-row {
+      display: none !important;
+    }
+    #pdf-temp-container .top-bar {
+      position: static !important;
+      box-shadow: none !important;
+      border: 1px solid var(--color-border-tertiary) !important;
+      padding: 15px !important;
+      margin-bottom: 20px !important;
+      background: #fff !important;
+    }
+    #pdf-temp-container .nave-card {
+      box-shadow: none !important;
+      border: 1px solid var(--color-border-tertiary) !important;
+      margin-bottom: 20px !important;
+    }
+    #pdf-temp-container .nave-header {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    #pdf-temp-container .item-card {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      box-shadow: none !important;
+    }
+    #pdf-temp-container .proceso-item,
+    #pdf-temp-container .plano-terminado-badge {
+      opacity: 1 !important;
+    }
+  </style>
+  <div class="app">
+    <div class="top-bar">
+      <div class="top-header-row">
+        <div class="top-bar-left">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:38px; height:38px; border-radius:12px; background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:18px;">
+              <i class="ti ti-report"></i>
+            </div>
+            <div>
+              <h1 style="font-size:16px; font-weight:800; color:var(--color-text-primary); margin:0;">Errores y Mejoras de Producción</h1>
+              <p style="font-size:11px; color:var(--color-text-secondary); margin:2px 0 0 0; font-weight:500;">Fecha de exportación: ${d}</p>
+              <p style="font-size: 11px; margin-top: 4px; color: var(--color-text-secondary);">
+                ✔️ = Correcto (no requiere cambios). &nbsp;|&nbsp; ❌ = Cambiar el plano, habilitado o etiqueta.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="pdf-naves-container">
+  `;
+
+  // Para asegurar que renderizamos en modo "lectura" y no veamos inputs si estabas editando algo
+  const tempEditing = editingItemId;
+  editingItemId = null; 
+
+  // Inyectamos el HTML idéntico generado por la app directamente
+  data.naves.forEach((n, idx) => {
+     h += renderNave(n, idx, data.naves.length);
+  });
+
+  editingItemId = tempEditing;
+
+  h += `</div></div>`;
+  tempContainer.innerHTML = h;
+  document.body.appendChild(tempContainer);
+
+  const opt = {
+    margin:       [10, 10, 10, 10],
+    filename:     name + '.pdf',
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true, letterRendering: true, scrollY: 0, windowWidth: 1024 },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak:    { mode: 'css', avoid: ['.item-card', '.nave-header'] }
+  };
+
+  html2pdf().set(opt).from(tempContainer).output('blob').then(async (blob) => {
+    btn.textContent = 'Exportar PDF Final';
+    await downloadWithDialog(blob, name + '.pdf', 'pdf');
+    document.body.removeChild(tempContainer);
+  }).catch(err => {
+    console.error("Error al exportar PDF:", err);
+    btn.textContent = 'Exportar PDF Final';
+    if (tempContainer.parentNode) document.body.removeChild(tempContainer);
+  });
 }
 
 /* ---- Guardar en GitHub ---- */
@@ -1492,117 +1442,6 @@ async function exportHTMLAsSaveGame(name) {
   alert('Se descargaron 2 archivos: el HTML de la interfaz y cambios.json con tus datos. Si vas a restaurar este respaldo, cambios.json debe ir dentro de una carpeta "data".');
 
   btn.textContent = originalText;
-}
-
-
-function exportPDFStatic(name) {
-  const btn = document.getElementById('export-btn');
-  btn.textContent = 'Generando PDF...';
-  
-  const d=new Date().toLocaleDateString('es-MX');
-  let h=`
-  <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  .pdf-container{font-family:Arial,sans-serif;background:#fff;color:#222;padding:0; position:relative;}
-  h1{font-size:20px;font-weight:700;margin-bottom:3px}.date{font-size:12px;color:#666;margin-bottom:1.5rem}
-  .legend{font-size:11px;color:#666;margin-top:4px}
-  .card{background:#fff;border:1px solid #e0e0d8;border-radius:8px;margin-bottom:1.2rem;overflow:hidden;page-break-inside:avoid;}
-  .card-header{background:#1e3a5f;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:10px}
-  .badge{background:rgba(255,255,255,0.2);border-radius:4px;padding:2px 8px;font-size:11px}
-  .card-body{display:grid;grid-template-columns:210px 1fr}
-  .left{padding:14px;border-right:1px solid #eee}
-  .right{padding:14px}
-  .panel-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:6px}
-  .chip{background:#f0effe;color:#533ab7;border-radius:4px;padding:3px 7px;font-size:11px;display:inline-block;margin:2px;font-weight:600; text-decoration:none;}
-  .img-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px;}
-  .mueble-img{width:100%;height:80px;object-fit:cover;border-radius:4px;border:1px solid #eee;}
-  .img-empty{background:#f9f9f9;border:1px dashed #ddd;border-radius:5px;height:80px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa;margin-top:8px}
-  .pill{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;display:inline-block;margin-bottom:8px}
-  .pill-e{background:#fcebeb;color:#a32d2d}.pill-m{background:#eaf3de;color:#0f6e56}
-  .item{border:1px solid #eee;border-radius:6px;padding:9px 11px;margin-bottom:6px;display:flex;gap:9px;page-break-inside:avoid;flex-direction:column}
-  .item-main{display:flex;gap:9px}
-  .dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0}
-  .de{background:#e24b4a}.da{background:#ef9f27}.dm{background:#639922}
-  .ititle{font-size:12px;font-weight:600;margin-bottom:2px}.idesc{font-size:12px;color:#555;line-height:1.5}
-  .pdf-proceso{font-size:10px;color:#666;background:#f4f4fe;padding:4px 8px;border-radius:4px;display:inline-block;margin-top:6px;border:1px solid #e7e9f7;}
-  hr{border:none;border-top:1px solid #eee;margin:10px 0}
-  </style>
-  <div class="pdf-container">
-  <h1>Errores y Mejoras de Producción</h1>
-  <div class="date">
-    Fecha de exportación: ${d}<br>
-    <div class="legend">✔️ = Correcto (no requiere cambios). &nbsp;|&nbsp; ❌ = Cambiar el plano, habilitado o etiqueta.</div>
-  </div>`;
-
-  const getProcStr = (i) => {
-    const p = i.proceso || {habilitado:false, planos:false, etiquetas:false, planoTerminado:false};
-    return `<div class="pdf-proceso"><b>Proceso:</b> Habilitado: ${p.habilitado?'✔️':'❌'} &nbsp;|&nbsp; Planos: ${p.planos?'✔️':'❌'} &nbsp;|&nbsp; Etiquetas: ${p.etiquetas?'✔️':'❌'} &nbsp;|&nbsp; Plano Terminado: ${p.planoTerminado?'✔️':'❌'}</div>`;
-  };
-  
-  data.naves.forEach(nave=>{
-    const errors=nave.items.filter(i=>i.type==='error'||i.type==='ajuste');
-    const mejoras=nave.items.filter(i=>i.type==='mejora');
-    const se=nave.tipo==='ambos'||nave.tipo==='errores'||errors.length>0;
-    const sm=nave.tipo==='ambos'||nave.tipo==='mejoras'||mejoras.length>0;
-    
-    let imgHtml = '';
-    if(nave.images.length > 0){
-      imgHtml = `<div class="img-grid">` + nave.images.map(img => `<img src="${img}" class="mueble-img" alt="Mueble" />`).join('') + `</div>`;
-    } else {
-      imgHtml = `<div class="img-empty">Sin imagen</div>`;
-    }
-
-    const modelsHtml = nave.models.map(m => {
-      if(!m.link) return `<span class="chip">${m.name}</span>`;
-      let href = m.link.trim();
-      if(href.startsWith('\\\\')) {
-        href = 'file:' + href.replace(/\\/g, '/');
-      } else if (!/^https?:\/\//i.test(href) && !href.startsWith('file:')) {
-        href = 'http://' + href;
-      }
-      return `<a href="${href}" target="_blank" class="chip">${m.name} 🔗</a>`;
-    }).join('');
-
-    h+=`<div class="card"><div class="card-header"><span class="badge">${nave.nave}</span><strong>${nave.consola}</strong></div>
-<div class="card-body"><div class="left"><div class="panel-label">Modelos (Clic para enlace)</div>${modelsHtml}<br><br><div class="panel-label">Imágenes</div>${imgHtml}</div>
-<div class="right">`;
-    if(se&&errors.length){
-      h+=`<div class="pill pill-e">Reporte de errores y ajustes</div>`;
-      errors.forEach(i=>{
-        let sFecha = i.fecha && i.fecha !== 'undefined' ? i.fecha : '';
-        let sOdt = i.odt && i.odt !== 'undefined' ? i.odt : '';
-        h+=`<div class="item"><div class="item-main"><div class="dot ${i.type==='error'?'de':'da'}"></div><div style="flex:1"><div style="display:flex; justify-content:space-between; align-items:flex-start;"><div class="ititle">${i.title}</div><div style="font-size:10px; color:#777; text-align:right;">${sOdt ? `<b>ODT:</b> ${escHtml(sOdt)} ` : ''}${sFecha ? `<b>Fecha:</b> ${formatDateEs(sFecha)}` : ''}</div></div><div class="idesc">${i.desc}</div>${getProcStr(i)}</div></div></div>`;
-      });
-    }
-    if(sm&&mejoras.length){
-      if(se&&errors.length)h+=`<hr>`;
-      h+=`<div class="pill pill-m">Mejoras implementadas</div>`;
-      mejoras.forEach(i=>{
-        let sFecha = i.fecha && i.fecha !== 'undefined' ? i.fecha : '';
-        let sOdt = i.odt && i.odt !== 'undefined' ? i.odt : '';
-        h+=`<div class="item"><div class="item-main"><div class="dot dm"></div><div style="flex:1"><div style="display:flex; justify-content:space-between; align-items:flex-start;"><div class="ititle">${i.title}</div><div style="font-size:10px; color:#777; text-align:right;">${sOdt ? `<b>ODT:</b> ${escHtml(sOdt)} ` : ''}${sFecha ? `<b>Fecha:</b> ${formatDateEs(sFecha)}` : ''}</div></div><div class="idesc">${i.desc}</div>${getProcStr(i)}</div></div></div>`;
-      });
-    }
-    h+=`</div></div></div>`;
-  });
-  h+=`</div>`;
-
-  const opt = {
-    margin:       [10, 10, 10, 10],
-    filename:     name + '.pdf',
-    image:        { type: 'jpeg', quality: 1.0 },
-    html2canvas:  { scale: 4, useCORS: true, letterRendering: true },
-    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    enableLinks:  true
-  };
-
-  html2pdf().set(opt).from(h).output('blob').then(async (blob) => {
-    btn.textContent = 'Exportar PDF Final';
-    await downloadWithDialog(blob, name + '.pdf', 'pdf');
-  }).catch(err => {
-    console.error("Error al exportar PDF:", err);
-    btn.textContent = 'Exportar PDF Final';
-  });
 }
 
 function closeModal(id){document.getElementById(id).classList.remove('open');}

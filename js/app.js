@@ -309,6 +309,34 @@ function renderItemCard(item, naveId){
       <div class="proceso-item" onclick="toggleProceso('${naveId}', '${item.id}', 'etiquetas', this, event)">
         <span>Etiquetas</span> <span class="status-icon">${proc.etiquetas ? '✔️' : '❌'}</span>
       </div>
+      
+      <div class="contenedor-adjuntos">
+        <div class="espacio-imagen">
+          <input type="file" accept="image/*" id="img-espacio-${item.id}-1" class="input-oculto" onchange="previsualizarImagen(this)">
+          <label for="img-espacio-${item.id}-1" class="label-adjuntar"><i class="ti ti-plus"></i></label>
+          <img onclick="viewImage(this.src)">
+        </div>
+        <div class="espacio-imagen">
+          <input type="file" accept="image/*" id="img-espacio-${item.id}-2" class="input-oculto" onchange="previsualizarImagen(this)">
+          <label for="img-espacio-${item.id}-2" class="label-adjuntar"><i class="ti ti-plus"></i></label>
+          <img onclick="viewImage(this.src)">
+        </div>
+        <div class="espacio-imagen">
+          <input type="file" accept="image/*" id="img-espacio-${item.id}-3" class="input-oculto" onchange="previsualizarImagen(this)">
+          <label for="img-espacio-${item.id}-3" class="label-adjuntar"><i class="ti ti-plus"></i></label>
+          <img onclick="viewImage(this.src)">
+        </div>
+        <div class="espacio-imagen">
+          <input type="file" accept="image/*" id="img-espacio-${item.id}-4" class="input-oculto" onchange="previsualizarImagen(this)">
+          <label for="img-espacio-${item.id}-4" class="label-adjuntar"><i class="ti ti-plus"></i></label>
+          <img onclick="viewImage(this.src)">
+        </div>
+        <div class="espacio-imagen">
+          <input type="file" accept="image/*" id="img-espacio-${item.id}-5" class="input-oculto" onchange="previsualizarImagen(this)">
+          <label for="img-espacio-${item.id}-5" class="label-adjuntar"><i class="ti ti-plus"></i></label>
+          <img onclick="viewImage(this.src)">
+        </div>
+      </div>
     </div>
   `;
 
@@ -1521,3 +1549,19 @@ function coleccionParaCodigo(codigo){
 
 cargarDatosIniciales();
 
+/* ---- Previsualización de imágenes individuales ---- */
+function previsualizarImagen(input) {
+  const contenedor = input.closest('.espacio-imagen');
+  const vistaPrevia = contenedor.querySelector('img');
+  const label = contenedor.querySelector('.label-adjuntar');
+
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      vistaPrevia.src = e.target.result;
+      vistaPrevia.classList.add('visible');
+      label.style.display = 'none';
+    }
+    reader.readAsDataURL(input.files[0]);
+  }
+}

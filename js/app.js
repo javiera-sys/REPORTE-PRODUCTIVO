@@ -11,7 +11,7 @@ let currentNaveId=null, currentImgNaveId=null, editingItemId=null, exportType=nu
 let newModels=[], newNaveSelected='', newTipo='ambos', newCat='error';
 let isEditableMode = false;
 let filterStatus = 'all'; // 'all', 'pending', 'done'
-let filterNave = 'all'; // 'all', 'NAVE 1', 'NAVE 2', 'MAQUILADOR'
+let filterNave = 'all'; // 'all', 'NAVE 4', 'NAVE 2', 'MAQUILADOR'
 
 // Referencia global al archivo para guardado rápido
 let fileHandle = null;
@@ -1125,7 +1125,7 @@ function addNave(){
   if (!isEditableMode) return;
   
   if (!newNaveSelected) {
-    alert("⚠️ Campo obligatorio: Debes seleccionar una Nave (Nave 1, Nave 2 o Maquilador).");
+    alert("⚠️ Campo obligatorio: Debes seleccionar una Nave (Nave 4, Nave 2 o Maquilador).");
     return;
   }
   

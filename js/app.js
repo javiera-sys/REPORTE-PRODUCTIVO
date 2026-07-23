@@ -699,8 +699,11 @@ document.addEventListener('click', (e)=>{
 });
 
 /* ---- Exportar a Excel (.xlsx) ----
-   Respeta el mismo orden en que se muestran los cambios en la app:
-   por mueble, y dentro de cada mueble primero errores/ajustes y luego mejoras. */
+   Replica exactamente la plantilla de referencia: columnas FECHA, ITEM, ODT,
+   CAMBIO, ESTATUS. Si un cambio tiene varios modelos, se duplica una fila
+   por cada modelo (nunca se agrupan varios modelos en una sola celda).
+   Respeta el orden mostrado en la app: por mueble, y dentro de cada mueble
+   primero errores/ajustes y luego mejoras. */
 function exportarExcel(){
   if(typeof XLSX === 'undefined'){
     alert('No se pudo cargar la librería de Excel. Revisa tu conexión a internet e intenta de nuevo.');
@@ -710,18 +713,22 @@ function exportarExcel(){
   data.naves.forEach(nave=>{
     const errores = nave.items.filter(i=>i.type==='error'||i.type==='ajuste');
     const mejoras = nave.items.filter(i=>i.type==='mejora');
-    const modelosTxt = (nave.models||[]).map(m=>m.name).join(', ');
-    const coleccionTxt = Array.from(new Set((nave.models||[]).map(m=>m.coleccion).filter(Boolean))).join(', ');
+    const modelos = (nave.models && nave.models.length) ? nave.models : [{name:''}];
 
     [...errores, ...mejoras].forEach(item=>{
       const proc = item.proceso || {};
-      filas.push({
-        'Fecha': item.fecha || '',
-        'Modelo(s)': modelosTxt,
-        'Colección': coleccionTxt,
-        'ODT': item.odt || '',
-        'Cambio / Reporte de Errores o Ajustes': item.title + (item.desc ? (' - ' + item.desc) : ''),
-        'Estatus': proc.planoTerminado ? 'Terminado' : 'Pendiente'
+      const cambio = item.title + (item.desc ? (' - ' + item.desc) : '');
+      const estatus = proc.planoTerminado ? 'TERMINADO' : 'PENDIENTE';
+
+      // 1 modelo = 1 fila: se duplican Fecha, ODT, Cambio y Estatus por cada modelo
+      modelos.forEach(m=>{
+        filas.push({
+          'FECHA': item.fecha || '',
+          'ITEM': m.name || '',
+          'ODT': item.odt || '',
+          'CAMBIO': cambio,
+          'ESTATUS': estatus
+        });
       });
     });
   });
@@ -732,9 +739,9 @@ function exportarExcel(){
   }
 
   const ws = XLSX.utils.json_to_sheet(filas, {
-    header: ['Fecha','Modelo(s)','Colección','ODT','Cambio / Reporte de Errores o Ajustes','Estatus']
+    header: ['FECHA','ITEM','ODT','CAMBIO','ESTATUS']
   });
-  ws['!cols'] = [{wch:12},{wch:22},{wch:20},{wch:14},{wch:60},{wch:12}];
+  ws['!cols'] = [{wch:12},{wch:16},{wch:14},{wch:60},{wch:14}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
   const fechaHoy = new Date().toISOString().slice(0,10);

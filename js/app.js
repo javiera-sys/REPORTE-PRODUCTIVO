@@ -4,6 +4,7 @@ document.getElementById('current-date').textContent = new Date().toLocaleDateStr
 let currentNaveId=null, currentImgNaveId=null, editingItemId=null, exportType=null;
 let newModels=[], newNaveSelected='NAVE 2', newTipo='ambos', newCat='error';
 let isEditableMode = false;
+let filterStatus = 'all'; // NUEVO: Estado del filtro ('all', 'pending', 'done')
 
 // Referencia global al archivo para guardado rápido
 let fileHandle = null;
@@ -155,7 +156,7 @@ function subirAdjunto(event, naveId, itemId, idx) {
       if(item) {
         if(!item.adjuntos) item.adjuntos = ["","","","",""];
         item.adjuntos[idx] = e.target.result;
-        render(); // Refresca para mostrar la foto y el botón de borrar
+        render();
       }
     }
   };
@@ -163,14 +164,14 @@ function subirAdjunto(event, naveId, itemId, idx) {
 }
 
 function eliminarAdjunto(event, naveId, itemId, idx) {
-  event.stopPropagation(); // Evita que se abra el visor al borrar
+  event.stopPropagation();
   if (!isEditableMode) return;
   const nave = data.naves.find(n => n.id === naveId);
   if(nave) {
     const item = nave.items.find(i => i.id === itemId);
     if(item && item.adjuntos) {
       item.adjuntos[idx] = "";
-      render(); // Refresca para regresar al botón de agregar (+)
+      render();
     }
   }
 }
@@ -195,12 +196,26 @@ function render(){
   if(data && data.naves) {
     data.naves.forEach((n, idx) => c.insertAdjacentHTML('beforeend', renderNave(n, idx, data.naves.length)));
   }
-  if(document.getElementById('search-input')) filterItems();
+  
+  filterItems(); // Ejecutar el filtro siempre que rendericemos
 }
 
 function dotClass(t){return t==='error'?'dot-error':t==='ajuste'?'dot-ajuste':'dot-mejora'}
 
-/* ---- Buscador de cambios ---- */
+/* ---- NUEVO: Filtro por estado ---- */
+function setFilterStatus(status) {
+  filterStatus = status;
+  // Actualizar la apariencia de los botones del submenú
+  document.querySelectorAll('.btn-filter').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  document.querySelector(`.btn-filter[onclick="setFilterStatus('${status}')"]`).classList.add('active');
+  
+  // Ejecutar el filtro combinado
+  filterItems();
+}
+
+/* ---- Buscador y Filtro Combinado ---- */
 function normalizeSearch(s){
   return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
@@ -208,10 +223,12 @@ function normalizeSearch(s){
 function filterItems(){
   const rawQ = document.getElementById('search-input').value;
   const q = normalizeSearch(rawQ.trim());
-  document.getElementById('search-clear-btn').style.display = rawQ ? 'flex' : 'none';
+  const clearBtn = document.getElementById('search-clear-btn');
+  if (clearBtn) clearBtn.style.display = rawQ ? 'flex' : 'none';
 
   document.querySelectorAll('.nave-card').forEach(naveCard=>{
-    if(!q){
+    // Caso de reset total: Si no hay búsqueda y el filtro es "todos"
+    if(!q && filterStatus === 'all'){
       naveCard.style.display='';
       naveCard.querySelectorAll('.item-card').forEach(ic=>{
         ic.style.display='';
@@ -219,6 +236,7 @@ function filterItems(){
       });
       return;
     }
+
     const badge = naveCard.querySelector('.nave-badge');
     const title = naveCard.querySelector('.nave-title');
     const modelChips = naveCard.querySelectorAll('.model-chip');
@@ -229,17 +247,27 @@ function filterItems(){
     let anyItemVisible = false;
     naveCard.querySelectorAll('.item-card').forEach(itemCard=>{
       const itemText = normalizeSearch(itemCard.textContent);
-      const itemMatches = naveMatches || itemText.includes(q);
+      const textMatch = !q || naveMatches || itemText.includes(q);
+      
+      const isDone = itemCard.classList.contains('plano-done');
+      let statusMatch = true;
+      if (filterStatus === 'pending' && isDone) statusMatch = false;
+      if (filterStatus === 'done' && !isDone) statusMatch = false;
+
+      const itemMatches = textMatch && statusMatch;
+
       itemCard.style.display = itemMatches ? '' : 'none';
-      if(itemMatches){
-        anyItemVisible = true;
+      if(itemMatches && q){
         applyHighlight(itemCard, rawQ.trim());
       } else {
         clearHighlight(itemCard);
       }
+      
+      if(itemMatches) anyItemVisible = true;
     });
 
-    naveCard.style.display = (naveMatches || anyItemVisible) ? '' : 'none';
+    // Mostrar la nave si un ítem cumple los filtros o (si la nave cumple el texto y el estado está en 'Todos')
+    naveCard.style.display = (anyItemVisible || (naveMatches && filterStatus === 'all')) ? '' : 'none';
   });
 }
 
@@ -294,12 +322,10 @@ window.addEventListener('scroll', ()=>{
 function renderItemCard(item, naveId){
   const editing = editingItemId === item.id;
   
-  // Extraemos la fecha y el ODT de forma robusta
   let safeFecha = item.fecha && item.fecha !== 'undefined' ? item.fecha : '';
   let safeOdt = item.odt && item.odt !== 'undefined' ? item.odt : '';
   
   if(editing && isEditableMode){
-    
     if(!safeFecha) {
         const today = new Date();
         const yyyy = today.getFullYear();
@@ -334,18 +360,15 @@ function renderItemCard(item, naveId){
   
   const proc = item.proceso;
 
-  // Generar HTML de los 5 espacios dinámicamente según la base de datos
   let adjuntosHtml = '<div class="contenedor-adjuntos">';
   for (let i = 0; i < 5; i++) {
     if (item.adjuntos[i]) {
-      // Si hay imagen cargada
       adjuntosHtml += `
       <div class="espacio-imagen">
         <img src="${item.adjuntos[i]}" class="visible" onclick="viewImage(this.src)">
         <button class="btn-eliminar-adjunto only-editable" style="display:flex;" onclick="eliminarAdjunto(event, '${naveId}', '${item.id}', ${i})" title="Eliminar imagen"><i class="ti ti-x"></i></button>
       </div>`;
     } else {
-      // Si está vacío
       adjuntosHtml += `
       <div class="espacio-imagen">
         <input type="file" accept="image/*" id="adj-${item.id}-${i}" class="input-oculto" onchange="subirAdjunto(event, '${naveId}', '${item.id}', ${i})">
@@ -1287,7 +1310,6 @@ async function pushToGithub() {
     let nuevasImagenes = 0;
     
     for (const nave of data.naves) {
-      // 1) Subir imágenes generales de la nave
       if (Array.isArray(nave.images)) {
         for (let i = 0; i < nave.images.length; i++) {
           const img = nave.images[i];
@@ -1306,7 +1328,6 @@ async function pushToGithub() {
         }
       }
       
-      // 2) NUEVO: Subir imágenes adjuntas a los reportes (los 5 recuadros)
       if (Array.isArray(nave.items)) {
         for (const item of nave.items) {
           if (Array.isArray(item.adjuntos)) {

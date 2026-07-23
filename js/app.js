@@ -1,6 +1,6 @@
 document.getElementById('current-date').textContent = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
-// NUEVO: Forzar que el buscador inicie completamente vacío (evita que el navegador restaure texto por error)
+// Forzar que el buscador inicie completamente vacío
 const buscadorInicial = document.getElementById('search-input');
 if (buscadorInicial) {
   buscadorInicial.value = '';
@@ -9,6 +9,7 @@ if (buscadorInicial) {
 // Variables Globales
 let currentNaveId=null, currentImgNaveId=null, editingItemId=null, exportType=null;
 let newModels=[], newNaveSelected='', newTipo='ambos', newCat='error';
+let editNaveSelected=''; // NUEVO: Para editar la nave
 let isEditableMode = false;
 let filterStatus = 'all'; // 'all', 'pending', 'done'
 let filterNave = 'all'; // 'all', 'NAVE 4', 'NAVE 2', 'MAQUILADOR'
@@ -517,6 +518,7 @@ function renderNave(nave, index, total){
       <div class="nave-header-right only-editable">
         ${index > 0 ? `<button class="hbtn" onclick="moveNaveUp(${index})" title="Mover arriba"><i class="ti ti-arrow-up"></i></button>` : ''}
         ${index < total - 1 ? `<button class="hbtn" onclick="moveNaveDown(${index})" title="Mover abajo"><i class="ti ti-arrow-down"></i></button>` : ''}
+        <button class="hbtn" onclick="openEditNaveHeader('${nave.id}')" title="Editar Cabecera"><i class="ti ti-pencil"></i></button>
         <button class="hbtn" onclick="openAddItem('${nave.id}','mejora')"><i class="ti ti-plus"></i> Elemento</button>
         <button class="hbtn danger" onclick="removeNave('${nave.id}')"><i class="ti ti-trash"></i></button>
       </div>
@@ -704,6 +706,60 @@ function saveEditedModel(){
     render();
   }
   closeModal('modal-edit-model');
+}
+
+/* ---- NUEVO: Editar Cabecera de Nave ---- */
+function selectEditNaveOpt(el, val) {
+  editNaveSelected = val;
+  document.querySelectorAll('#edit-nave-select .select-opt').forEach(x => x.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function openEditNaveHeader(naveId) {
+  if (!isEditableMode) return;
+  const nave = data.naves.find(n => n.id === naveId);
+  if (!nave) return;
+  
+  document.getElementById('edit-nave-id').value = naveId;
+  document.getElementById('edit-nave-consola').value = nave.consola || '';
+  
+  editNaveSelected = nave.nave || '';
+  document.querySelectorAll('#edit-nave-select .select-opt').forEach(el => {
+      el.classList.remove('selected');
+      const onclickAttr = el.getAttribute('onclick');
+      if (onclickAttr) {
+        const optVal = onclickAttr.match(/'([^']+)'/)[1];
+        if (optVal === editNaveSelected) {
+            el.classList.add('selected');
+        }
+      }
+  });
+
+  document.getElementById('modal-edit-nave').classList.add('open');
+  setTimeout(()=>document.getElementById('edit-nave-consola').focus(),100);
+}
+
+function saveEditedNaveHeader() {
+  if (!isEditableMode) return;
+  const naveId = document.getElementById('edit-nave-id').value;
+  const consola = document.getElementById('edit-nave-consola').value.trim().toUpperCase();
+  
+  if (!editNaveSelected) {
+    alert("⚠️ Campo obligatorio: Debes seleccionar una Nave.");
+    return;
+  }
+  if (!consola) {
+    alert("⚠️ Campo obligatorio: Debes escribir el nombre/consola.");
+    return;
+  }
+
+  const nave = data.naves.find(n => n.id === naveId);
+  if (nave) {
+    nave.nave = editNaveSelected;
+    nave.consola = consola;
+    render();
+  }
+  closeModal('modal-edit-nave');
 }
 
 /* ---- Image Management ---- */

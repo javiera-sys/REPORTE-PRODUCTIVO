@@ -1,6 +1,6 @@
 document.getElementById('current-date').textContent = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
-// Forzar que el buscador inicie completamente vacío (evita que el navegador restaure texto por error)
+// Forzar que el buscador inicie completamente vacío
 const buscadorInicial = document.getElementById('search-input');
 if (buscadorInicial) {
   buscadorInicial.value = '';
@@ -384,7 +384,6 @@ function renderItemCard(item, naveId){
         <button class="btn-eliminar-adjunto only-editable" style="display:flex;" onclick="eliminarAdjunto(event, '${naveId}', '${item.id}', ${i})" title="Eliminar imagen"><i class="ti ti-x"></i></button>
       </div>`;
     } else {
-      // Clase pdf-hide-empty oculta este bloque durante la exportación a PDF
       adjuntosHtml += `
       <div class="espacio-imagen pdf-hide-empty">
         <input type="file" accept="image/*" id="adj-${item.id}-${i}" class="input-oculto" onchange="subirAdjunto(event, '${naveId}', '${item.id}', ${i})">
@@ -545,7 +544,6 @@ function renderNave(nave, index, total){
   </div>`;
 }
 
-
 /* ---- Visor de Imagen Full Size ---- */
 function viewImage(src) {
   document.getElementById('view-img-element').src = src;
@@ -614,7 +612,7 @@ function seleccionarSugerenciaAddModelo(naveId, codigo){
   const inp = document.getElementById('addm-'+naveId);
   inp.value = codigo;
   ocultarSugerenciasAddModelo(naveId);
-  addModel(naveId); // inserta el código y completa la colección automáticamente
+  addModel(naveId); 
 }
 
 function mostrarSugerenciasModeloModal(){
@@ -1023,6 +1021,178 @@ function mergeData(importedData) {
   });
 }
 
+/* ---- Edit item inline ---- */
+function startEdit(itemId){
+  if (!isEditableMode) return;
+  editingItemId=itemId;
+  render();
+}
+function cancelEdit(){
+  editingItemId=null;
+  render();
+}
+function saveEdit(naveId,itemId){
+  if (!isEditableMode) return;
+  const t=document.getElementById('et-'+itemId).value.trim();
+  const d=document.getElementById('ed-'+itemId).value.trim();
+  const f=document.getElementById('ef-'+itemId).value.trim();
+  const o=document.getElementById('eo-'+itemId).value.trim();
+  
+  if(!t)return;
+  const nave=data.naves.find(n=>n.id===naveId);
+  if(nave){
+    const item=nave.items.find(i=>i.id===itemId);
+    if(item){
+      item.title=t;
+      item.desc=d;
+      item.fecha=f;
+      item.odt=o;
+      item.marked=true;
+    }
+  }
+  editingItemId=null;render();
+}
+
+/* ---- Add item modal ---- */
+function openAddItem(naveId,defaultCat){
+  if (!isEditableMode) return;
+  currentNaveId=naveId;
+  document.getElementById('new-item-title').value='';
+  document.getElementById('new-item-desc').value='';
+  document.getElementById('new-item-odt').value='';
+  
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  document.getElementById('new-item-fecha').value = `${yyyy}-${mm}-${dd}`;
+
+  newCat=defaultCat||'mejora';
+  document.querySelectorAll('#cat-select .radio-opt').forEach(el=>{
+    el.classList.toggle('selected',el.querySelector('input').value===newCat);
+  });
+  document.getElementById('modal-item').classList.add('open');
+}
+function selectCat(el,val){
+  newCat=val;
+  document.querySelectorAll('#cat-select .radio-opt').forEach(x=>x.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function saveItem(){
+  if (!isEditableMode) return;
+  const title=document.getElementById('new-item-title').value.trim();
+  const desc=document.getElementById('new-item-desc').value.trim();
+  const fecha=document.getElementById('new-item-fecha').value.trim();
+  const odt=document.getElementById('new-item-odt').value.trim();
+  
+  if(!title){document.getElementById('new-item-title').focus();return;}
+  const nave=data.naves.find(n=>n.id===currentNaveId);
+  if(nave){
+    nave.items.unshift({
+      id:uid(),
+      type:newCat,
+      title,
+      desc,
+      fecha,
+      odt,
+      marked:true,
+      proceso: { habilitado: false, planos: false, etiquetas: false, planoTerminado: false },
+      adjuntos: ["","","","",""]
+    });
+    if(nave.tipo === 'errores' && newCat === 'mejora') nave.tipo = 'ambos';
+    if(nave.tipo === 'mejoras' && (newCat === 'error' || newCat === 'ajuste')) nave.tipo = 'ambos';
+  }
+  closeModal('modal-item');render();
+}
+
+function removeNave(id){
+  if (!isEditableMode) return;
+  if(!confirm('¿Eliminar este mueble?'))return;
+  data.naves=data.naves.filter(n=>n.id!==id);
+  render();
+}
+function removeItem(naveId,itemId){
+  if (!isEditableMode) return;
+  const nave=data.naves.find(n=>n.id===naveId);
+  if(nave){nave.items=nave.items.filter(i=>i.id!==itemId);render();}
+}
+
+function openAddNave(){
+  if (!isEditableMode) return;
+  newModels=[];
+  newNaveSelected=''; 
+  newTipo='ambos';
+  document.getElementById('new-consola').value='';
+  document.getElementById('tag-input').value='';
+  renderTags();
+  document.querySelectorAll('#nave-select .select-opt').forEach(el=>el.classList.remove('selected'));
+  document.querySelectorAll('#tipo-select .radio-opt').forEach(el=>el.classList.toggle('selected',el.querySelector('input').value==='ambos'));
+  document.getElementById('modal-nave').classList.add('open');
+  setTimeout(()=>document.getElementById('new-consola').focus(),100);
+}
+function selectNave(el,val){
+  newNaveSelected=val;
+  document.querySelectorAll('#nave-select .select-opt').forEach(x=>x.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function selectTipo(el,val){
+  newTipo=val;
+  document.querySelectorAll('#tipo-select .radio-opt').forEach(x=>x.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function renderTags(){
+  const area=document.getElementById('tag-area');
+  const inp=document.getElementById('tag-input');
+  area.innerHTML='';
+  newModels.forEach((m,i)=>{
+    const tag=document.createElement('div');tag.className='model-tag';
+    tag.innerHTML=`${m}<button onclick="removeTag(${i})" title="Quitar" class="only-editable"><i class="ti ti-x"></i></button>`;
+    area.appendChild(tag);
+  });
+  area.appendChild(inp);
+}
+function removeTag(i){
+  if (!isEditableMode) return;
+  newModels.splice(i,1);renderTags();
+}
+function handleTagKey(e){
+  if (!isEditableMode) return;
+  const inp=e.target;
+  if(e.key==='Enter'||e.key===','||e.key==='Tab'){
+    e.preventDefault();
+    const val=inp.value.trim().replace(/,$/,'').toUpperCase();
+    if(val&&!newModels.includes(val)){newModels.push(val);inp.value='';renderTags();}
+  } else if(e.key==='Backspace'&&!inp.value&&newModels.length){
+    newModels.pop();renderTags();
+  }
+}
+function handleTagInput(e){
+  if (!isEditableMode) return;
+  const val=e.target.value;
+  if(val.includes(',')){
+    const parts=val.split(',');
+    parts.slice(0,-1).forEach(p=>{const v=p.trim().toUpperCase();if(v&&!newModels.includes(v))newModels.push(v);});
+    e.target.value=parts[parts.length-1];
+    renderTags();
+  }
+}
+function addNave(){
+  if (!isEditableMode) return;
+  
+  if (!newNaveSelected) {
+    alert("⚠️ Campo obligatorio: Debes seleccionar una Nave (Nave 4, Nave 2 o Maquilador).");
+    return;
+  }
+  
+  const consola=document.getElementById('new-consola').value.trim().toUpperCase();
+  const tagVal=document.getElementById('tag-input').value.trim().toUpperCase();
+  if(tagVal&&!newModels.includes(tagVal))newModels.push(tagVal);
+  if(!consola){document.getElementById('new-consola').focus();return;}
+  const modelObjects = newModels.map(m => ({name: m, link: ''}));
+  data.naves.push({id:uid(),nave:newNaveSelected,consola,tipo:newTipo,models:modelObjects,images:[],items:[]});
+  closeModal('modal-nave');render();
+}
+
 /* ---- Exportar Archivos ---- */
 async function downloadWithDialog(content, fileName, type) {
   try {
@@ -1071,7 +1241,7 @@ function openExport(type){
   document.getElementById('export-modal-title').textContent=type==='pdf'?'Exportar PDF (Final)':'Guardar Proyecto (Editable)';
   document.getElementById('export-filename').value='reporte_produccion';
   document.getElementById('export-hint').textContent=type==='pdf'
-    ?'Se guardará un documento PDF de alta nitidez para imprimir. Podrás elegir la carpeta.'
+    ?'Se guardará un documento PDF idéntico a la vista actual. Podrás elegir la carpeta.'
     :'Se creará o sobrescribirá una copia de esta página .html con todo lo que has avanzado. Ábrela mañana para seguir editando.';
     
   document.getElementById('export-btn').textContent=type==='pdf'?'Exportar PDF':'Guardar HTML';
@@ -1096,22 +1266,30 @@ function exportPDFStatic(name) {
   // Subir al tope de la página para evitar que html2canvas genere páginas en blanco
   window.scrollTo(0, 0); 
   
-  // Guardamos el estado previo de los filtros
+  // 1. Forzar el cierre de cualquier recuadro que se esté editando para que se guarde el dato
+  if (editingItemId && currentNaveId) {
+    saveEdit(currentNaveId, editingItemId);
+  } else if (editingItemId) {
+    cancelEdit();
+  }
+
+  // 2. Guardamos el estado previo de los filtros
   const prevSearch = document.getElementById('search-input').value;
   const prevStatus = filterStatus;
   const prevNave = filterNave;
   
-  // Limpiamos filtros para que el PDF incluya TODO
+  // 3. Limpiamos filtros para que el PDF incluya TODO el contenido más reciente
   document.getElementById('search-input').value = '';
   filterStatus = 'all';
   filterNave = 'all';
   filterItems(); 
 
+  // Esperar a que el DOM se repinte con todos los elementos y cambios
   setTimeout(() => {
     // Añadimos una clase temporal al body para ocultar elementos de la interfaz
     document.body.classList.add('exporting-pdf');
     
-    // Inyectamos un estilo temporal para limpiar márgenes y ocultar botones
+    // Inyectamos un estilo temporal para limpiar márgenes, ocultar botones y arreglar saltos de página
     const style = document.createElement('style');
     style.id = 'pdf-temp-style';
     style.innerHTML = `
@@ -1150,13 +1328,29 @@ function exportPDFStatic(name) {
         box-shadow: none !important;
         border: 1px solid var(--color-border-tertiary) !important;
         margin-bottom: 20px !important;
-        break-inside: avoid !important;
-        page-break-inside: avoid !important;
+        /* Remover avoid general para evitar el salto de página gigante en muebles largos */
+        break-inside: auto !important;
+        page-break-inside: auto !important;
       }
-      .exporting-pdf .item-card {
+      /* Solución para que la librería entienda cómo dividir las columnas (Grid a Flexbox) */
+      .exporting-pdf .nave-body {
+        display: flex !important;
+        align-items: flex-start !important;
+      }
+      .exporting-pdf .nave-left {
+        width: 230px !important;
+        flex-shrink: 0 !important;
+      }
+      .exporting-pdf .nave-body-right {
+        flex: 1 !important;
+        min-width: 0 !important;
+      }
+      /* Proteger elementos críticos de ser partidos por la mitad */
+      .exporting-pdf .nave-header,
+      .exporting-pdf .item-card,
+      .exporting-pdf .section-header {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
-        box-shadow: none !important;
       }
       .exporting-pdf * {
         -webkit-print-color-adjust: exact !important;
@@ -1173,7 +1367,8 @@ function exportPDFStatic(name) {
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true, letterRendering: true, scrollY: 0 },
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak:    { mode: 'css', avoid: ['.item-card', '.nave-header'] }
+      // Configuración extra para evitar cortes en medio de reportes y encabezados
+      pagebreak:    { mode: ['css', 'legacy'], avoid: ['.nave-header', '.item-card', '.section-header', '.img-item'] }
     };
 
     html2pdf().set(opt).from(element).output('blob').then(async (blob) => {
@@ -1183,7 +1378,7 @@ function exportPDFStatic(name) {
       console.error("Error al exportar PDF:", err);
       btn.textContent = 'Exportar PDF Final';
     }).finally(() => {
-      // Restauramos la vista, los filtros y el scroll original
+      // 4. Restauramos la vista, los filtros y el scroll original
       document.body.classList.remove('exporting-pdf');
       const tempStyle = document.getElementById('pdf-temp-style');
       if(tempStyle) tempStyle.remove();
@@ -1203,7 +1398,7 @@ function exportPDFStatic(name) {
       filterItems();
       window.scrollTo(0, currentScroll);
     });
-  }, 300); // 300ms de espera para que la vista completa se repinte antes de exportar
+  }, 500); // 500ms de espera para asegurar que el DOM actualizó el último reporte antes de la foto
 }
 
 

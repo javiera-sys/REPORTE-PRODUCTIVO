@@ -84,15 +84,27 @@
       transform: scale(1.1);
   }
 
-  /* NUEVO: ESTILOS PARA EL FILTRO DE ESTADO */
+  /* ESTILOS PARA LOS FILTROS DE ESTADO Y NAVE */
   .filter-row {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
       margin-top: 12px;
       border-top: 1px solid var(--color-border-tertiary);
       padding-top: 12px;
       flex-wrap: wrap;
+  }
+  .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+  }
+  .filter-divider {
+      width: 1px;
+      height: 24px;
+      background: var(--color-border-secondary);
+      margin: 0 4px;
   }
   .filter-label {
       font-size: 12px;
@@ -151,12 +163,24 @@
       <div class="autocomplete-list" id="search-autocomplete"></div>
     </div>
 
-    <!-- NUEVO: Submenú de filtros por estatus -->
+    <!-- Submenú de filtros por estatus y nave -->
     <div class="filter-row">
-      <span class="filter-label"><i class="ti ti-filter"></i> Filtrar estado:</span>
-      <button class="btn-filter active" onclick="setFilterStatus('all')">Todos</button>
-      <button class="btn-filter" onclick="setFilterStatus('pending')">⏳ Pendientes</button>
-      <button class="btn-filter" onclick="setFilterStatus('done')">✔️ Terminados</button>
+      <div class="filter-group">
+        <span class="filter-label"><i class="ti ti-filter"></i> Estado:</span>
+        <button class="btn-filter status-filter active" onclick="setFilterStatus('all', this)">Todos</button>
+        <button class="btn-filter status-filter" onclick="setFilterStatus('pending', this)">⏳ Pendientes</button>
+        <button class="btn-filter status-filter" onclick="setFilterStatus('done', this)">✔️ Terminados</button>
+      </div>
+      
+      <div class="filter-divider"></div>
+      
+      <div class="filter-group">
+        <span class="filter-label"><i class="ti ti-building-factory"></i> Nave:</span>
+        <button class="btn-filter nave-filter active" onclick="setFilterNave('all', this)">Todas</button>
+        <button class="btn-filter nave-filter" onclick="setFilterNave('NAVE 1', this)">Nave 1</button>
+        <button class="btn-filter nave-filter" onclick="setFilterNave('NAVE 2', this)">Nave 2</button>
+        <button class="btn-filter nave-filter" onclick="setFilterNave('MAQUILADOR', this)">Maquilador</button>
+      </div>
     </div>
     
   </div>
@@ -231,10 +255,11 @@
       <button class="btn-ghost btn" onclick="closeModal('modal-nave')"><i class="ti ti-x"></i></button>
     </div>
     <div class="form-group">
-      <label class="form-label">Nave</label>
+      <label class="form-label">Nave <span style="color:var(--red)">*</span></label>
       <div class="select-group" id="nave-select">
-        <div class="select-opt selected" onclick="selectNave(this,'NAVE 2')">Nave 2</div>
-        <div class="select-opt" onclick="selectNave(this,'NAVE 4')">Nave 4</div>
+        <div class="select-opt" onclick="selectNave(this,'NAVE 1')">Nave 1</div>
+        <div class="select-opt" onclick="selectNave(this,'NAVE 2')">Nave 2</div>
+        <div class="select-opt" onclick="selectNave(this,'MAQUILADOR')">Maquilador</div>
       </div>
     </div>
     <div class="form-group">

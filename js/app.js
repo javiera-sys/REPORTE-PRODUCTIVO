@@ -1,5 +1,11 @@
 document.getElementById('current-date').textContent = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
+// NUEVO: Forzar que el buscador inicie completamente vacío (evita que el navegador restaure texto por error)
+const buscadorInicial = document.getElementById('search-input');
+if (buscadorInicial) {
+  buscadorInicial.value = '';
+}
+
 // Variables Globales
 let currentNaveId=null, currentImgNaveId=null, editingItemId=null, exportType=null;
 let newModels=[], newNaveSelected='', newTipo='ambos', newCat='error';
@@ -17,8 +23,6 @@ let data = { naves: [], accessPasswords: [] };
 let modelosDB = [];
 let modelosDBIndex = new Map(); // codigo (mayúsculas) -> coleccion
 let modelosDBChanged = false; // true si se importó un xlsx nuevo en esta sesión
-
-
 
 function uid(){return 'x'+Math.random().toString(36).slice(2,9)}
 
@@ -1061,12 +1065,11 @@ function removeItem(naveId,itemId){
 function openAddNave(){
   if (!isEditableMode) return;
   newModels=[];
-  newNaveSelected=''; // NAVE OBLIGATORIA: Inicia vacío
+  newNaveSelected=''; 
   newTipo='ambos';
   document.getElementById('new-consola').value='';
   document.getElementById('tag-input').value='';
   renderTags();
-  // Limpia selección de nave
   document.querySelectorAll('#nave-select .select-opt').forEach(el=>el.classList.remove('selected'));
   document.querySelectorAll('#tipo-select .radio-opt').forEach(el=>el.classList.toggle('selected',el.querySelector('input').value==='ambos'));
   document.getElementById('modal-nave').classList.add('open');
@@ -1121,7 +1124,6 @@ function handleTagInput(e){
 function addNave(){
   if (!isEditableMode) return;
   
-  // NAVE OBLIGATORIA: Validación
   if (!newNaveSelected) {
     alert("⚠️ Campo obligatorio: Debes seleccionar una Nave (Nave 1, Nave 2 o Maquilador).");
     return;

@@ -142,6 +142,39 @@ function toggleProceso(naveId, itemId, field, el, event) {
   }
 }
 
+/* ---- GESTIÓN DE LOS 5 ESPACIOS DE IMÁGENES ---- */
+function subirAdjunto(event, naveId, itemId, idx) {
+  if (!isEditableMode) return;
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const nave = data.naves.find(n => n.id === naveId);
+    if(nave) {
+      const item = nave.items.find(i => i.id === itemId);
+      if(item) {
+        if(!item.adjuntos) item.adjuntos = ["","","","",""];
+        item.adjuntos[idx] = e.target.result;
+        render(); // Refresca para mostrar la foto y el botón de borrar
+      }
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function eliminarAdjunto(event, naveId, itemId, idx) {
+  event.stopPropagation(); // Evita que se abra el visor al borrar
+  if (!isEditableMode) return;
+  const nave = data.naves.find(n => n.id === naveId);
+  if(nave) {
+    const item = nave.items.find(i => i.id === itemId);
+    if(item && item.adjuntos) {
+      item.adjuntos[idx] = "";
+      render(); // Refresca para regresar al botón de agregar (+)
+    }
+  }
+}
+
 function render(){
   if(data && data.naves) {
     data.naves.forEach(nave => {
@@ -267,7 +300,6 @@ function renderItemCard(item, naveId){
   
   if(editing && isEditableMode){
     
-    // Si editamos un registro viejo que no tiene fecha, sugerir la de hoy automáticamente
     if(!safeFecha) {
         const today = new Date();
         const yyyy = today.getFullYear();
@@ -296,7 +328,32 @@ function renderItemCard(item, naveId){
   if (!item.proceso) {
     item.proceso = { habilitado: false, planos: false, etiquetas: false, planoTerminado: false };
   }
+  if (!item.adjuntos) {
+    item.adjuntos = ["", "", "", "", ""];
+  }
+  
   const proc = item.proceso;
+
+  // Generar HTML de los 5 espacios dinámicamente según la base de datos
+  let adjuntosHtml = '<div class="contenedor-adjuntos">';
+  for (let i = 0; i < 5; i++) {
+    if (item.adjuntos[i]) {
+      // Si hay imagen cargada
+      adjuntosHtml += `
+      <div class="espacio-imagen">
+        <img src="${item.adjuntos[i]}" class="visible" onclick="viewImage(this.src)">
+        <button class="btn-eliminar-adjunto only-editable" style="display:flex;" onclick="eliminarAdjunto(event, '${naveId}', '${item.id}', ${i})" title="Eliminar imagen"><i class="ti ti-x"></i></button>
+      </div>`;
+    } else {
+      // Si está vacío
+      adjuntosHtml += `
+      <div class="espacio-imagen">
+        <input type="file" accept="image/*" id="adj-${item.id}-${i}" class="input-oculto" onchange="subirAdjunto(event, '${naveId}', '${item.id}', ${i})">
+        <label for="adj-${item.id}-${i}" class="label-adjuntar"><i class="ti ti-plus"></i></label>
+      </div>`;
+    }
+  }
+  adjuntosHtml += '</div>';
 
   const procesoHtml = `
     <div class="proceso-container">
@@ -309,39 +366,7 @@ function renderItemCard(item, naveId){
       <div class="proceso-item" onclick="toggleProceso('${naveId}', '${item.id}', 'etiquetas', this, event)">
         <span>Etiquetas</span> <span class="status-icon">${proc.etiquetas ? '✔️' : '❌'}</span>
       </div>
-      
-      <div class="contenedor-adjuntos">
-        <div class="espacio-imagen">
-          <input type="file" accept="image/*" id="img-espacio-${item.id}-1" class="input-oculto" onchange="previsualizarImagen(this)">
-          <label for="img-espacio-${item.id}-1" class="label-adjuntar"><i class="ti ti-plus"></i></label>
-          <img onclick="viewImage(this.src)">
-          <button class="btn-eliminar-adjunto" onclick="eliminarImagenAdjunta(event, this)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
-        </div>
-        <div class="espacio-imagen">
-          <input type="file" accept="image/*" id="img-espacio-${item.id}-2" class="input-oculto" onchange="previsualizarImagen(this)">
-          <label for="img-espacio-${item.id}-2" class="label-adjuntar"><i class="ti ti-plus"></i></label>
-          <img onclick="viewImage(this.src)">
-          <button class="btn-eliminar-adjunto" onclick="eliminarImagenAdjunta(event, this)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
-        </div>
-        <div class="espacio-imagen">
-          <input type="file" accept="image/*" id="img-espacio-${item.id}-3" class="input-oculto" onchange="previsualizarImagen(this)">
-          <label for="img-espacio-${item.id}-3" class="label-adjuntar"><i class="ti ti-plus"></i></label>
-          <img onclick="viewImage(this.src)">
-          <button class="btn-eliminar-adjunto" onclick="eliminarImagenAdjunta(event, this)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
-        </div>
-        <div class="espacio-imagen">
-          <input type="file" accept="image/*" id="img-espacio-${item.id}-4" class="input-oculto" onchange="previsualizarImagen(this)">
-          <label for="img-espacio-${item.id}-4" class="label-adjuntar"><i class="ti ti-plus"></i></label>
-          <img onclick="viewImage(this.src)">
-          <button class="btn-eliminar-adjunto" onclick="eliminarImagenAdjunta(event, this)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
-        </div>
-        <div class="espacio-imagen">
-          <input type="file" accept="image/*" id="img-espacio-${item.id}-5" class="input-oculto" onchange="previsualizarImagen(this)">
-          <label for="img-espacio-${item.id}-5" class="label-adjuntar"><i class="ti ti-plus"></i></label>
-          <img onclick="viewImage(this.src)">
-          <button class="btn-eliminar-adjunto" onclick="eliminarImagenAdjunta(event, this)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
-        </div>
-      </div>
+      ${adjuntosHtml}
     </div>
   `;
 
@@ -588,12 +613,7 @@ function removeModel(naveId,idx){
   if(nave){nave.models.splice(idx,1);render();}
 }
 
-/* ---- Abrir enlace de un modelo ----
-   Los links http(s) normales se abren en pestaña nueva sin problema.
-   Las rutas de red tipo \\servidor\carpeta (o su versión file://) NO se
-   pueden abrir desde una página https por una restricción de seguridad
-   del navegador (la bloquea en silencio, por eso "no hacía nada"). En
-   ese caso copiamos la ruta para pegarla en el explorador de archivos. */
+/* ---- Abrir enlace de un modelo ---- */
 function abrirEnlaceModelo(rawLink, event){
   if(event){ event.preventDefault(); event.stopPropagation(); }
   const link = (rawLink || '').trim();
@@ -702,7 +722,6 @@ document.addEventListener('paste', function(e) {
   }
 });
 
-/* ---- Importar Archivos Anteriores ---- */
 /* ---- Menú desplegable del botón Excel ---- */
 function toggleExcelMenu(event){
   if(event) event.stopPropagation();
@@ -863,6 +882,7 @@ function mergeData(importedData) {
     if (!existingNave) {
       impNave.items.forEach(item => {
          if(!item.proceso) item.proceso = { habilitado: false, planos: false, etiquetas: false };
+         if(!item.adjuntos) item.adjuntos = ["","","","",""];
       });
       data.naves.push(impNave);
     } else {
@@ -889,6 +909,7 @@ function mergeData(importedData) {
           let existingItem = existingNave.items.find(i => i.id === impItem.id);
           if (!existingItem) {
             if(!impItem.proceso) impItem.proceso = { habilitado: false, planos: false, etiquetas: false };
+            if(!impItem.adjuntos) impItem.adjuntos = ["","","","",""];
             existingNave.items.push(impItem);
           } else {
             existingItem.title = existingItem.title || impItem.title;
@@ -900,6 +921,7 @@ function mergeData(importedData) {
             if (!existingItem.proceso) {
               existingItem.proceso = impItem.proceso || { habilitado: false, planos: false, etiquetas: false };
             }
+            existingItem.adjuntos = existingItem.adjuntos || impItem.adjuntos || ["","","","",""];
           }
         });
       }
@@ -982,7 +1004,8 @@ function saveItem(){
       fecha,
       odt,
       marked:true,
-      proceso: { habilitado: false, planos: false, etiquetas: false, planoTerminado: false }
+      proceso: { habilitado: false, planos: false, etiquetas: false, planoTerminado: false },
+      adjuntos: ["","","","",""]
     });
     if(nave.tipo === 'errores' && newCat === 'mejora') nave.tipo = 'ambos';
     if(nave.tipo === 'mejoras' && (newCat === 'error' || newCat === 'ajuste')) nave.tipo = 'ambos';
@@ -1262,21 +1285,47 @@ async function pushToGithub() {
 
   try {
     let nuevasImagenes = 0;
+    
     for (const nave of data.naves) {
-      if (!Array.isArray(nave.images)) continue;
-      for (let i = 0; i < nave.images.length; i++) {
-        const img = nave.images[i];
-        if (typeof img === 'string' && img.startsWith('data:image')) {
-          const ext = extFromDataUri(img);
-          const fileName = `${nave.id}_${uid()}.${ext}`;
-          const b64 = img.split(',', 2)[1];
-          setGithubStatus(`Subiendo imagen ${nuevasImagenes + 1}...`, 'info');
-          await putFileToGithub(
-            repo, imagesRepoPrefix + fileName, branch, headers, b64,
-            `Nueva imagen (${new Date().toLocaleString('es-MX')})`
-          );
-          nave.images[i] = 'data/images/' + fileName;
-          nuevasImagenes++;
+      // 1) Subir imágenes generales de la nave
+      if (Array.isArray(nave.images)) {
+        for (let i = 0; i < nave.images.length; i++) {
+          const img = nave.images[i];
+          if (typeof img === 'string' && img.startsWith('data:image')) {
+            const ext = extFromDataUri(img);
+            const fileName = `${nave.id}_${uid()}.${ext}`;
+            const b64 = img.split(',', 2)[1];
+            setGithubStatus(`Subiendo imagen general ${nuevasImagenes + 1}...`, 'info');
+            await putFileToGithub(
+              repo, imagesRepoPrefix + fileName, branch, headers, b64,
+              `Nueva imagen de mueble (${new Date().toLocaleString('es-MX')})`
+            );
+            nave.images[i] = 'data/images/' + fileName;
+            nuevasImagenes++;
+          }
+        }
+      }
+      
+      // 2) NUEVO: Subir imágenes adjuntas a los reportes (los 5 recuadros)
+      if (Array.isArray(nave.items)) {
+        for (const item of nave.items) {
+          if (Array.isArray(item.adjuntos)) {
+            for (let j = 0; j < item.adjuntos.length; j++) {
+              const adj = item.adjuntos[j];
+              if (typeof adj === 'string' && adj.startsWith('data:image')) {
+                const ext = extFromDataUri(adj);
+                const fileName = `adj_${item.id}_${uid()}.${ext}`;
+                const b64 = adj.split(',', 2)[1];
+                setGithubStatus(`Subiendo imagen de reporte ${nuevasImagenes + 1}...`, 'info');
+                await putFileToGithub(
+                  repo, imagesRepoPrefix + fileName, branch, headers, b64,
+                  `Nueva imagen de reporte (${new Date().toLocaleString('es-MX')})`
+                );
+                item.adjuntos[j] = 'data/images/' + fileName;
+                nuevasImagenes++;
+              }
+            }
+          }
         }
       }
     }
@@ -1523,38 +1572,3 @@ function coleccionParaCodigo(codigo){
 }
 
 cargarDatosIniciales();
-
-/* ---- PREVISUALIZAR Y ELIMINAR IMÁGENES ---- */
-function previsualizarImagen(input) {
-  const contenedor = input.closest('.espacio-imagen');
-  const vistaPrevia = contenedor.querySelector('img');
-  const label = contenedor.querySelector('.label-adjuntar');
-  const btnEliminar = contenedor.querySelector('.btn-eliminar-adjunto');
-
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      vistaPrevia.src = e.target.result;
-      vistaPrevia.classList.add('visible');
-      label.style.display = 'none';
-      if(btnEliminar) btnEliminar.style.display = 'flex'; // Muestra el botón de la X
-    }
-    reader.readAsDataURL(input.files[0]);
-  }
-}
-
-function eliminarImagenAdjunta(event, btn) {
-  event.stopPropagation(); // Evita que se abra el visor grande accidentalmente
-  
-  const contenedor = btn.closest('.espacio-imagen');
-  const input = contenedor.querySelector('.input-oculto');
-  const vistaPrevia = contenedor.querySelector('img');
-  const label = contenedor.querySelector('.label-adjuntar');
-
-  // Limpiar el contenido de la imagen y restaurar el botón de "+"
-  input.value = '';
-  vistaPrevia.src = '';
-  vistaPrevia.classList.remove('visible');
-  label.style.display = 'flex'; 
-  btn.style.display = 'none'; 
-}

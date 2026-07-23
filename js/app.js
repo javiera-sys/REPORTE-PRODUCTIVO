@@ -2,9 +2,10 @@ document.getElementById('current-date').textContent = new Date().toLocaleDateStr
 
 // Variables Globales
 let currentNaveId=null, currentImgNaveId=null, editingItemId=null, exportType=null;
-let newModels=[], newNaveSelected='NAVE 2', newTipo='ambos', newCat='error';
+let newModels=[], newNaveSelected='', newTipo='ambos', newCat='error';
 let isEditableMode = false;
-let filterStatus = 'all'; // NUEVO: Estado del filtro ('all', 'pending', 'done')
+let filterStatus = 'all'; // 'all', 'pending', 'done'
+let filterNave = 'all'; // 'all', 'NAVE 1', 'NAVE 2', 'MAQUILADOR'
 
 // Referencia global al archivo para guardado rápido
 let fileHandle = null;
@@ -156,7 +157,7 @@ function subirAdjunto(event, naveId, itemId, idx) {
       if(item) {
         if(!item.adjuntos) item.adjuntos = ["","","","",""];
         item.adjuntos[idx] = e.target.result;
-        render();
+        render(); 
       }
     }
   };
@@ -164,14 +165,14 @@ function subirAdjunto(event, naveId, itemId, idx) {
 }
 
 function eliminarAdjunto(event, naveId, itemId, idx) {
-  event.stopPropagation();
+  event.stopPropagation(); 
   if (!isEditableMode) return;
   const nave = data.naves.find(n => n.id === naveId);
   if(nave) {
     const item = nave.items.find(i => i.id === itemId);
     if(item && item.adjuntos) {
       item.adjuntos[idx] = "";
-      render();
+      render(); 
     }
   }
 }
@@ -202,16 +203,18 @@ function render(){
 
 function dotClass(t){return t==='error'?'dot-error':t==='ajuste'?'dot-ajuste':'dot-mejora'}
 
-/* ---- NUEVO: Filtro por estado ---- */
-function setFilterStatus(status) {
+/* ---- FILTROS POR ESTADO Y NAVE ---- */
+function setFilterStatus(status, btn) {
   filterStatus = status;
-  // Actualizar la apariencia de los botones del submenú
-  document.querySelectorAll('.btn-filter').forEach(btn => {
-    btn.classList.remove('active');
-  });
-  document.querySelector(`.btn-filter[onclick="setFilterStatus('${status}')"]`).classList.add('active');
-  
-  // Ejecutar el filtro combinado
+  document.querySelectorAll('.status-filter').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterItems();
+}
+
+function setFilterNave(nave, btn) {
+  filterNave = nave;
+  document.querySelectorAll('.nave-filter').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
   filterItems();
 }
 
@@ -227,7 +230,16 @@ function filterItems(){
   if (clearBtn) clearBtn.style.display = rawQ ? 'flex' : 'none';
 
   document.querySelectorAll('.nave-card').forEach(naveCard=>{
-    // Caso de reset total: Si no hay búsqueda y el filtro es "todos"
+    const badge = naveCard.querySelector('.nave-badge');
+    const naveName = badge ? badge.textContent.trim().toUpperCase() : '';
+    
+    // Filtro de Nave (Ocultar completamente si no coincide)
+    if (filterNave !== 'all' && naveName !== filterNave) {
+        naveCard.style.display = 'none';
+        return;
+    }
+
+    // Reset total: Si no hay búsqueda y el filtro de estado es "todos"
     if(!q && filterStatus === 'all'){
       naveCard.style.display='';
       naveCard.querySelectorAll('.item-card').forEach(ic=>{
@@ -237,7 +249,6 @@ function filterItems(){
       return;
     }
 
-    const badge = naveCard.querySelector('.nave-badge');
     const title = naveCard.querySelector('.nave-title');
     const modelChips = naveCard.querySelectorAll('.model-chip');
     const modelsText = normalizeSearch(Array.from(modelChips).map(el=>el.textContent).join(' '));
@@ -266,7 +277,6 @@ function filterItems(){
       if(itemMatches) anyItemVisible = true;
     });
 
-    // Mostrar la nave si un ítem cumple los filtros o (si la nave cumple el texto y el estado está en 'Todos')
     naveCard.style.display = (anyItemVisible || (naveMatches && filterStatus === 'all')) ? '' : 'none';
   });
 }
@@ -1050,11 +1060,14 @@ function removeItem(naveId,itemId){
 
 function openAddNave(){
   if (!isEditableMode) return;
-  newModels=[];newNaveSelected='NAVE 2';newTipo='ambos';
+  newModels=[];
+  newNaveSelected=''; // NAVE OBLIGATORIA: Inicia vacío
+  newTipo='ambos';
   document.getElementById('new-consola').value='';
   document.getElementById('tag-input').value='';
   renderTags();
-  document.querySelectorAll('#nave-select .select-opt').forEach((el,i)=>el.classList.toggle('selected',i===0));
+  // Limpia selección de nave
+  document.querySelectorAll('#nave-select .select-opt').forEach(el=>el.classList.remove('selected'));
   document.querySelectorAll('#tipo-select .radio-opt').forEach(el=>el.classList.toggle('selected',el.querySelector('input').value==='ambos'));
   document.getElementById('modal-nave').classList.add('open');
   setTimeout(()=>document.getElementById('new-consola').focus(),100);
@@ -1107,6 +1120,13 @@ function handleTagInput(e){
 }
 function addNave(){
   if (!isEditableMode) return;
+  
+  // NAVE OBLIGATORIA: Validación
+  if (!newNaveSelected) {
+    alert("⚠️ Campo obligatorio: Debes seleccionar una Nave (Nave 1, Nave 2 o Maquilador).");
+    return;
+  }
+  
   const consola=document.getElementById('new-consola').value.trim().toUpperCase();
   const tagVal=document.getElementById('tag-input').value.trim().toUpperCase();
   if(tagVal&&!newModels.includes(tagVal))newModels.push(tagVal);

@@ -13,12 +13,13 @@ let editNaveSelected='';
 let isEditableMode = false;
 let filterStatus = 'all'; // 'all', 'pending', 'done'
 let filterNave = 'all'; // 'all', 'NAVE 4', 'NAVE 2', 'MAQUILADOR'
+let isPGPanelOpen = false; // Estado del panel de Pendientes Generales
 
 // Referencia global al archivo para guardado rápido
 let fileHandle = null;
 
 // Datos de la app (se cargan desde data/cambios.json al iniciar)
-let data = { naves: [], accessPasswords: [] };
+let data = { naves: [], accessPasswords: [], pendientesGenerales: [] };
 
 // Base de datos de modelos (código -> colección), viene de data/modelos.json
 let modelosDB = [];
@@ -72,6 +73,7 @@ function validatePassword() {
     btn.className = 'btn btn-green';
     btn.innerHTML = '<i class="ti ti-lock-open"></i> MODO EDICIÓN 🔓';
     closeModal('modal-auth');
+    renderPG(); // Refrescar botones editables en panel PG
   } else {
     const modal = document.querySelector('#modal-auth .modal');
     modal.classList.remove('auth-shake');
@@ -128,6 +130,14 @@ function deleteAccessPassword(idx) {
   renderAccessList();
 }
 
+function toggleItemStar(naveId, itemId){
+  if (!isEditableMode) return;
+  const nave=data.naves.find(n=>n.id===naveId);
+  if(!nave) return;
+  const item=nave.items.find(i=>i.id===itemId);
+  if(item){ item.marked=!item.marked; render(); }
+}
+
 function toggleProceso(naveId, itemId, field, el, event) {
   if(event) event.stopPropagation();
   if (!isEditableMode) return;
@@ -174,6 +184,132 @@ function eliminarAdjunto(event, naveId, itemId, idx) {
   }
 }
 
+/* ---- NUEVO MÓDULO: PENDIENTES GENERALES ---- */
+function togglePGPanel() {
+  isPGPanelOpen = !isPGPanelOpen;
+  const panel = document.getElementById('pg-panel');
+  const chev = document.getElementById('pg-chevron');
+  if (isPGPanelOpen) {
+      panel.style.display = 'block';
+      chev.classList.replace('ti-chevron-down', 'ti-chevron-up');
+  } else {
+      panel.style.display = 'none';
+      chev.classList.replace('ti-chevron-up', 'ti-chevron-down');
+  }
+}
+
+function renderPG() {
+  if (!data.pendientesGenerales) data.pendientesGenerales = [];
+  const count = data.pendientesGenerales.length;
+  const counterEl = document.getElementById('pg-counter');
+  
+  if (count > 0) {
+      counterEl.textContent = count;
+      counterEl.style.display = 'inline-block';
+  } else {
+      counterEl.style.display = 'none';
+  }
+  
+  const listEl = document.getElementById('pg-list');
+  if (count === 0) {
+      listEl.innerHTML = '<div class="empty-section">No hay pendientes generales activos.</div>';
+      return;
+  }
+  
+  let html = '';
+  data.pendientesGenerales.forEach(pg => {
+      // Fecha formateada
+      let dateStr = '';
+      if (pg.createdAt) {
+          dateStr = new Date(pg.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      }
+      
+      // Indicador 72h (tiempo real comparando contra el timestamp guardado)
+      const isNew = pg.createdAt && (Date.now() - pg.createdAt) < (72 * 60 * 60 * 1000);
+      const starHtml = isNew ? `<div title="Registro nuevo (últimas 72h)" style="color:#f59e0b; display:flex; align-items:center; justify-content:center; width:20px; height:20px; margin-left:4px;"><i class="ti ti-star-filled" style="font-size:16px"></i></div>` : '';
+
+      html += `
+      <div class="pg-item">
+          <div class="pg-item-header">
+              <div style="display:flex; align-items:flex-start; flex:1;">
+                  <div class="pg-item-title">${escHtml(pg.title)}</div>
+                  ${starHtml}
+              </div>
+              ${dateStr ? `<div class="pg-item-date">${dateStr}</div>` : ''}
+          </div>
+          <div class="pg-item-desc">${escHtml(pg.desc)}</div>
+          <div class="pg-actions-row only-editable">
+              <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('${pg.id}')"><i class="ti ti-pencil"></i></button>
+              <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('${pg.id}')"><i class="ti ti-trash"></i></button>
+          </div>
+      </div>
+      `;
+  });
+  listEl.innerHTML = html;
+}
+
+function openAddPG() {
+  if (!isEditableMode) return;
+  document.getElementById('pg-edit-id').value = '';
+  document.getElementById('pg-title').value = '';
+  document.getElementById('pg-desc').value = '';
+  document.getElementById('modal-pg-h').textContent = 'Agregar Pendiente General';
+  document.getElementById('modal-pg').classList.add('open');
+  setTimeout(() => document.getElementById('pg-title').focus(), 100);
+}
+
+function savePG() {
+  if (!isEditableMode) return;
+  const id = document.getElementById('pg-edit-id').value;
+  const title = document.getElementById('pg-title').value.trim();
+  const desc = document.getElementById('pg-desc').value.trim();
+  
+  if (!title || !desc) {
+      alert("⚠️ Título y Descripción son obligatorios.");
+      return;
+  }
+  
+  if (!data.pendientesGenerales) data.pendientesGenerales = [];
+  
+  if (id) {
+      const pg = data.pendientesGenerales.find(p => p.id === id);
+      if (pg) {
+          pg.title = title;
+          pg.desc = desc;
+      }
+  } else {
+      // Guardar con timestamp real UTC (Date.now())
+      data.pendientesGenerales.unshift({
+          id: uid(),
+          title: title,
+          desc: desc,
+          createdAt: Date.now()
+      });
+  }
+  
+  closeModal('modal-pg');
+  renderPG();
+}
+
+function editPG(id) {
+  if (!isEditableMode) return;
+  const pg = data.pendientesGenerales.find(p => p.id === id);
+  if (!pg) return;
+  document.getElementById('pg-edit-id').value = pg.id;
+  document.getElementById('pg-title').value = pg.title;
+  document.getElementById('pg-desc').value = pg.desc;
+  document.getElementById('modal-pg-h').textContent = 'Editar Pendiente General';
+  document.getElementById('modal-pg').classList.add('open');
+}
+
+function deletePG(id) {
+  if (!isEditableMode) return;
+  if (!confirm('¿Eliminar este pendiente general permanentemente?')) return;
+  data.pendientesGenerales = data.pendientesGenerales.filter(p => p.id !== id);
+  renderPG();
+}
+
+
 function render(){
   if(data && data.naves) {
     data.naves.forEach(nave => {
@@ -195,6 +331,7 @@ function render(){
     data.naves.forEach((n, idx) => c.insertAdjacentHTML('beforeend', renderNave(n, idx, data.naves.length)));
   }
   
+  renderPG(); // Renderizar módulo Pendientes Generales
   filterItems(); // Ejecutar el filtro siempre que rendericemos
 }
 
@@ -412,7 +549,7 @@ function renderItemCard(item, naveId){
      }
   }
 
-  // Lógica del Indicador de Nuevo (Estrella - 72 horas)
+  // Indicador de "Nuevo" evaluado en tiempo real contra el Timestamp de creación
   const isNew = item.createdAt && (Date.now() - item.createdAt) < (72 * 60 * 60 * 1000);
   const starIndicatorHtml = isNew 
     ? `<div title="Registro nuevo (últimas 72h)" style="color:#f59e0b; display:flex; align-items:center; justify-content:center; width:20px; height:20px;"><i class="ti ti-star-filled" style="font-size:16px"></i></div>` 
@@ -538,7 +675,6 @@ function renderNave(nave, index, total){
   </div>`;
 }
 
-
 /* ---- Visor de Imagen Full Size ---- */
 function viewImage(src) {
   document.getElementById('view-img-element').src = src;
@@ -565,12 +701,12 @@ function moveNaveDown(idx){
   }
 }
 
-/* ---- Autocompletado de modelos COMPATIBLE CON ANDROID Y PC ---- */
+/* ---- Autocompletado (COMPATIBLE CON ANDROID Y PC) ---- */
 function renderAutocompleteList(container, matches, onSelectAttr){
   if(!container) return;
   if(!matches.length){ container.classList.remove('open'); container.innerHTML=''; return; }
   
-  // Usamos onpointerdown y preventDefault para evitar bugs en teclados de Android
+  // onpointerdown y preventDefault salvan el bug del teclado de Android que oculta sugerencias
   container.innerHTML = matches.map(m => `
     <div class="autocomplete-item" onpointerdown="${onSelectAttr(m)}; event.preventDefault();">
       <span class="ac-codigo">${escHtml(m.codigo)}</span>
@@ -841,6 +977,22 @@ function exportarExcel(){
     return;
   }
   const filas = [];
+  
+  // Agregar también los Pendientes Generales al inicio del Excel
+  if(data.pendientesGenerales && data.pendientesGenerales.length > 0) {
+      data.pendientesGenerales.forEach(pg => {
+          let dateStr = '';
+          if (pg.createdAt) dateStr = new Date(pg.createdAt).toLocaleDateString('es-MX');
+          filas.push({
+              'FECHA': dateStr,
+              'ITEM': 'PENDIENTE GENERAL',
+              'ODT': '',
+              'CAMBIO': pg.title + (pg.desc ? (' - ' + pg.desc) : ''),
+              'ESTATUS': 'GENERAL'
+          });
+      });
+  }
+
   data.naves.forEach(nave=>{
     const errores = nave.items.filter(i=>i.type==='error'||i.type==='ajuste');
     const mejoras = nave.items.filter(i=>i.type==='mejora');
@@ -962,60 +1114,74 @@ function handleImport(e) {
   e.target.value = '';
 }
 function mergeData(importedData) {
-  if (!importedData || !importedData.naves) return;
+  if (!importedData) return;
 
-  importedData.naves.forEach(impNave => {
-    let existingNave = data.naves.find(n => n.id === impNave.id);
-
-    if (!existingNave) {
-      impNave.items.forEach(item => {
-         if(!item.proceso) item.proceso = { habilitado: false, planos: false, etiquetas: false };
-         if(!item.adjuntos) item.adjuntos = ["","","","",""];
-      });
-      data.naves.push(impNave);
-    } else {
-      if (impNave.models) {
-        impNave.models.forEach(impModel => {
-          const modelName = typeof impModel === 'string' ? impModel : impModel.name;
-          const link = typeof impModel === 'string' ? '' : (impModel.link || '');
-          if (!existingNave.models.find(m => m.name === modelName)) {
-            existingNave.models.push({ name: modelName, link: link });
-          }
-        });
-      }
-
-      if (impNave.images) {
-        impNave.images.forEach(impImg => {
-          if (!existingNave.images.includes(impImg) && existingNave.images.length < 10) {
-            existingNave.images.push(impImg);
-          }
-        });
-      }
-
-      if (impNave.items) {
-        impNave.items.forEach(impItem => {
-          let existingItem = existingNave.items.find(i => i.id === impItem.id);
-          if (!existingItem) {
-            if(!impItem.proceso) impItem.proceso = { habilitado: false, planos: false, etiquetas: false };
-            if(!impItem.adjuntos) impItem.adjuntos = ["","","","",""];
-            existingNave.items.push(impItem);
+  if (importedData.pendientesGenerales) {
+      importedData.pendientesGenerales.forEach(impPg => {
+          let existingPg = data.pendientesGenerales.find(p => p.id === impPg.id);
+          if (!existingPg) {
+              data.pendientesGenerales.push(impPg);
           } else {
-            existingItem.title = existingItem.title || impItem.title;
-            existingItem.desc = existingItem.desc || impItem.desc;
-            
-            existingItem.fecha = existingItem.fecha || impItem.fecha || '';
-            existingItem.odt = existingItem.odt || impItem.odt || '';
-            existingItem.createdAt = existingItem.createdAt || impItem.createdAt || Date.now();
-            
-            if (!existingItem.proceso) {
-              existingItem.proceso = impItem.proceso || { habilitado: false, planos: false, etiquetas: false };
-            }
-            existingItem.adjuntos = existingItem.adjuntos || impItem.adjuntos || ["","","","",""];
+              existingPg.title = impPg.title;
+              existingPg.desc = impPg.desc;
           }
+      });
+  }
+
+  if (importedData.naves) {
+    importedData.naves.forEach(impNave => {
+      let existingNave = data.naves.find(n => n.id === impNave.id);
+
+      if (!existingNave) {
+        impNave.items.forEach(item => {
+           if(!item.proceso) item.proceso = { habilitado: false, planos: false, etiquetas: false };
+           if(!item.adjuntos) item.adjuntos = ["","","","",""];
         });
+        data.naves.push(impNave);
+      } else {
+        if (impNave.models) {
+          impNave.models.forEach(impModel => {
+            const modelName = typeof impModel === 'string' ? impModel : impModel.name;
+            const link = typeof impModel === 'string' ? '' : (impModel.link || '');
+            if (!existingNave.models.find(m => m.name === modelName)) {
+              existingNave.models.push({ name: modelName, link: link });
+            }
+          });
+        }
+
+        if (impNave.images) {
+          impNave.images.forEach(impImg => {
+            if (!existingNave.images.includes(impImg) && existingNave.images.length < 10) {
+              existingNave.images.push(impImg);
+            }
+          });
+        }
+
+        if (impNave.items) {
+          impNave.items.forEach(impItem => {
+            let existingItem = existingNave.items.find(i => i.id === impItem.id);
+            if (!existingItem) {
+              if(!impItem.proceso) impItem.proceso = { habilitado: false, planos: false, etiquetas: false };
+              if(!impItem.adjuntos) impItem.adjuntos = ["","","","",""];
+              existingNave.items.push(impItem);
+            } else {
+              existingItem.title = existingItem.title || impItem.title;
+              existingItem.desc = existingItem.desc || impItem.desc;
+              
+              existingItem.fecha = existingItem.fecha || impItem.fecha || '';
+              existingItem.odt = existingItem.odt || impItem.odt || '';
+              existingItem.createdAt = existingItem.createdAt || impItem.createdAt || Date.now();
+              
+              if (!existingItem.proceso) {
+                existingItem.proceso = impItem.proceso || { habilitado: false, planos: false, etiquetas: false };
+              }
+              existingItem.adjuntos = existingItem.adjuntos || impItem.adjuntos || ["","","","",""];
+            }
+          });
+        }
       }
-    }
-  });
+    });
+  }
 }
 
 /* ---- Edit item inline ---- */
@@ -1091,7 +1257,7 @@ function saveItem(){
       desc,
       fecha,
       odt,
-      createdAt: Date.now(), // NUEVO: Generación de timestamp automático en tiempo real
+      createdAt: Date.now(), 
       proceso: { habilitado: false, planos: false, etiquetas: false, planoTerminado: false },
       adjuntos: ["","","","",""]
     });
@@ -1337,6 +1503,15 @@ function exportPDFStatic(name) {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
       }
+      /* Expandimos panel de P.G. si se imprime */
+      .exporting-pdf .pg-panel {
+        display: block !important;
+        max-height: none !important;
+        overflow: visible !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+      .exporting-pdf .pg-header i { display: none !important; }
       .exporting-pdf * {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
@@ -1383,7 +1558,6 @@ function exportPDFStatic(name) {
     });
   }, 500); 
 }
-
 
 /* ---- Guardar en GitHub ---- */
 const GH_CONFIG_KEY = 'reporte_produccion_gh_config';

@@ -128,14 +128,6 @@ function deleteAccessPassword(idx) {
   renderAccessList();
 }
 
-function toggleItemStar(naveId, itemId){
-  if (!isEditableMode) return;
-  const nave=data.naves.find(n=>n.id===naveId);
-  if(!nave) return;
-  const item=nave.items.find(i=>i.id===itemId);
-  if(item){ item.marked=!item.marked; render(); }
-}
-
 function toggleProceso(naveId, itemId, field, el, event) {
   if(event) event.stopPropagation();
   if (!isEditableMode) return;
@@ -238,13 +230,11 @@ function filterItems(){
     const badge = naveCard.querySelector('.nave-badge');
     const naveName = badge ? badge.textContent.trim().toUpperCase() : '';
     
-    // Filtro de Nave (Ocultar completamente si no coincide)
     if (filterNave !== 'all' && naveName !== filterNave) {
         naveCard.style.display = 'none';
         return;
     }
 
-    // Reset total: Si no hay búsqueda y el filtro de estado es "todos"
     if(!q && filterStatus === 'all'){
       naveCard.style.display='';
       naveCard.querySelectorAll('.item-card').forEach(ic=>{
@@ -422,6 +412,12 @@ function renderItemCard(item, naveId){
      }
   }
 
+  // Lógica del Indicador de Nuevo (Estrella - 72 horas)
+  const isNew = item.createdAt && (Date.now() - item.createdAt) < (72 * 60 * 60 * 1000);
+  const starIndicatorHtml = isNew 
+    ? `<div title="Registro nuevo (últimas 72h)" style="color:#f59e0b; display:flex; align-items:center; justify-content:center; width:20px; height:20px;"><i class="ti ti-star-filled" style="font-size:16px"></i></div>` 
+    : `<div style="width:20px; height:20px;"></div>`;
+
   return `<div class="item-card ${proc.planoTerminado ? 'plano-done' : ''}" id="ic-${item.id}">
     <div class="item-dot ${dotClass(item.type)}" style="margin-top:5px"></div>
     <div class="item-content">
@@ -441,9 +437,7 @@ function renderItemCard(item, naveId){
       <div class="item-desc-text">${escHtml(item.desc)}</div>
       <div class="item-footer">
         ${procesoHtml}
-        <button class="item-star-toggle ${item.marked?'active':''}" onclick="toggleItemStar('${naveId}','${item.id}')" title="${item.marked?'Quitar marca de editado':'Marcar como editado'}">
-          <i class="ti ${item.marked?'ti-star-filled':'ti-star'}"></i>
-        </button>
+        ${starIndicatorHtml}
       </div>
     </div>
   </div>`;
@@ -544,6 +538,7 @@ function renderNave(nave, index, total){
   </div>`;
 }
 
+
 /* ---- Visor de Imagen Full Size ---- */
 function viewImage(src) {
   document.getElementById('view-img-element').src = src;
@@ -570,12 +565,14 @@ function moveNaveDown(idx){
   }
 }
 
-/* ---- Autocompletado de modelos (buscador, agregar modelo, editar modelo) ---- */
+/* ---- Autocompletado de modelos COMPATIBLE CON ANDROID Y PC ---- */
 function renderAutocompleteList(container, matches, onSelectAttr){
   if(!container) return;
   if(!matches.length){ container.classList.remove('open'); container.innerHTML=''; return; }
+  
+  // Usamos onpointerdown y preventDefault para evitar bugs en teclados de Android
   container.innerHTML = matches.map(m => `
-    <div class="autocomplete-item" onmousedown="${onSelectAttr(m)}">
+    <div class="autocomplete-item" onpointerdown="${onSelectAttr(m)}; event.preventDefault();">
       <span class="ac-codigo">${escHtml(m.codigo)}</span>
       ${m.coleccion ? `<span class="ac-coleccion">${escHtml(m.coleccion)}</span>` : ''}
     </div>`).join('');
@@ -707,7 +704,6 @@ function saveEditedModel(){
   closeModal('modal-edit-model');
 }
 
-/* ---- NUEVO: Editar Cabecera de Nave ---- */
 function selectEditNaveOpt(el, val) {
   editNaveSelected = val;
   document.querySelectorAll('#edit-nave-select .select-opt').forEach(x => x.classList.remove('selected'));
@@ -1009,6 +1005,7 @@ function mergeData(importedData) {
             
             existingItem.fecha = existingItem.fecha || impItem.fecha || '';
             existingItem.odt = existingItem.odt || impItem.odt || '';
+            existingItem.createdAt = existingItem.createdAt || impItem.createdAt || Date.now();
             
             if (!existingItem.proceso) {
               existingItem.proceso = impItem.proceso || { habilitado: false, planos: false, etiquetas: false };
@@ -1047,7 +1044,6 @@ function saveEdit(naveId,itemId){
       item.desc=d;
       item.fecha=f;
       item.odt=o;
-      item.marked=true;
     }
   }
   editingItemId=null;render();
@@ -1095,7 +1091,7 @@ function saveItem(){
       desc,
       fecha,
       odt,
-      marked:true,
+      createdAt: Date.now(), // NUEVO: Generación de timestamp automático en tiempo real
       proceso: { habilitado: false, planos: false, etiquetas: false, planoTerminado: false },
       adjuntos: ["","","","",""]
     });
@@ -1261,35 +1257,27 @@ function exportPDFStatic(name) {
   const btn = document.getElementById('export-btn');
   btn.textContent = 'Generando PDF...';
   
-  // Guardar el scroll actual
   const currentScroll = window.scrollY;
-  // Subir al tope de la página para evitar que html2canvas genere páginas en blanco
   window.scrollTo(0, 0); 
   
-  // 1. Forzar el cierre de cualquier recuadro que se esté editando para que se guarde el dato
   if (editingItemId && currentNaveId) {
     saveEdit(currentNaveId, editingItemId);
   } else if (editingItemId) {
     cancelEdit();
   }
 
-  // 2. Guardamos el estado previo de los filtros
   const prevSearch = document.getElementById('search-input').value;
   const prevStatus = filterStatus;
   const prevNave = filterNave;
   
-  // 3. Limpiamos filtros para que el PDF incluya TODO el contenido más reciente
   document.getElementById('search-input').value = '';
   filterStatus = 'all';
   filterNave = 'all';
   filterItems(); 
 
-  // Esperar a que el DOM se repinte con todos los elementos y cambios
   setTimeout(() => {
-    // Añadimos una clase temporal al body para ocultar elementos de la interfaz
     document.body.classList.add('exporting-pdf');
     
-    // Inyectamos un estilo temporal para limpiar márgenes, ocultar botones y arreglar saltos de página
     const style = document.createElement('style');
     style.id = 'pdf-temp-style';
     style.innerHTML = `
@@ -1328,11 +1316,9 @@ function exportPDFStatic(name) {
         box-shadow: none !important;
         border: 1px solid var(--color-border-tertiary) !important;
         margin-bottom: 20px !important;
-        /* Remover avoid general para evitar el salto de página gigante en muebles largos */
         break-inside: auto !important;
         page-break-inside: auto !important;
       }
-      /* Solución para que la librería entienda cómo dividir las columnas (Grid a Flexbox) */
       .exporting-pdf .nave-body {
         display: flex !important;
         align-items: flex-start !important;
@@ -1345,7 +1331,6 @@ function exportPDFStatic(name) {
         flex: 1 !important;
         min-width: 0 !important;
       }
-      /* Proteger elementos críticos de ser partidos por la mitad */
       .exporting-pdf .nave-header,
       .exporting-pdf .item-card,
       .exporting-pdf .section-header {
@@ -1367,7 +1352,6 @@ function exportPDFStatic(name) {
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true, letterRendering: true, scrollY: 0 },
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      // Configuración extra para evitar cortes en medio de reportes y encabezados
       pagebreak:    { mode: ['css', 'legacy'], avoid: ['.nave-header', '.item-card', '.section-header', '.img-item'] }
     };
 
@@ -1378,7 +1362,6 @@ function exportPDFStatic(name) {
       console.error("Error al exportar PDF:", err);
       btn.textContent = 'Exportar PDF Final';
     }).finally(() => {
-      // 4. Restauramos la vista, los filtros y el scroll original
       document.body.classList.remove('exporting-pdf');
       const tempStyle = document.getElementById('pdf-temp-style');
       if(tempStyle) tempStyle.remove();
@@ -1398,7 +1381,7 @@ function exportPDFStatic(name) {
       filterItems();
       window.scrollTo(0, currentScroll);
     });
-  }, 500); // 500ms de espera para asegurar que el DOM actualizó el último reporte antes de la foto
+  }, 500); 
 }
 
 

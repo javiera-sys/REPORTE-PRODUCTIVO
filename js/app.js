@@ -73,7 +73,7 @@ function validatePassword() {
     btn.className = 'btn btn-green';
     btn.innerHTML = '<i class="ti ti-lock-open"></i> MODO EDICIÓN 🔓';
     closeModal('modal-auth');
-    renderPG(); // Refrescar botones editables en panel PG
+    renderPG(); 
   } else {
     const modal = document.querySelector('#modal-auth .modal');
     modal.classList.remove('auth-shake');
@@ -130,14 +130,6 @@ function deleteAccessPassword(idx) {
   renderAccessList();
 }
 
-function toggleItemStar(naveId, itemId){
-  if (!isEditableMode) return;
-  const nave=data.naves.find(n=>n.id===naveId);
-  if(!nave) return;
-  const item=nave.items.find(i=>i.id===itemId);
-  if(item){ item.marked=!item.marked; render(); }
-}
-
 function toggleProceso(naveId, itemId, field, el, event) {
   if(event) event.stopPropagation();
   if (!isEditableMode) return;
@@ -184,7 +176,7 @@ function eliminarAdjunto(event, naveId, itemId, idx) {
   }
 }
 
-/* ---- NUEVO MÓDULO: PENDIENTES GENERALES ---- */
+/* ---- MÓDULO: PENDIENTES GENERALES ---- */
 function togglePGPanel() {
   isPGPanelOpen = !isPGPanelOpen;
   const panel = document.getElementById('pg-panel');
@@ -218,13 +210,11 @@ function renderPG() {
   
   let html = '';
   data.pendientesGenerales.forEach(pg => {
-      // Fecha formateada
       let dateStr = '';
       if (pg.createdAt) {
           dateStr = new Date(pg.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
       }
       
-      // Indicador 72h (tiempo real comparando contra el timestamp guardado)
       const isNew = pg.createdAt && (Date.now() - pg.createdAt) < (72 * 60 * 60 * 1000);
       const starHtml = isNew ? `<div title="Registro nuevo (últimas 72h)" style="color:#f59e0b; display:flex; align-items:center; justify-content:center; width:20px; height:20px; margin-left:4px;"><i class="ti ti-star-filled" style="font-size:16px"></i></div>` : '';
 
@@ -278,7 +268,6 @@ function savePG() {
           pg.desc = desc;
       }
   } else {
-      // Guardar con timestamp real UTC (Date.now())
       data.pendientesGenerales.unshift({
           id: uid(),
           title: title,
@@ -309,7 +298,6 @@ function deletePG(id) {
   renderPG();
 }
 
-
 function render(){
   if(data && data.naves) {
     data.naves.forEach(nave => {
@@ -331,13 +319,12 @@ function render(){
     data.naves.forEach((n, idx) => c.insertAdjacentHTML('beforeend', renderNave(n, idx, data.naves.length)));
   }
   
-  renderPG(); // Renderizar módulo Pendientes Generales
-  filterItems(); // Ejecutar el filtro siempre que rendericemos
+  renderPG(); 
+  filterItems(); 
 }
 
 function dotClass(t){return t==='error'?'dot-error':t==='ajuste'?'dot-ajuste':'dot-mejora'}
 
-/* ---- FILTROS POR ESTADO Y NAVE ---- */
 function setFilterStatus(status, btn) {
   filterStatus = status;
   document.querySelectorAll('.status-filter').forEach(b => b.classList.remove('active'));
@@ -352,7 +339,6 @@ function setFilterNave(nave, btn) {
   filterItems();
 }
 
-/* ---- Buscador y Filtro Combinado ---- */
 function normalizeSearch(s){
   return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
@@ -443,7 +429,6 @@ function clearSearch(){
   filterItems();
 }
 
-/* ---- Botón flotante inteligente de Scroll ---- */
 window.addEventListener('scroll', ()=>{
   const btn = document.getElementById('scroll-top-btn');
   if(!btn) return;
@@ -549,7 +534,6 @@ function renderItemCard(item, naveId){
      }
   }
 
-  // Indicador de "Nuevo" evaluado en tiempo real contra el Timestamp de creación
   const isNew = item.createdAt && (Date.now() - item.createdAt) < (72 * 60 * 60 * 1000);
   const starIndicatorHtml = isNew 
     ? `<div title="Registro nuevo (últimas 72h)" style="color:#f59e0b; display:flex; align-items:center; justify-content:center; width:20px; height:20px;"><i class="ti ti-star-filled" style="font-size:16px"></i></div>` 
@@ -748,6 +732,28 @@ function seleccionarSugerenciaAddModelo(naveId, codigo){
   addModel(naveId); 
 }
 
+function mostrarSugerenciasTagModal(){
+  const inp = document.getElementById('tag-input');
+  const cont = document.getElementById('tag-autocomplete');
+  if(!inp || !cont) return;
+  const matches = buscarModelosDB(inp.value, 8);
+  renderAutocompleteList(cont, matches, (m)=>`seleccionarSugerenciaTagModal('${m.codigo.replace(/'/g,"\\'")}')`);
+}
+function ocultarSugerenciasTagModal(){
+  const cont = document.getElementById('tag-autocomplete');
+  if(cont){ cont.classList.remove('open'); }
+}
+function seleccionarSugerenciaTagModal(codigo){
+  const inp = document.getElementById('tag-input');
+  if(inp) inp.value = '';
+  if(codigo && !newModels.includes(codigo)){
+    newModels.push(codigo);
+    renderTags();
+  }
+  ocultarSugerenciasTagModal();
+  if(inp) inp.focus();
+}
+
 function mostrarSugerenciasModeloModal(){
   const inp = document.getElementById('edit-model-name');
   const cont = document.getElementById('edit-model-autocomplete');
@@ -784,7 +790,6 @@ function removeModel(naveId,idx){
   if(nave){nave.models.splice(idx,1);render();}
 }
 
-/* ---- Abrir enlace de un modelo ---- */
 function abrirEnlaceModelo(rawLink, event){
   if(event){ event.preventDefault(); event.stopPropagation(); }
   const link = (rawLink || '').trim();
@@ -978,7 +983,6 @@ function exportarExcel(){
   }
   const filas = [];
   
-  // Agregar también los Pendientes Generales al inicio del Excel
   if(data.pendientesGenerales && data.pendientesGenerales.length > 0) {
       data.pendientesGenerales.forEach(pg => {
           let dateStr = '';
@@ -1324,8 +1328,10 @@ function handleTagKey(e){
     e.preventDefault();
     const val=inp.value.trim().replace(/,$/,'').toUpperCase();
     if(val&&!newModels.includes(val)){newModels.push(val);inp.value='';renderTags();}
+    ocultarSugerenciasTagModal();
   } else if(e.key==='Backspace'&&!inp.value&&newModels.length){
     newModels.pop();renderTags();
+    ocultarSugerenciasTagModal();
   }
 }
 function handleTagInput(e){
@@ -1337,6 +1343,7 @@ function handleTagInput(e){
     e.target.value=parts[parts.length-1];
     renderTags();
   }
+  mostrarSugerenciasTagModal();
 }
 function addNave(){
   if (!isEditableMode) return;
@@ -1503,7 +1510,6 @@ function exportPDFStatic(name) {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
       }
-      /* Expandimos panel de P.G. si se imprime */
       .exporting-pdf .pg-panel {
         display: block !important;
         max-height: none !important;

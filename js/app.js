@@ -2084,3 +2084,62 @@ function deleteFicha(idx) {
   data.fichasTecnicas.splice(idx, 1);
   renderFichas();
 }
+
+/* ---- RECORDATORIO DE PENDIENTES (CADA 2 HORAS) ---- */
+function checkAndSendPendingReminders() {
+  // Solo continuar si tenemos permisos de notificación
+  if (Notification.permission !== 'granted') return;
+
+  const now = new Date();
+  const day = now.getDay();
+  const hour = now.getHours();
+
+  // Condición: Lunes (1) a Viernes (5)
+  if (day === 0 || day === 6) return;
+  // Condición: 7:00 a.m. a 8:00 p.m. (7 a 19 hrs)
+  if (hour < 7 || hour >= 20) return;
+
+  // Verificar si hay elementos pendientes
+  let hasPendientes = false;
+  
+  // 1. Revisar Pendientes Generales
+  if (data.pendientesGenerales && data.pendientesGenerales.length > 0) {
+    hasPendientes = true;
+  }
+  
+  // 2. Revisar muebles con registros NO terminados
+  if (!hasPendientes && data.naves) {
+    for (const nave of data.naves) {
+      if (nave.items && nave.items.some(item => !item.proceso?.planoTerminado)) {
+        hasPendientes = true;
+        break;
+      }
+    }
+  }
+
+  // Si no hay nada pendiente, no hacemos nada
+  if (!hasPendientes) return;
+
+  // Verificar si ya pasaron 2 horas desde la última notificación
+  const lastSentStr = localStorage.getItem('lastPendingReminder');
+  const lastSent = lastSentStr ? parseInt(lastSentStr, 10) : 0;
+  const timeSinceLast = now.getTime() - lastSent;
+  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+
+  if (timeSinceLast >= TWO_HOURS_MS) {
+    new Notification('Tienes pendientes por revisar y completar.', {
+      body: 'Hay tareas activas en Producción que requieren tu atención.',
+      icon: 'https://cdn-icons-png.flaticon.com/512/2558/2558944.png',
+      badge: 'https://cdn-icons-png.flaticon.com/512/2558/2558944.png',
+      vibrate: [200, 100, 200]
+    });
+    
+    // Guardar la hora del envío
+    localStorage.setItem('lastPendingReminder', now.getTime().toString());
+  }
+}
+
+// Revisar cada 5 minutos si es momento de enviar el recordatorio
+setInterval(checkAndSendPendingReminders, 5 * 60 * 1000);
+// Revisar también 5 segundos después de abrir la aplicación
+setTimeout(checkAndSendPendingReminders, 5000);

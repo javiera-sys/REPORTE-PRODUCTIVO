@@ -2007,9 +2007,19 @@ function toggleFichasMenu(event) {
   const willOpen = !menu.classList.contains('open');
   if(willOpen && btn){
     const rect = btn.getBoundingClientRect();
-    menu.style.left = Math.round(rect.left) + 'px';
     menu.style.top = Math.round(rect.bottom + 8) + 'px';
     menu.style.bottom = 'auto';
+    menu.style.left = Math.round(rect.left) + 'px';
+    menu.style.right = 'auto';
+    
+    // Ajuste dinámico para pantallas pequeñas (celulares)
+    setTimeout(() => {
+      const menuRect = menu.getBoundingClientRect();
+      if (menuRect.right > window.innerWidth) {
+        menu.style.left = 'auto';
+        menu.style.right = '10px';
+      }
+    }, 0);
   }
   menu.classList.toggle('open', willOpen);
 }
@@ -2042,10 +2052,11 @@ function renderFichas() {
   }
   list.innerHTML = data.fichasTecnicas.map((f, idx) => `
     <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--color-border-tertiary); transition: background 0.2s;" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor='transparent'">
-      <span style="font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; color: var(--color-text-primary);" title="${escHtml(f.name)}">
-        <i class="ti ti-file" style="margin-right: 6px; color: #6366F1; font-size: 14px; vertical-align: -2px;"></i>${escHtml(f.name)}
-      </span>
-      <div style="display: flex; gap: 6px;">
+      <div style="display: flex; align-items: flex-start; flex: 1; min-width: 0; padding-right: 8px;">
+        <i class="ti ti-file" style="margin-top: 2px; margin-right: 6px; color: #6366F1; font-size: 14px; flex-shrink: 0;"></i>
+        <span style="font-size: 12px; font-weight: 500; color: var(--color-text-primary); word-break: break-word; line-height: 1.4;">${escHtml(f.name)}</span>
+      </div>
+      <div style="display: flex; gap: 6px; flex-shrink: 0;">
         <button class="btn btn-xs btn-green" onclick="downloadFicha(${idx})" title="Descargar" style="padding: 4px 8px;"><i class="ti ti-download"></i></button>
         <button class="btn btn-xs btn-danger-ghost only-editable" onclick="deleteFicha(${idx})" style="${isEditableMode ? '' : 'display:none;'}; padding: 4px 8px;" title="Eliminar"><i class="ti ti-trash"></i></button>
       </div>

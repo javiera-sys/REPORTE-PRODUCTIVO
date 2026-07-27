@@ -1,5 +1,98 @@
 document.getElementById('current-date').textContent = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
+// Configuración de Firebase Cloud Messaging (FCM)
+const firebaseConfig = {
+  apiKey: "AIzaSyCAOhYLqz9tNgvmjM9fPFatVGMqJG7WJTo",
+  authDomain: "reporte-productivo.firebaseapp.com",
+  projectId: "reporte-productivo",
+  storageBucket: "reporte-productivo.firebasestorage.app",
+  messagingSenderId: "392604605928",
+  appId: "1:392604605928:web:896d5b169e26dde057185d"
+};
+
+const VAPID_KEY = "BEQYJRZdmj362yJI4o4fi9pGvJMgloS5Qem10cygT8olRLhhDfHGK-0ZAwywaDaCgsadsjhPNPOF4H9dZgqt9_M";
+
+let messaging = null;
+
+function initFirebaseMessaging() {
+  try {
+    if (firebase.apps.length === 0) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    messaging = firebase.messaging();
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./firebase-messaging-sw.js')
+        .then((reg) => {
+          console.log('Service Worker registrado:', reg);
+          messaging.useServiceWorker(reg);
+          checkNotificationPermissionState();
+        })
+        .catch((err) => console.error('Error registrando Service Worker:', err));
+    }
+
+    messaging.onMessage((payload) => {
+      console.log('Notificación recibida en primer plano:', payload);
+      const title = payload.notification?.title || payload.data?.title || '📌 Actualización de Producción';
+      const body = payload.notification?.body || payload.data?.body || 'Se ha realizado un nuevo cambio.';
+      
+      if (Notification.permission === 'granted') {
+        new Notification(title, {
+          body,
+          icon: 'https://cdn-icons-png.flaticon.com/512/2558/2558944.png',
+          data: payload.data
+        });
+      }
+    });
+
+  } catch (err) {
+    console.warn('Firebase Messaging no soportado o deshabilitado:', err);
+  }
+}
+
+function checkNotificationPermissionState() {
+  const btn = document.getElementById('btn-notify');
+  const label = document.getElementById('notify-label');
+  if (!btn || !label) return;
+
+  if (Notification.permission === 'granted') {
+    btn.classList.add('active');
+    label.textContent = 'Notificaciones 🔔';
+  } else if (Notification.permission === 'denied') {
+    btn.classList.remove('active');
+    label.textContent = 'Bloqueadas 🔕';
+  } else {
+    btn.classList.remove('active');
+    label.textContent = 'Activar Alertas 🔔';
+  }
+}
+
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) {
+    alert('Tu navegador no soporta notificaciones emergentes.');
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    alert('Las notificaciones ya están activadas en este dispositivo.');
+    return;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      const token = await messaging.getToken({ vapidKey: VAPID_KEY });
+      console.log('FCM Token obtenido:', token);
+      alert('✅ ¡Notificaciones activadas exitosamente!');
+    } else {
+      alert('⚠️ Permiso de notificaciones denegado.');
+    }
+    checkNotificationPermissionState();
+  } catch (err) {
+    console.error('Error al solicitar permiso:', err);
+  }
+}
+
 // Forzar que el buscador inicie completamente vacío
 const buscadorInicial = document.getElementById('search-input');
 if (buscadorInicial) {
@@ -11,37 +104,30 @@ let currentNaveId=null, currentImgNaveId=null, editingItemId=null, exportType=nu
 let newModels=[], newNaveSelected='', newTipo='ambos', newCat='error';
 let editNaveSelected=''; 
 let isEditableMode = false;
-let filterStatus = 'all'; // 'all', 'pending', 'done'
-let filterNave = 'all'; // 'all', 'NAVE 4', 'NAVE 2', 'MAQUILADOR'
-let isPGPanelOpen = false; // Estado del panel de Pendientes Generales
+let filterStatus = 'all'; 
+let filterNave = 'all'; 
+let isPGPanelOpen = false; 
 
-// Referencia global al archivo para guardado rápido
 let fileHandle = null;
-
-// Datos de la app (se cargan desde data/cambios.json al iniciar)
 let data = { naves: [], accessPasswords: [], pendientesGenerales: [] };
 
-// Base de datos de modelos (código -> colección), viene de data/modelos.json
 let modelosDB = [];
-let modelosDBIndex = new Map(); // codigo (mayúsculas) -> coleccion
-let modelosDBChanged = false; // true si se importó un xlsx nuevo en esta sesión
+let modelosDBIndex = new Map(); 
+let modelosDBChanged = false; 
 
 function uid(){return 'x'+Math.random().toString(36).slice(2,9)}
 
-// Función super-segura para escapar HTML
 function escHtml(s){
   if (s === null || s === undefined || s === 'undefined') return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Convierte AAAA-MM-DD a DD/MM/AAAA de forma segura
 function formatDateEs(s){
   if(!s || s === 'undefined') return '';
   const p=String(s).split('-');
   return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:s;
 }
 
-/* ---- Gestión de Permisos Globales ---- */
 function handleLockToggle() {
   if (isEditableMode) {
     isEditableMode = false;
@@ -83,7 +169,6 @@ function validatePassword() {
   }
 }
 
-/* ---- Gestión oculta de accesos ---- */
 function openManageAccess() {
   ensureAccessPasswords();
   renderAccessList();
@@ -143,7 +228,6 @@ function toggleProceso(naveId, itemId, field, el, event) {
   }
 }
 
-/* ---- GESTIÓN DE LOS 5 ESPACIOS DE IMÁGENES ---- */
 function subirAdjunto(event, naveId, itemId, idx) {
   if (!isEditableMode) return;
   const file = event.target.files[0];
@@ -176,7 +260,6 @@ function eliminarAdjunto(event, naveId, itemId, idx) {
   }
 }
 
-/* ---- MÓDULO: PENDIENTES GENERALES ---- */
 function togglePGPanel() {
   isPGPanelOpen = !isPGPanelOpen;
   const panel = document.getElementById('pg-panel');
@@ -690,7 +773,6 @@ function renderAutocompleteList(container, matches, onSelectAttr){
   if(!container) return;
   if(!matches.length){ container.classList.remove('open'); container.innerHTML=''; return; }
   
-  // onpointerdown y preventDefault salvan el bug del teclado de Android que oculta sugerencias
   container.innerHTML = matches.map(m => `
     <div class="autocomplete-item" onpointerdown="${onSelectAttr(m)}; event.preventDefault();">
       <span class="ac-codigo">${escHtml(m.codigo)}</span>
@@ -1459,6 +1541,7 @@ function exportPDFStatic(name) {
       .exporting-pdf .search-bar-row,
       .exporting-pdf .filter-row,
       .exporting-pdf #btn-lock-toggle,
+      .exporting-pdf .btn-bell,
       .exporting-pdf .pdf-hide-empty,
       .exporting-pdf .item-star-toggle,
       .exporting-pdf .model-link-btn,
@@ -1867,4 +1950,6 @@ function coleccionParaCodigo(codigo){
   return modelosDBIndex.get(String(codigo||'').trim().toUpperCase()) || '';
 }
 
+// Inicializar datos y Firebase
 cargarDatosIniciales();
+initFirebaseMessaging();

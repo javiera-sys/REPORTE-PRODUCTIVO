@@ -109,7 +109,7 @@ let filterNave = 'all';
 let isPGPanelOpen = false; 
 
 let fileHandle = null;
-let data = { naves: [], accessPasswords: [], pendientesGenerales: [] };
+let data = { naves: [], accessPasswords: [], pendientesGenerales: [], fichasTecnicas: [] };
 
 let modelosDB = [];
 let modelosDBIndex = new Map(); 
@@ -403,6 +403,7 @@ function render(){
   }
   
   renderPG(); 
+  renderFichas(); 
   filterItems(); 
 }
 
@@ -1055,6 +1056,14 @@ document.addEventListener('click', (e)=>{
   if(menu && menu.classList.contains('open') && !clickedInsideMenu && !clickedBtn){
     menu.classList.remove('open');
   }
+  
+  const menuF = document.getElementById('fichas-menu');
+  const btnF = document.getElementById('fichas-menu-btn');
+  const clickedInsideF = menuF && menuF.contains(e.target);
+  const clickedBtnF = btnF && btnF.contains(e.target);
+  if(menuF && menuF.classList.contains('open') && !clickedInsideF && !clickedBtnF){
+    menuF.classList.remove('open');
+  }
 });
 
 /* ---- Exportar a Excel (.xlsx) ---- */
@@ -1212,6 +1221,19 @@ function mergeData(importedData) {
               existingPg.desc = impPg.desc;
           }
       });
+  }
+
+  if (importedData.fichasTecnicas) {
+    if(!data.fichasTecnicas) data.fichasTecnicas = [];
+    importedData.fichasTecnicas.forEach(impFicha => {
+        let existingFicha = data.fichasTecnicas.find(f => f.id === impFicha.id);
+        if (!existingFicha) {
+            data.fichasTecnicas.push(impFicha);
+        } else {
+            existingFicha.name = impFicha.name;
+            existingFicha.content = impFicha.content;
+        }
+    });
   }
 
   if (importedData.naves) {
@@ -1820,6 +1842,28 @@ async function pushToGithub() {
       }
     }
 
+    
+    if (Array.isArray(data.fichasTecnicas)) {
+      for (let i = 0; i < data.fichasTecnicas.length; i++) {
+        const f = data.fichasTecnicas[i];
+        if (f.content && f.content.startsWith('data:')) {
+          let ext = 'pdf';
+          if (f.content.includes('image/jpeg')) ext = 'jpg';
+          else if (f.content.includes('image/png')) ext = 'png';
+          
+          const fileName = `ficha_${uid()}.${ext}`;
+          const b64 = f.content.split(',', 2)[1];
+          setGithubStatus(`Subiendo ficha técnica ${nuevasImagenes + 1}...`, 'info');
+          await putFileToGithub(
+            repo, imagesRepoPrefix + fileName, branch, headers, b64,
+            `Nueva ficha técnica (${f.name})`
+          );
+          f.content = 'data/images/' + fileName;
+          nuevasImagenes++;
+        }
+      }
+    }
+    
     setGithubStatus('Guardando datos...', 'info');
     const dataString = JSON.stringify(data);
     await putFileToGithub(
@@ -1953,3 +1997,79 @@ function coleccionParaCodigo(codigo){
 // Inicializar datos y Firebase
 cargarDatosIniciales();
 initFirebaseMessaging();
+
+
+/* ---- MÓDULO: FICHAS TÉCNICAS ---- */
+function toggleFichasMenu(event) {
+  if(event) event.stopPropagation();
+  const menu = document.getElementById('fichas-menu');
+  const btn = document.getElementById('fichas-menu-btn');
+  const willOpen = !menu.classList.contains('open');
+  if(willOpen && btn){
+    const rect = btn.getBoundingClientRect();
+    menu.style.left = Math.round(rect.left) + 'px';
+    menu.style.top = Math.round(rect.bottom + 8) + 'px';
+    menu.style.bottom = 'auto';
+  }
+  menu.classList.toggle('open', willOpen);
+}
+
+function handleFichaUpload(e) {
+  if (!isEditableMode) return;
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    if (!data.fichasTecnicas) data.fichasTecnicas = [];
+    data.fichasTecnicas.push({
+      id: uid(),
+      name: file.name,
+      content: ev.target.result // Base64
+    });
+    renderFichas();
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function renderFichas() {
+  const list = document.getElementById('fichas-list');
+  if (!list) return;
+  if (!data.fichasTecnicas || data.fichasTecnicas.length === 0) {
+    list.innerHTML = '<div style="padding: 12px; font-size: 12px; color: var(--color-text-secondary); text-align: center;">No hay fichas técnicas disponibles.</div>';
+    return;
+  }
+  list.innerHTML = data.fichasTecnicas.map((f, idx) => `
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--color-border-tertiary); transition: background 0.2s;" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor='transparent'">
+      <span style="font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; color: var(--color-text-primary);" title="${escHtml(f.name)}">
+        <i class="ti ti-file" style="margin-right: 6px; color: #6366F1; font-size: 14px; vertical-align: -2px;"></i>${escHtml(f.name)}
+      </span>
+      <div style="display: flex; gap: 6px;">
+        <button class="btn btn-xs btn-green" onclick="downloadFicha(${idx})" title="Descargar" style="padding: 4px 8px;"><i class="ti ti-download"></i></button>
+        <button class="btn btn-xs btn-danger-ghost only-editable" onclick="deleteFicha(${idx})" style="${isEditableMode ? '' : 'display:none;'}; padding: 4px 8px;" title="Eliminar"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function downloadFicha(idx) {
+  if(!data.fichasTecnicas) return;
+  const f = data.fichasTecnicas[idx];
+  if(!f) return;
+  
+  const a = document.createElement('a');
+  a.href = f.content;
+  a.download = f.name;
+  a.target = "_blank"; 
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function deleteFicha(idx) {
+  if (!isEditableMode) return;
+  if (!confirm('¿Eliminar esta ficha técnica?')) return;
+  data.fichasTecnicas.splice(idx, 1);
+  renderFichas();
+}

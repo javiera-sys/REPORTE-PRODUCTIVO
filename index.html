@@ -245,7 +245,7 @@
       <div class="filter-group dropdown-wrap">
         <span class="filter-label"><i class="ti ti-file-text"></i> Fichas:</span>
         <button class="btn-filter" id="fichas-menu-btn" onclick="toggleFichasMenu(event)">Catálogo <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
-        <div class="dropdown-menu" id="fichas-menu" style="min-width: 280px; max-height: 350px; overflow-y: auto; z-index: 1000;">
+        <div class="dropdown-menu" id="fichas-menu" style="min-width: 280px; max-width: 90vw; max-height: 350px; overflow-y: auto; z-index: 1000; box-sizing: border-box;">
           <div id="fichas-list"></div>
           <div class="only-editable" style="padding: 8px; border-top: 1px solid var(--color-border-secondary);">
             <button class="btn btn-sm btn-purple" style="width:100%" onclick="document.getElementById('ficha-input').click()"><i class="ti ti-upload"></i> Subir Ficha (PDF/JPG)</button>

@@ -239,6 +239,19 @@
         <button class="btn-filter nave-filter" onclick="setFilterNave('NAVE 2', this)">Nave 2</button>
         <button class="btn-filter nave-filter" onclick="setFilterNave('MAQUILADOR', this)">Maquilador</button>
       </div>
+      
+      <div class="filter-divider"></div>
+      
+      <div class="filter-group dropdown-wrap">
+        <span class="filter-label"><i class="ti ti-file-text"></i> Fichas:</span>
+        <button class="btn-filter" id="fichas-menu-btn" onclick="toggleFichasMenu(event)">Catálogo <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
+        <div class="dropdown-menu" id="fichas-menu" style="min-width: 280px; max-height: 350px; overflow-y: auto; z-index: 1000;">
+          <div id="fichas-list"></div>
+          <div class="only-editable" style="padding: 8px; border-top: 1px solid var(--color-border-secondary);">
+            <button class="btn btn-sm btn-purple" style="width:100%" onclick="document.getElementById('ficha-input').click()"><i class="ti ti-upload"></i> Subir Ficha (PDF/JPG)</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- PENDIENTES GENERALES -->
@@ -553,6 +566,7 @@
 </div>
 
 <input type="file" id="img-input" accept="image/*" style="display:none" onchange="handleImg(event)">
+<input type="file" id="ficha-input" accept=".pdf, image/jpeg, image/jpg, image/png" style="display:none" onchange="handleFichaUpload(event)">
 <input type="file" id="import-input" accept=".html" style="display:none" onchange="handleImport(event)">
 <input type="file" id="import-modelos-input" accept=".xlsx,.xls" style="display:none" onchange="handleImportModelos(event)">
 

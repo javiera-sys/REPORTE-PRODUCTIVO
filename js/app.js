@@ -549,6 +549,11 @@ function renderItemCard(item, naveId){
       <div class="item-dot ${dotClass(item.type)}" style="margin-top:8px"></div>
       <div class="item-content">
         <div style="display:flex; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
+          <select class="edit-title-input" id="ec-${item.id}" style="width:auto; margin-bottom:0; padding-top:4px; padding-bottom:4px; cursor:pointer;" title="Categoría">
+            <option value="error" ${item.type==='error'?'selected':''}>🚨 Error</option>
+            <option value="ajuste" ${item.type==='ajuste'?'selected':''}>🔧 Ajuste</option>
+            <option value="mejora" ${item.type==='mejora'?'selected':''}>✨ Mejora</option>
+          </select>
           <input class="edit-title-input" type="date" id="ef-${item.id}" value="${safeFecha}" style="width:130px; margin-bottom:0;" title="Fecha" />
           <input class="edit-title-input" type="text" id="eo-${item.id}" placeholder="Código ODT" value="${escHtml(safeOdt)}" style="width:150px; margin-bottom:0;" title="Código ODT" />
         </div>
@@ -1319,6 +1324,7 @@ function saveEdit(naveId,itemId){
   const d=document.getElementById('ed-'+itemId).value.trim();
   const f=document.getElementById('ef-'+itemId).value.trim();
   const o=document.getElementById('eo-'+itemId).value.trim();
+  const c=document.getElementById('ec-'+itemId).value;
   
   if(!t)return;
   const nave=data.naves.find(n=>n.id===naveId);
@@ -1329,6 +1335,9 @@ function saveEdit(naveId,itemId){
       item.desc=d;
       item.fecha=f;
       item.odt=o;
+      item.type=c;
+      if(nave.tipo === 'errores' && c === 'mejora') nave.tipo = 'ambos';
+      if(nave.tipo === 'mejoras' && (c === 'error' || c === 'ajuste')) nave.tipo = 'ambos';
     }
   }
   editingItemId=null;render();

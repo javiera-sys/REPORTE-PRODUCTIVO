@@ -649,10 +649,12 @@ function renderItemCard(item, naveId){
 }
 
 function renderNave(nave, index, total){
-  const errors=nave.items.filter(i=>i.type==='error'||i.type==='ajuste');
+  const errores=nave.items.filter(i=>i.type==='error');
+  const ajustes=nave.items.filter(i=>i.type==='ajuste');
   const mejoras=nave.items.filter(i=>i.type==='mejora');
   
-  const showErrors=nave.tipo==='ambos'||nave.tipo==='errores'||errors.length>0;
+  const showErrores=nave.tipo==='ambos'||nave.tipo==='errores'||errores.length>0;
+  const showAjustes=nave.tipo==='ambos'||nave.tipo==='errores'||ajustes.length>0;
   const showMejoras=nave.tipo==='ambos'||nave.tipo==='mejoras'||mejoras.length>0;
   
   let galleryHtml = '<div class="img-gallery">';
@@ -690,19 +692,28 @@ function renderNave(nave, index, total){
     </div>`;
   }).join('');
     
-  const errSection=showErrors?`
+  const errSection=showErrores?`
     <div class="section-block">
       <div class="section-header">
-        <span class="section-pill pill-error"><i class="ti ti-alert-circle" style="font-size:13px"></i> Reporte de errores y ajustes</span>
+        <span class="section-pill pill-error"><i class="ti ti-alert-circle" style="font-size:13px"></i> Reporte de errores</span>
         <button class="btn btn-xs btn-ghost only-editable" onclick="openAddItem('${nave.id}','error')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
       </div>
-      ${errors.length?errors.map(i=>renderItemCard(i,nave.id)).join(''):'<div class="empty-section">Sin errores registrados.</div>'}
+      ${errores.length?errores.map(i=>renderItemCard(i,nave.id)).join(''):'<div class="empty-section">Sin errores registrados.</div>'}
     </div>`:''
-  const mejSection=showMejoras?`
-    ${showErrors&&errors.length?'<div class="divider"></div>':''}
+  const ajuSection=showAjustes?`
+    ${showErrores&&errores.length?'<div class="divider"></div>':''}
     <div class="section-block">
       <div class="section-header">
-        <span class="section-pill pill-mejora"><i class="ti ti-sparkles" style="font-size:13px"></i> Mejoras implementadas</span>
+        <span class="section-pill" style="background:#fef08a; color:#854d0e; border:1px solid #fde047; padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i class="ti ti-tool" style="font-size:13px"></i> Reporte de ajustes</span>
+        <button class="btn btn-xs btn-ghost only-editable" onclick="openAddItem('${nave.id}','ajuste')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
+      </div>
+      ${ajustes.length?ajustes.map(i=>renderItemCard(i,nave.id)).join(''):'<div class="empty-section">Sin ajustes registrados.</div>'}
+    </div>`:''
+  const mejSection=showMejoras?`
+    ${(showErrores&&errores.length)||(showAjustes&&ajustes.length)?'<div class="divider"></div>':''}
+    <div class="section-block">
+      <div class="section-header">
+        <span class="section-pill pill-mejora"><i class="ti ti-sparkles" style="font-size:13px"></i> Reporte de mejoras</span>
         <button class="btn btn-xs btn-ghost scholarly only-editable" onclick="openAddItem('${nave.id}','mejora')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
       </div>
       ${mejoras.length?mejoras.map(i=>renderItemCard(i,nave.id)).join(''):'<div class="empty-section">Sin mejoras registradas.</div>'}
@@ -738,7 +749,7 @@ function renderNave(nave, index, total){
           ${galleryHtml}
         </div>
       </div>
-      <div class="nave-body-right right" style="flex:1; padding:18px;">${errSection}${mejSection}</div>
+      <div class="nave-body-right right" style="flex:1; padding:18px;">${errSection}${ajuSection}${mejSection}</div>
     </div>
   </div>`;
 }
@@ -2006,30 +2017,20 @@ function toggleFichasMenu(event) {
   const btn = document.getElementById('fichas-menu-btn');
   const willOpen = !menu.classList.contains('open');
   if(willOpen && btn){
-    // Resetear estilos inline para que el CSS media query (móvil) pueda tomar el control
-    menu.style.position = '';
-    menu.style.top = '';
-    menu.style.bottom = '';
-    menu.style.left = '';
-    menu.style.transform = '';
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = Math.round(rect.bottom + 8) + 'px';
+    menu.style.bottom = 'auto';
+    menu.style.left = Math.round(rect.left) + 'px';
+    menu.style.right = 'auto';
     
-    if (window.innerWidth > 768) {
-      // Comportamiento de PC: Anclado debajo del botón
-      const rect = btn.getBoundingClientRect();
-      menu.style.position = 'fixed';
-      menu.style.top = Math.round(rect.bottom + 8) + 'px';
-      menu.style.bottom = 'auto';
-      menu.style.left = Math.round(rect.left) + 'px';
-      menu.style.transform = 'none';
-      
-      setTimeout(() => {
-        const menuRect = menu.getBoundingClientRect();
-        if (menuRect.right > window.innerWidth) {
-          menu.style.left = 'auto';
-          menu.style.right = '10px';
-        }
-      }, 0);
-    }
+    // Ajuste dinámico para pantallas pequeñas (celulares)
+    setTimeout(() => {
+      const menuRect = menu.getBoundingClientRect();
+      if (menuRect.right > window.innerWidth) {
+        menu.style.left = 'auto';
+        menu.style.right = '10px';
+      }
+    }, 0);
   }
   menu.classList.toggle('open', willOpen);
 }

@@ -140,6 +140,60 @@
       box-shadow: 0 0 0 2px rgba(124,58,237,0.1);
   }
 
+  /* OPTIMIZACIÓN MÓVIL PARA FILTROS Y MENÚS */
+  @media (max-width: 768px) {
+      /* Hacer que los filtros se deslicen horizontalmente en 1 sola línea */
+      .filter-row {
+          flex-wrap: nowrap !important;
+          overflow-x: auto !important;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none; /* Firefox */
+          padding-bottom: 8px;
+          margin-bottom: 4px;
+          justify-content: flex-start;
+      }
+      .filter-row::-webkit-scrollbar {
+          display: none; /* Safari/Chrome */
+      }
+      .filter-group {
+          flex-wrap: nowrap !important;
+          flex-shrink: 0;
+      }
+      .filter-divider {
+          flex-shrink: 0;
+      }
+      .filter-label, .btn-filter {
+          white-space: nowrap;
+      }
+      
+      /* Optimizar el menú desplegable de Fichas para que no tape la pantalla */
+      #fichas-menu {
+          position: fixed !important;
+          width: 90vw !important;
+          max-width: 320px !important;
+          max-height: 50vh !important; /* Que no pase de la mitad de la pantalla */
+          top: auto !important;
+          bottom: 20px !important; /* Aparece desde abajo */
+          left: 50% !important;
+          transform: translateX(-50%) !important;
+          border-radius: 16px !important;
+          box-shadow: 0 10px 25px rgba(0,0,0,0.2) !important;
+          padding: 4px !important;
+          z-index: 9999 !important;
+      }
+      #fichas-menu::before {
+          content: 'Fichas Técnicas';
+          display: block;
+          text-align: center;
+          font-weight: 700;
+          font-size: 13px;
+          padding: 10px;
+          color: var(--color-text-secondary);
+          border-bottom: 1px solid var(--color-border-secondary);
+          margin-bottom: 4px;
+      }
+  }
+
   /* BOTÓN DE NOTIFICACIONES */
   .btn-bell {
       background: #fef3c7;

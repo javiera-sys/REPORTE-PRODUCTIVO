@@ -2006,20 +2006,30 @@ function toggleFichasMenu(event) {
   const btn = document.getElementById('fichas-menu-btn');
   const willOpen = !menu.classList.contains('open');
   if(willOpen && btn){
-    const rect = btn.getBoundingClientRect();
-    menu.style.top = Math.round(rect.bottom + 8) + 'px';
-    menu.style.bottom = 'auto';
-    menu.style.left = Math.round(rect.left) + 'px';
-    menu.style.right = 'auto';
+    // Resetear estilos inline para que el CSS media query (móvil) pueda tomar el control
+    menu.style.position = '';
+    menu.style.top = '';
+    menu.style.bottom = '';
+    menu.style.left = '';
+    menu.style.transform = '';
     
-    // Ajuste dinámico para pantallas pequeñas (celulares)
-    setTimeout(() => {
-      const menuRect = menu.getBoundingClientRect();
-      if (menuRect.right > window.innerWidth) {
-        menu.style.left = 'auto';
-        menu.style.right = '10px';
-      }
-    }, 0);
+    if (window.innerWidth > 768) {
+      // Comportamiento de PC: Anclado debajo del botón
+      const rect = btn.getBoundingClientRect();
+      menu.style.position = 'fixed';
+      menu.style.top = Math.round(rect.bottom + 8) + 'px';
+      menu.style.bottom = 'auto';
+      menu.style.left = Math.round(rect.left) + 'px';
+      menu.style.transform = 'none';
+      
+      setTimeout(() => {
+        const menuRect = menu.getBoundingClientRect();
+        if (menuRect.right > window.innerWidth) {
+          menu.style.left = 'auto';
+          menu.style.right = '10px';
+        }
+      }, 0);
+    }
   }
   menu.classList.toggle('open', willOpen);
 }

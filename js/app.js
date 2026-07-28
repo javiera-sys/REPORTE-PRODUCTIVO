@@ -549,10 +549,13 @@ function renderItemCard(item, naveId){
       <div class="item-dot ${dotClass(item.type)}" style="margin-top:8px"></div>
       <div class="item-content">
         <div style="display:flex; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
-          <select class="edit-title-input" id="ec-${item.id}" style="width:auto; margin-bottom:0; padding-top:4px; padding-bottom:4px; cursor:pointer;" title="Categoría">
+          <select class="edit-title-input" id="ec-${item.id}" onchange="updateSubCatDropdown(this.value, 'esc-${item.id}')" style="width:auto; margin-bottom:0; padding-top:4px; padding-bottom:4px; cursor:pointer;" title="Categoría">
             <option value="error" ${item.type==='error'?'selected':''}>🚨 Error</option>
             <option value="ajuste" ${item.type==='ajuste'?'selected':''}>🔧 Ajuste</option>
             <option value="mejora" ${item.type==='mejora'?'selected':''}>✨ Mejora</option>
+          </select>
+          <select class="edit-title-input" id="esc-${item.id}" style="width:auto; margin-bottom:0; padding-top:4px; padding-bottom:4px; cursor:pointer; max-width: 150px;" title="Clasificación">
+            <option value="${escHtml(item.subType||'')}">${escHtml(item.subType||'Seleccionar...')}</option>
           </select>
           <input class="edit-title-input" type="date" id="ef-${item.id}" value="${safeFecha}" style="width:130px; margin-bottom:0;" title="Fecha" />
           <input class="edit-title-input" type="text" id="eo-${item.id}" placeholder="Código ODT" value="${escHtml(safeOdt)}" style="width:150px; margin-bottom:0;" title="Código ODT" />
@@ -1325,6 +1328,7 @@ function saveEdit(naveId,itemId){
   const f=document.getElementById('ef-'+itemId).value.trim();
   const o=document.getElementById('eo-'+itemId).value.trim();
   const c=document.getElementById('ec-'+itemId).value;
+  const sc=document.getElementById('esc-'+itemId).value;
   
   if(!t)return;
   const nave=data.naves.find(n=>n.id===naveId);
@@ -1336,6 +1340,7 @@ function saveEdit(naveId,itemId){
       item.fecha=f;
       item.odt=o;
       item.type=c;
+      item.subType=sc;
       if(nave.tipo === 'errores' && c === 'mejora') nave.tipo = 'ambos';
       if(nave.tipo === 'mejoras' && (c === 'error' || c === 'ajuste')) nave.tipo = 'ambos';
     }
@@ -1374,6 +1379,7 @@ function saveItem(){
   const desc=document.getElementById('new-item-desc').value.trim();
   const fecha=document.getElementById('new-item-fecha').value.trim();
   const odt=document.getElementById('new-item-odt').value.trim();
+  const subType=document.getElementById('new-item-subcat').value;
   
   if(!title){document.getElementById('new-item-title').focus();return;}
   const nave=data.naves.find(n=>n.id===currentNaveId);
@@ -1385,6 +1391,7 @@ function saveItem(){
       desc,
       fecha,
       odt,
+      subType,
       createdAt: Date.now(), 
       proceso: { habilitado: false, planos: false, etiquetas: false, planoTerminado: false },
       adjuntos: ["","","","",""]
@@ -2163,3 +2170,325 @@ function checkAndSendPendingReminders() {
 setInterval(checkAndSendPendingReminders, 5 * 60 * 1000);
 // Revisar también 5 segundos después de abrir la aplicación
 setTimeout(checkAndSendPendingReminders, 5000);
+
+/* ---- MÓDULO DASHBOARD Y ESTADÍSTICAS ---- */
+
+// Utilidad para cambiar las opciones del submenú
+function updateSubCatDropdown(type, selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  sel.innerHTML = '';
+  let opts = [];
+  if (type === 'error') opts = ['ERROR EN PLANO', 'ERROR EN PIEZA', 'ERROR EN ENSAMBLE'];
+  else if (type === 'ajuste') opts = ['AJUSTE EN PLANO', 'AJUSTE EN PIEZA', 'AJUSTE EN ENSAMBLE'];
+  else if (type === 'mejora') opts = ['MEJORA DE INGENIERÍA', 'APROVECHAMIENTO DE MATERIAL'];
+  
+  opts.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o; opt.textContent = o;
+    sel.appendChild(opt);
+  });
+}
+
+// Para que cuando se abra la edición inline por primera vez, se llenen las opciones correctamente si están vacías
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.btn-ghost[title="Editar"]')) {
+      setTimeout(() => {
+          document.querySelectorAll('select[id^="ec-"]').forEach(sel => {
+              const id = sel.id.replace('ec-', 'esc-');
+              const currentVal = document.getElementById(id).value;
+              updateSubCatDropdown(sel.value, id);
+              // Restaurar valor previo si es válido
+              const opts = Array.from(document.getElementById(id).options).map(o=>o.value);
+              if(opts.includes(currentVal)) document.getElementById(id).value = currentVal;
+          });
+      }, 50);
+  }
+});
+
+
+let chartTipo, chartClasif, chartImpacto;
+let dashFilters = { tipo: null, clasificacion: null, impacto: null };
+
+function openDashboard() {
+  document.getElementById('modal-dashboard').classList.add('open');
+  setTimeout(renderDashboard, 200);
+}
+
+function clearDashFilter(field) {
+  dashFilters[field] = null;
+  if(field === 'tipo') dashFilters.clasificacion = null; // cascade
+  renderDashboard();
+}
+
+function updateFilterBadges() {
+  const bTipo = document.getElementById('filter-badge-tipo');
+  const bClasif = document.getElementById('filter-badge-clasif');
+  const bImpacto = document.getElementById('filter-badge-impacto');
+  
+  if(dashFilters.tipo) { bTipo.style.display = 'inline-block'; bTipo.innerHTML = dashFilters.tipo + ' &times;'; }
+  else bTipo.style.display = 'none';
+  
+  if(dashFilters.clasificacion) { bClasif.style.display = 'inline-block'; bClasif.innerHTML = dashFilters.clasificacion + ' &times;'; }
+  else bClasif.style.display = 'none';
+  
+  if(dashFilters.impacto) { bImpacto.style.display = 'inline-block'; bImpacto.innerHTML = dashFilters.impacto + ' &times;'; }
+  else bImpacto.style.display = 'none';
+}
+
+function renderDashboard() {
+  if (!window.echarts) {
+      alert("Cargando librerías de gráficos, intenta de nuevo en un segundo...");
+      return;
+  }
+  
+  updateFilterBadges();
+
+  if(!chartTipo) {
+      chartTipo = echarts.init(document.getElementById('chart-tipo'));
+      chartTipo.on('click', function(params) {
+          dashFilters.tipo = params.name;
+          dashFilters.clasificacion = null;
+          renderDashboard();
+      });
+  }
+  if(!chartClasif) {
+      chartClasif = echarts.init(document.getElementById('chart-clasificacion'));
+      chartClasif.on('click', function(params) {
+          dashFilters.clasificacion = params.name;
+          renderDashboard();
+      });
+  }
+  if(!chartImpacto) {
+      chartImpacto = echarts.init(document.getElementById('chart-impacto'));
+      chartImpacto.on('click', function(params) {
+          dashFilters.impacto = params.name; // Ej: "Planos: ✔️"
+          renderDashboard();
+      });
+  }
+
+  // Recolectar datos
+  let tError=0, tAjuste=0, tMejora=0;
+  let clasifCounts = {};
+  let impactoCounts = {
+      'Planos: ✔️':0, 'Planos: ✖️':0,
+      'Habilitado: ✔️':0, 'Habilitado: ✖️':0,
+      'Etiquetas: ✔️':0, 'Etiquetas: ✖️':0
+  };
+  
+  let relatedItems = [];
+
+  data.naves.forEach(nave => {
+      nave.items.forEach(item => {
+          let typeMatch = !dashFilters.tipo || 
+                          (dashFilters.tipo === 'Errores' && item.type === 'error') ||
+                          (dashFilters.tipo === 'Ajustes' && item.type === 'ajuste') ||
+                          (dashFilters.tipo === 'Mejoras' && item.type === 'mejora');
+                          
+          let classMatch = !dashFilters.clasificacion || (item.subType === dashFilters.clasificacion);
+          
+          let proc = item.proceso || {planos:false, habilitado:false, etiquetas:false};
+          let pVal = proc.planos ? 'Planos: ✔️' : 'Planos: ✖️';
+          let hVal = proc.habilitado ? 'Habilitado: ✔️' : 'Habilitado: ✖️';
+          let eVal = proc.etiquetas ? 'Etiquetas: ✔️' : 'Etiquetas: ✖️';
+          
+          let impMatch = !dashFilters.impacto || (pVal===dashFilters.impacto || hVal===dashFilters.impacto || eVal===dashFilters.impacto);
+
+          if (typeMatch && classMatch && impMatch) {
+              relatedItems.push({nave, item});
+              
+              if(item.type==='error') tError++;
+              if(item.type==='ajuste') tAjuste++;
+              if(item.type==='mejora') tMejora++;
+              
+              const sc = item.subType || 'Sin clasificar';
+              clasifCounts[sc] = (clasifCounts[sc] || 0) + 1;
+              
+              impactoCounts[pVal]++;
+              impactoCounts[hVal]++;
+              impactoCounts[eVal]++;
+          }
+      });
+  });
+
+  // Chart 1
+  chartTipo.setOption({
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: ['Errores', 'Ajustes', 'Mejoras'], axisLabel: {interval: 0} },
+      yAxis: { type: 'value' },
+      series: [{
+          data: [
+              {value: tError, itemStyle: {color: '#ef4444'}}, 
+              {value: tAjuste, itemStyle: {color: '#eab308'}}, 
+              {value: tMejora, itemStyle: {color: '#8b5cf6'}}
+          ],
+          type: 'bar',
+          label: { show: true, position: 'top' }
+      }]
+  });
+
+  // Chart 2
+  let cKeys = Object.keys(clasifCounts);
+  let cData = cKeys.map(k => clasifCounts[k]);
+  chartClasif.setOption({
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'value' },
+      yAxis: { type: 'category', data: cKeys, axisLabel: { width: 120, overflow: 'break' } },
+      grid: { left: '35%' },
+      series: [{
+          data: cData,
+          type: 'bar',
+          itemStyle: {color: '#3b82f6'},
+          label: { show: true, position: 'right' }
+      }]
+  });
+
+  // Chart 3
+  chartImpacto.setOption({
+      tooltip: { trigger: 'item' },
+      series: [
+          {
+              name: 'Impacto',
+              type: 'pie',
+              radius: ['40%', '70%'],
+              itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2 },
+              label: { show: false },
+              data: [
+                  {value: impactoCounts['Planos: ✔️'], name: 'Planos: ✔️', itemStyle:{color:'#34d399'}},
+                  {value: impactoCounts['Planos: ✖️'], name: 'Planos: ✖️', itemStyle:{color:'#f87171'}},
+                  {value: impactoCounts['Habilitado: ✔️'], name: 'Habilitado: ✔️', itemStyle:{color:'#10b981'}},
+                  {value: impactoCounts['Habilitado: ✖️'], name: 'Habilitado: ✖️', itemStyle:{color:'#ef4444'}},
+                  {value: impactoCounts['Etiquetas: ✔️'], name: 'Etiquetas: ✔️', itemStyle:{color:'#059669'}},
+                  {value: impactoCounts['Etiquetas: ✖️'], name: 'Etiquetas: ✖️', itemStyle:{color:'#dc2626'}}
+              ]
+          }
+      ]
+  });
+  
+  renderDashList(relatedItems);
+}
+
+function renderDashList(items) {
+  const list = document.getElementById('dash-list');
+  if (items.length === 0) {
+      list.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No se encontraron modelos con estos filtros.</div>';
+      return;
+  }
+  
+  list.innerHTML = items.map(entry => {
+      let mText = entry.nave.models.map(m => m.name).join(', ');
+      return `
+      <div class="dash-list-item" onclick="closeModal('modal-dashboard'); setTimeout(() => document.getElementById('ic-${entry.item.id}').scrollIntoView({behavior:'smooth', block:'center'}), 300);">
+          <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:13px; color:var(--navy); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${mText || 'Sin modelo'}</div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">${entry.nave.consola} - ${entry.item.title}</div>
+          </div>
+          <div style="font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px; background:${entry.item.type==='error'?'#fee2e2':entry.item.type==='ajuste'?'#fef08a':'#ede9fe'}; color:${entry.item.type==='error'?'#b91c1c':entry.item.type==='ajuste'?'#854d0e':'#6d28d9'};">
+              ${(entry.item.subType || entry.item.type).toUpperCase()}
+          </div>
+      </div>
+      `;
+  }).join('');
+}
+
+async function generateStatsPDF() {
+  const btn = document.querySelector('#modal-dashboard .btn-green');
+  const oldTxt = btn.innerHTML;
+  btn.innerHTML = '<i class="ti ti-loader"></i> Generando...';
+  
+  // 1. Obtener base64 de las gráficas
+  const c1Img = chartTipo.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
+  const c2Img = chartClasif.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
+  const c3Img = chartImpacto.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
+  
+  let totalModelos = 0, totalODT = 0, totalRegistros = 0;
+  let modelosRows = '';
+  
+  data.naves.forEach(n => {
+      totalModelos += n.models.length;
+      n.items.forEach(i => {
+          totalRegistros++;
+          if(i.odt) totalODT++;
+          let mNames = n.models.map(m=>m.name).join(', ');
+          modelosRows += `<tr><td>${formatDateEs(i.fecha)}</td><td>${mNames}</td><td>${i.odt||'-'}</td><td>${(i.subType||i.type).toUpperCase()}</td><td>${i.proceso?.planoTerminado?'TERMINADO':'PENDIENTE'}</td></tr>`;
+      });
+  });
+
+  const now = new Date().toLocaleString('es-MX');
+
+  const container = document.getElementById('pdf-report-container');
+  container.style.display = 'block';
+  container.innerHTML = `
+      <div class="pdf-title">Reporte Estadístico de Producción</div>
+      <div class="pdf-subtitle">Generado el ${now}</div>
+      
+      <div class="pdf-metrics">
+          <div class="pdf-metric-box">
+              <div class="pdf-metric-val">${totalRegistros}</div>
+              <div class="pdf-metric-lbl">Total Registros</div>
+          </div>
+          <div class="pdf-metric-box">
+              <div class="pdf-metric-val">${totalModelos}</div>
+              <div class="pdf-metric-lbl">Modelos Afectados</div>
+          </div>
+          <div class="pdf-metric-box">
+              <div class="pdf-metric-val">${totalODT}</div>
+              <div class="pdf-metric-lbl">ODTs Procesadas</div>
+          </div>
+      </div>
+
+      <div style="font-size:16px; font-weight:800; border-bottom:2px solid #cbd5e1; margin-bottom:15px; padding-bottom:5px; color:#1e293b;">Gráficas Generales</div>
+      <div class="pdf-chart-row">
+          <div class="pdf-chart-col">
+              <div style="font-size:12px; font-weight:700; margin-bottom:10px; text-align:center;">Tipo de Reporte</div>
+              <img src="${c1Img}" class="pdf-chart-img">
+          </div>
+          <div class="pdf-chart-col">
+              <div style="font-size:12px; font-weight:700; margin-bottom:10px; text-align:center;">Impacto por Área</div>
+              <img src="${c3Img}" class="pdf-chart-img">
+          </div>
+      </div>
+      
+      <div class="pdf-chart-row">
+          <div class="pdf-chart-col" style="flex:1;">
+              <div style="font-size:12px; font-weight:700; margin-bottom:10px; text-align:center;">Clasificación Detallada</div>
+              <img src="${c2Img}" class="pdf-chart-img" style="max-height: 250px; object-fit: contain;">
+          </div>
+      </div>
+
+      <div style="font-size:16px; font-weight:800; border-bottom:2px solid #cbd5e1; margin-bottom:15px; margin-top:20px; padding-bottom:5px; color:#1e293b; page-break-before: always;">Detalle de Registros</div>
+      <table class="pdf-table">
+          <thead><tr><th>Fecha</th><th>Modelo(s)</th><th>ODT</th><th>Clasificación</th><th>Estatus</th></tr></thead>
+          <tbody>${modelosRows}</tbody>
+      </table>
+      
+      <div style="font-size:12px; color:#64748b; margin-top:40px;">* Fin del reporte. Resumen ejecutivo generado automáticamente por el Dashboard de Estadísticas.</div>
+  `;
+
+  try {
+      const opt = {
+        margin:       10,
+        filename:     'Reporte_Estadistico.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(container).save();
+  } catch (err) {
+      console.error(err);
+      alert("Hubo un error al generar el PDF.");
+  } finally {
+      container.style.display = 'none';
+      btn.innerHTML = oldTxt;
+  }
+}
+
+// Interceptar re-renders para asegurar redibujado de charts al actualizar datos (si modal está abierto)
+const oldRender = render;
+render = function() {
+  oldRender();
+  if (document.getElementById('modal-dashboard').classList.contains('open')) {
+      renderDashboard();
+  }
+};

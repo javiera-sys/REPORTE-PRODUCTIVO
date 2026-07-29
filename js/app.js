@@ -1363,9 +1363,15 @@ function openAddItem(naveId,defaultCat){
   document.getElementById('new-item-fecha').value = `${yyyy}-${mm}-${dd}`;
 
   newCat=defaultCat||'mejora';
+  
   document.querySelectorAll('#cat-select .radio-opt').forEach(el=>{
-    el.classList.toggle('selected',el.querySelector('input').value===newCat);
+    const isMatch = el.querySelector('input').value === newCat;
+    el.classList.toggle('selected', isMatch);
+    if(isMatch) el.querySelector('input').checked = true;
   });
+  
+  updateSubCatDropdown(newCat, 'new-item-subcat');
+  
   document.getElementById('modal-item').classList.add('open');
 }
 function selectCat(el,val){
@@ -2492,3 +2498,4 @@ render = function() {
       renderDashboard();
   }
 };
+

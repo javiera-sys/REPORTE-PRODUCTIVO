@@ -775,6 +775,12 @@ function moveNaveUp(idx){
     const temp = data.naves[idx - 1];
     data.naves[idx - 1] = data.naves[idx];
     data.naves[idx] = temp;
+    
+    // Intercambiar timestamps para mantener el orden frente a futuros renderizados
+    const tempTime = data.naves[idx - 1].createdAt;
+    data.naves[idx - 1].createdAt = data.naves[idx].createdAt;
+    data.naves[idx].createdAt = tempTime;
+    
     render();
   }
 }
@@ -784,6 +790,12 @@ function moveNaveDown(idx){
     const temp = data.naves[idx + 1];
     data.naves[idx + 1] = data.naves[idx];
     data.naves[idx] = temp;
+    
+    // Intercambiar timestamps para mantener el orden frente a futuros renderizados
+    const tempTime = data.naves[idx + 1].createdAt;
+    data.naves[idx + 1].createdAt = data.naves[idx].createdAt;
+    data.naves[idx].createdAt = tempTime;
+    
     render();
   }
 }
@@ -1494,7 +1506,7 @@ function addNave(){
   if(tagVal&&!newModels.includes(tagVal))newModels.push(tagVal);
   if(!consola){document.getElementById('new-consola').focus();return;}
   const modelObjects = newModels.map(m => ({name: m, link: ''}));
-  data.naves.push({id:uid(),nave:newNaveSelected,consola,tipo:newTipo,models:modelObjects,images:[],items:[]});
+  data.naves.unshift({id:uid(),nave:newNaveSelected,consola,tipo:newTipo,models:modelObjects,images:[],items:[], createdAt: Date.now()});
   closeModal('modal-nave');render();
 }
 

@@ -859,12 +859,8 @@ function ocultarSugerenciasTagModal(){
 }
 function seleccionarSugerenciaTagModal(codigo){
   const inp = document.getElementById('tag-input');
-  if(inp) inp.value = '';
-  if(codigo && !newModels.includes(codigo)){
-    newModels.push(codigo);
-    renderTags();
-  }
   ocultarSugerenciasTagModal();
+  if(codigo) processNewModelCode(codigo, null);
   if(inp) inp.focus();
 }
 
@@ -890,13 +886,7 @@ function addModel(naveId){
   const inp=document.getElementById('addm-'+naveId);
   const val=inp.value.trim().toUpperCase();
   if(!val)return;
-  const nave=data.naves.find(n=>n.id===naveId);
-  if(nave&&!nave.models.find(m => m.name === val)){
-    nave.models.push({name: val, link: '', coleccion: coleccionParaCodigo(val)});
-  }
-  inp.value='';
-  ocultarSugerenciasAddModelo(naveId);
-  render();
+  processNewModelCode(val, naveId);
 }
 function removeModel(naveId,idx){
   if (!isEditableMode) return;
@@ -1475,8 +1465,7 @@ function handleTagKey(e){
   if(e.key==='Enter'||e.key===','||e.key==='Tab'){
     e.preventDefault();
     const val=inp.value.trim().replace(/,$/,'').toUpperCase();
-    if(val&&!newModels.includes(val)){newModels.push(val);inp.value='';renderTags();}
-    ocultarSugerenciasTagModal();
+    if(val) processNewModelCode(val, null);
   } else if(e.key==='Backspace'&&!inp.value&&newModels.length){
     newModels.pop();renderTags();
     ocultarSugerenciasTagModal();
@@ -1487,9 +1476,11 @@ function handleTagInput(e){
   const val=e.target.value;
   if(val.includes(',')){
     const parts=val.split(',');
-    parts.slice(0,-1).forEach(p=>{const v=p.trim().toUpperCase();if(v&&!newModels.includes(v))newModels.push(v);});
+    parts.slice(0,-1).forEach(p=>{
+        const v=p.trim().toUpperCase();
+        if(v) processNewModelCode(v, null);
+    });
     e.target.value=parts[parts.length-1];
-    renderTags();
   }
   mostrarSugerenciasTagModal();
 }
@@ -2543,4 +2534,101 @@ render = function() {
       renderDashboard();
   }
 };
+
+/* ---- LÓGICA DE VARIANTES IUP ---- */
+let pendingIupContext = null;
+
+function processNewModelCode(codigo, naveId = null) {
+    codigo = codigo.trim().toUpperCase();
+    if(!codigo) return;
+
+    if (codigo.startsWith('IUP') && codigo.includes('-')) {
+        const parts = codigo.split('-');
+        if (parts.length >= 2) {
+            const baseCode = parts.slice(0, -1).join('-');
+            const variants = modelosDB.filter(m => m.codigo.startsWith(baseCode + '-')).map(m => m.codigo);
+
+            if (variants.length > 1) {
+                pendingIupContext = { originalCode: codigo, baseCode, variants, naveId };
+                document.getElementById('iup-modal-desc').innerHTML = `Se encontraron <b>${variants.length} variantes</b> para la familia <b>${baseCode}</b>.<br>¿Deseas agregarlas todas juntas?`;
+                document.getElementById('iup-single-code').textContent = codigo;
+                document.getElementById('iup-selection-view').style.display = 'none';
+                document.getElementById('iup-quick-actions').style.display = 'flex';
+
+                const listCont = document.getElementById('iup-variants-list');
+                listCont.innerHTML = variants.map(v => `
+                    <label style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer;">
+                        <input type="checkbox" value="${v}" checked class="iup-cb"> ${v}
+                    </label>
+                `).join('');
+
+                document.getElementById('modal-iup').classList.add('open');
+                
+                if (naveId) {
+                    const inp = document.getElementById('addm-'+naveId);
+                    if(inp) inp.value='';
+                    ocultarSugerenciasAddModelo(naveId);
+                } else {
+                    const inp = document.getElementById('tag-input');
+                    if(inp) inp.value='';
+                }
+                return;
+            }
+        }
+    }
+    executeAddModel(codigo, naveId);
+}
+
+function executeAddModel(codigo, naveId) {
+    if (naveId) {
+        const nave = data.naves.find(n => n.id === naveId);
+        if (nave && !nave.models.find(m => m.name === codigo)) {
+            nave.models.push({name: codigo, link: '', coleccion: coleccionParaCodigo(codigo)});
+        }
+        const inp = document.getElementById('addm-'+naveId);
+        if(inp) inp.value = '';
+        ocultarSugerenciasAddModelo(naveId);
+        render();
+    } else {
+        if (!newModels.includes(codigo)) {
+            newModels.push(codigo);
+        }
+        const inp = document.getElementById('tag-input');
+        if(inp) inp.value = '';
+        renderTags();
+        ocultarSugerenciasTagModal();
+    }
+}
+
+function iupAddAll() {
+    if(!pendingIupContext) return;
+    pendingIupContext.variants.forEach(v => executeAddModel(v, pendingIupContext.naveId));
+    closeModal('modal-iup');
+}
+
+function iupAddSingle() {
+    if(!pendingIupContext) return;
+    executeAddModel(pendingIupContext.originalCode, pendingIupContext.naveId);
+    closeModal('modal-iup');
+}
+
+function iupToggleSelectionView() {
+    document.getElementById('iup-quick-actions').style.display = 'none';
+    document.getElementById('iup-selection-view').style.display = 'block';
+}
+
+function iupSelectAll(state) {
+    document.querySelectorAll('.iup-cb').forEach(cb => cb.checked = state);
+}
+
+function iupAddSelected() {
+    if(!pendingIupContext) return;
+    const selected = Array.from(document.querySelectorAll('.iup-cb:checked')).map(cb => cb.value);
+    if(selected.length === 0) {
+        alert('Selecciona al menos una variante.');
+        return;
+    }
+    selected.forEach(v => executeAddModel(v, pendingIupContext.naveId));
+    closeModal('modal-iup');
+}
 

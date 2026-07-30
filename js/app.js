@@ -1539,18 +1539,14 @@ async function downloadWithDialog(content, fileName, type) {
 
 function openExport(type){
   exportType=type;
-  if(type === 'html' && fileHandle && window.showSaveFilePicker) {
-     doExport(true);
-     return;
-  }
   
-  document.getElementById('export-modal-title').textContent=type==='pdf'?'Exportar PDF (Final)':'Guardar Proyecto (Editable)';
-  document.getElementById('export-filename').value='reporte_produccion';
+  document.getElementById('export-modal-title').textContent=type==='pdf'?'Exportar PDF (Final)':'Descargar Repositorio (ZIP)';
+  document.getElementById('export-filename').value='respaldo_produccion';
   document.getElementById('export-hint').textContent=type==='pdf'
     ?'Se guardará un documento PDF idéntico a la vista actual. Podrás elegir la carpeta.'
-    :'Se creará o sobrescribirá una copia de esta página .html con todo lo que has avanzado. Ábrela mañana para seguir editando.';
+    :'Se descargará un archivo comprimido (.zip) con todo tu proyecto, código, estilos, bases de datos y archivos para un respaldo total.';
     
-  document.getElementById('export-btn').textContent=type==='pdf'?'Exportar PDF':'Guardar HTML';
+  document.getElementById('export-btn').textContent=type==='pdf'?'Exportar PDF':'Descargar ZIP';
   document.getElementById('modal-export').classList.add('open');
 }
 
@@ -1558,7 +1554,7 @@ function doExport(skipModal = false){
   const name=(document.getElementById('export-filename').value.trim()||'reporte_produccion').replace(/[^a-z0-9_\-]/gi,'_');
   if(!skipModal) closeModal('modal-export');
   
-  if(exportType==='html') exportHTMLAsSaveGame(name);
+  if(exportType==='zip') exportProjectZip(name);
   else exportPDFStatic(name);
 }
 
@@ -1948,18 +1944,56 @@ function downloadBlob(content, fileName, mime){
   URL.revokeObjectURL(url);
 }
 
-async function exportHTMLAsSaveGame(name) {
+async function exportProjectZip(name) {
   const btn = document.getElementById('export-btn');
   const originalText = btn.textContent;
-  btn.textContent = 'Guardando...';
-
-  const htmlString = buildProjectHTMLString();
-  await downloadWithDialog(htmlString, name + '.html', 'html');
-
-  downloadBlob(JSON.stringify(data, null, 2), 'cambios.json', 'application/json');
-  alert('Se descargaron 2 archivos: el HTML de la interfaz y cambios.json con tus datos. Si vas a restaurar este respaldo, cambios.json debe ir dentro de una carpeta "data".');
-
-  btn.textContent = originalText;
+  btn.textContent = 'Empaquetando ZIP...';
+  
+  try {
+      if (typeof JSZip === 'undefined') {
+          alert('La librería JSZip no está cargada. Por favor revisa tu conexión a internet.');
+          return;
+      }
+      const zip = new JSZip();
+      
+      // 1. Archivo HTML actual (limpio)
+      const htmlString = buildProjectHTMLString();
+      zip.file("index.html", htmlString);
+      
+      // 2. Bases de datos JSON
+      zip.folder("data").file("cambios.json", JSON.stringify(data, null, 2));
+      zip.folder("data").file("modelos.json", JSON.stringify(modelosDB, null, 2));
+      
+      // 3. Intentar descargar archivos estáticos vitales
+      const filesToFetch = [
+          'js/app.js',
+          'css/styles.css',
+          'firebase-messaging-sw.js'
+      ];
+      
+      for (const filePath of filesToFetch) {
+          try {
+              const res = await fetch(filePath);
+              if (res.ok) {
+                  const content = await res.blob();
+                  zip.file(filePath, content);
+              }
+          } catch (e) {
+              console.warn('No se pudo empaquetar: ' + filePath, e);
+          }
+      }
+      
+      // 4. Generar y descargar ZIP
+      const content = await zip.generateAsync({ type: "blob" });
+      downloadBlob(content, name + '.zip', 'application/zip');
+      alert('✅ ¡Proyecto descargado exitosamente! El archivo .zip contiene todo tu código, estilos, y bases de datos.');
+      
+  } catch(err) {
+      console.error(err);
+      alert('Error al generar el archivo ZIP.');
+  } finally {
+      btn.textContent = originalText;
+  }
 }
 
 function closeModal(id){document.getElementById(id).classList.remove('open');}

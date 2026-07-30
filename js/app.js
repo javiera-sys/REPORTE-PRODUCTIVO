@@ -1485,7 +1485,7 @@ function addNave(){
   if (!isEditableMode) return;
   
   if (!newNaveSelected) {
-    alert("⚠️ Campo obligatorio: Debes seleccionar una Nave (Nave 4, Nave 2 o Maquilador).");
+    alert("⚠️ Campo obligatorio: Debes seleccionar una Nave (Nave 4, Nave 2 o Tapicería).");
     return;
   }
   

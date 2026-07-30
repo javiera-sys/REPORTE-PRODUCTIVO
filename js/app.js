@@ -1146,7 +1146,6 @@ function exportarExcel(){
 
 /* ---- Importar base de datos de modelos (.xlsx) ---- */
 function triggerImportModelos(){
-  if (!isEditableMode) return;
   document.getElementById('import-modelos-input').click();
 }
 function handleImportModelos(e){

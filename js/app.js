@@ -2371,19 +2371,36 @@ function renderDashboard() {
 
   // Chart 2
   let cKeys = Object.keys(clasifCounts);
-  let cData = cKeys.map(k => clasifCounts[k]);
+  const palette = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e'];
+  
+  let coloredData = cKeys.map((k, i) => {
+      return {
+          value: clasifCounts[k],
+          name: k,
+          itemStyle: { color: palette[i % palette.length] }
+      };
+  });
+
   chartClasif.setOption({
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'value' },
       yAxis: { type: 'category', data: cKeys, axisLabel: { width: 120, overflow: 'break' } },
       grid: { left: '35%' },
       series: [{
-          data: cData,
+          data: coloredData,
           type: 'bar',
-          itemStyle: {color: '#3b82f6'},
+          colorBy: 'data',
           label: { show: true, position: 'right' }
       }]
   });
+  
+  const legendHtml = cKeys.map((k, i) => {
+      return `<div style="display:flex; align-items:center; gap:4px; font-size:10px; color:#475569;">
+          <span style="width:10px; height:10px; border-radius:2px; background:${palette[i % palette.length]}"></span> ${k}
+      </div>`;
+  }).join('');
+  const legContainer = document.getElementById('clasificacion-legend');
+  if(legContainer) legContainer.innerHTML = legendHtml;
 
   // Chart 3
   chartImpacto.setOption({
@@ -2408,6 +2425,42 @@ function renderDashboard() {
   });
   
   renderDashList(relatedItems);
+
+  const totalR = relatedItems.length;
+  let conclusiones = [];
+  if (totalR === 0) {
+      conclusiones.push("No hay registros suficientes para generar un análisis con los filtros actuales.");
+  } else {
+      // Predominancia de Tipo
+      let tipos = [{name: 'Errores', val: tError}, {name: 'Ajustes', val: tAjuste}, {name: 'Mejoras', val: tMejora}];
+      tipos.sort((a,b) => b.val - a.val);
+      if(tipos[0].val > 0) {
+          conclusiones.push(`📌 <b>Tendencia principal:</b> El tipo de reporte predominante es <b>${tipos[0].name}</b>, representando el ${Math.round((tipos[0].val/totalR)*100)}% de los registros analizados.`);
+      }
+
+      // Mayor Clasificación
+      if(cKeys.length > 0) {
+          let maxClasif = cKeys.reduce((a, b) => clasifCounts[a] > clasifCounts[b] ? a : b);
+          conclusiones.push(`📊 <b>Clasificación más frecuente:</b> La categoría con mayor incidencia es <b>${maxClasif}</b> (${clasifCounts[maxClasif]} casos). Sería recomendable enfocar acciones preventivas o de mejora en esta área.`);
+      }
+
+      // Impacto más afectado
+      let maxImpacto = '';
+      let maxImpactoVal = -1;
+      ['Planos: ✖️', 'Habilitado: ✖️', 'Etiquetas: ✖️'].forEach(k => {
+          if(impactoCounts[k] > maxImpactoVal) {
+              maxImpactoVal = impactoCounts[k];
+              maxImpacto = k.split(':')[0];
+          }
+      });
+      if(maxImpactoVal > 0) {
+          conclusiones.push(`⚠️ <b>Área más impactada:</b> <b>${maxImpacto}</b> es el rubro que ha requerido más modificaciones directas (${maxImpactoVal} afectaciones registradas).`);
+      } else {
+          conclusiones.push(`✅ <b>Impacto:</b> Hasta el momento no se han registrado afectaciones negativas graves en Planos, Habilitado o Etiquetas con los filtros actuales.`);
+      }
+  }
+  const concContainer = document.getElementById('dash-conclusions');
+  if(concContainer) concContainer.innerHTML = conclusiones.join('<br><br>');
 }
 
 function renderDashList(items) {
@@ -2460,6 +2513,8 @@ async function generateStatsPDF() {
 
   const container = document.getElementById('pdf-report-container');
   container.style.display = 'block';
+  const conclusionesText = document.getElementById('dash-conclusions') ? document.getElementById('dash-conclusions').innerHTML : '';
+  
   container.innerHTML = `
       <div class="pdf-title">Reporte Estadístico de Producción</div>
       <div class="pdf-subtitle">Generado el ${now}</div>
@@ -2496,6 +2551,11 @@ async function generateStatsPDF() {
               <div style="font-size:12px; font-weight:700; margin-bottom:10px; text-align:center;">Clasificación Detallada</div>
               <img src="${c2Img}" class="pdf-chart-img" style="max-height: 250px; object-fit: contain;">
           </div>
+      </div>
+
+      <div style="font-size:16px; font-weight:800; border-bottom:2px solid #cbd5e1; margin-bottom:15px; margin-top:20px; padding-bottom:5px; color:#1e293b;">Conclusiones Automáticas</div>
+      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:15px; font-size:12px; color:#1e40af; line-height:1.6; margin-bottom:20px;">
+          ${conclusionesText}
       </div>
 
       <div style="font-size:16px; font-weight:800; border-bottom:2px solid #cbd5e1; margin-bottom:15px; margin-top:20px; padding-bottom:5px; color:#1e293b; page-break-before: always;">Detalle de Registros</div>

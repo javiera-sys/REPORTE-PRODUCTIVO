@@ -1814,9 +1814,12 @@ async function pushToGithub() {
   }
 
   const btn = document.getElementById('gh-save-btn');
+  const mainBtn = document.getElementById('main-gh-btn');
   const originalHtml = btn.innerHTML;
+  const originalMainHtml = mainBtn ? mainBtn.innerHTML : '';
   btn.innerHTML = 'Subiendo...';
   btn.disabled = true;
+  if(mainBtn) { mainBtn.innerHTML = '<i class="ti ti-loader"></i> Subiendo...'; mainBtn.disabled = true; }
   setGithubStatus('Conectando con GitHub...', 'info');
 
   const headers = {
@@ -1920,6 +1923,7 @@ async function pushToGithub() {
   } finally {
     btn.innerHTML = originalHtml;
     btn.disabled = false;
+    if(mainBtn) { mainBtn.innerHTML = originalMainHtml; mainBtn.disabled = false; }
   }
 }
 
@@ -2690,5 +2694,19 @@ function iupAddSelected() {
     }
     selected.forEach(v => executeAddModel(v, pendingIupContext.naveId));
     closeModal('modal-iup');
+}
+
+function quickSaveGithub() {
+  const cfg = loadGithubConfig();
+  if (cfg && cfg.repo && cfg.path && cfg.token) {
+      document.getElementById('gh-repo').value = cfg.repo;
+      document.getElementById('gh-path').value = cfg.path;
+      document.getElementById('gh-branch').value = cfg.branch || 'main';
+      document.getElementById('gh-token').value = cfg.token;
+      document.getElementById('gh-remember').checked = true;
+      pushToGithub();
+  } else {
+      openGithubModal();
+  }
 }
 

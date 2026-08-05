@@ -192,7 +192,7 @@
       border-color: #bbf7d0;
   }
 
-  /* ESTILO PARA LA VERSIÓN (ISO 1.4) */
+  /* ESTILO PARA LA VERSIÓN (ISO 1.5) */
   .version-badge {
       font-size: 10px;
       font-weight: 800;
@@ -230,7 +230,7 @@
     <div class="top-header-row">
       <div class="top-bar-left">
         <div>
-          <h1 style="display: flex; align-items: center;">Errores y Mejoras de Producción <span class="version-badge">ISO 1.4</span></h1>
+          <h1 style="display: flex; align-items: center;">Errores y Mejoras de Producción <span class="version-badge">ISO 1.5</span></h1>
           <p>Fecha: <span id="current-date">20/07/2026</span></p>
           <p style="font-size: 11px; margin-top: 4px; color: var(--color-text-secondary);">
             ✔️ = Correcto (no requiere cambios). &nbsp;|&nbsp; ❌ = Cambiar el plano, habilitado o etiqueta.
@@ -316,7 +316,10 @@
       <button class="btn btn-excel" id="excel-menu-btn" onclick="toggleExcelMenu(event)" title="Exportar o importar información en Excel"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i> Excel <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
     </div>
     <button class="btn btn-purple only-editable" onclick="openExport('zip')" title="Descarga una copia completa de todo el proyecto"><i class="ti ti-package" aria-hidden="true"></i> Descargar Repositorio</button>
-    <button class="btn btn-github only-editable" onclick="openGithubModal()" title="Sube los cambios directamente a un repositorio de GitHub"><i class="ti ti-brand-github" aria-hidden="true"></i> Guardar en GitHub</button>
+    <div class="dropdown-wrap only-editable" style="display:inline-flex;">
+      <button class="btn btn-github" id="main-gh-btn" onclick="quickSaveGithub()" title="Guardado rápido en GitHub"><i class="ti ti-brand-github" aria-hidden="true"></i> Guardar en GitHub</button>
+      <button class="btn btn-github" onclick="openGithubModal()" style="padding: 6px 8px; border-left: 1px solid rgba(255,255,255,0.2);" title="Configuración de GitHub"><i class="ti ti-settings" aria-hidden="true"></i></button>
+    </div>
     <button class="btn btn-navy" onclick="openDashboard()" title="Abrir análisis y gráficas"><i class="ti ti-chart-bar" aria-hidden="true"></i> Dashboard de Estadísticas</button>
     <button class="btn btn-navy" onclick="openExport('pdf')" title="Exporta un documento limpio listo para imprimir"><i class="ti ti-file-text" aria-hidden="true"></i> Exportar PDF Final</button>
 </div>

@@ -222,7 +222,7 @@
   .pg-item-desc { font-size: 12.5px; color: var(--color-text-secondary); line-height: 1.5; white-space: pre-wrap; }
   .pg-actions-row { display: flex; gap: 4px; margin-top: 10px; justify-content: flex-end; }
 </style>
-</head>
+<link rel="stylesheet" href="chrome-extension://ajbghephkehcmphjmenfpkmjiolhjalk/app/content-style.css"></head>
 <body class="is-locked">
 
 <div class="app">
@@ -231,7 +231,7 @@
       <div class="top-bar-left">
         <div>
           <h1 style="display: flex; align-items: center;">Errores y Mejoras de Producción <span class="version-badge">ISO 1.5</span></h1>
-          <p>Fecha: <span id="current-date">20/07/2026</span></p>
+          <p>Fecha: <span id="current-date">06/08/2026</span></p>
           <p style="font-size: 11px; margin-top: 4px; color: var(--color-text-secondary);">
             ✔️ = Correcto (no requiere cambios). &nbsp;|&nbsp; ❌ = Cambiar el plano, habilitado o etiqueta.
           </p>
@@ -248,7 +248,7 @@
     <div class="search-bar-row" style="position:relative;">
       <i class="ti ti-search"></i>
       <input type="text" id="search-input" placeholder="Buscar por código de modelo, título o palabra clave..." oninput="filterItems(); mostrarSugerenciasBuscador();" onfocus="mostrarSugerenciasBuscador()" onblur="setTimeout(ocultarSugerenciasBuscador, 150)" autocomplete="off">
-      <button class="search-clear-btn" id="search-clear-btn" style="display:none" onclick="clearSearch()" title="Limpiar búsqueda"><i class="ti ti-x"></i></button>
+      <button class="search-clear-btn" id="search-clear-btn" style="display: none;" onclick="clearSearch()" title="Limpiar búsqueda"><i class="ti ti-x"></i></button>
       <div class="autocomplete-list" id="search-autocomplete"></div>
     </div>
 
@@ -277,7 +277,7 @@
         <span class="filter-label"><i class="ti ti-file-text"></i> Fichas:</span>
         <button class="btn-filter" id="fichas-menu-btn" onclick="toggleFichasMenu(event)">Catálogo <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
         <div class="dropdown-menu" id="fichas-menu" style="min-width: 280px; max-width: 90vw; max-height: 350px; overflow-y: auto; z-index: 1000; box-sizing: border-box;">
-          <div id="fichas-list"></div>
+          <div id="fichas-list"><div style="padding: 12px; font-size: 12px; color: var(--color-text-secondary); text-align: center;">No hay fichas técnicas disponibles.</div></div>
           <div class="only-editable" style="padding: 8px; border-top: 1px solid var(--color-border-secondary);">
             <button class="btn btn-sm btn-purple" style="width:100%" onclick="document.getElementById('ficha-input').click()"><i class="ti ti-upload"></i> Subir Ficha (PDF/JPG)</button>
           </div>
@@ -299,7 +299,7 @@
         <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;" class="only-editable">
           <button class="btn btn-sm btn-purple" onclick="openAddPG()"><i class="ti ti-plus"></i> Nuevo Pendiente General</button>
         </div>
-        <div id="pg-list"></div>
+        <div id="pg-list"><div class="empty-section">No hay pendientes generales activos.</div></div>
       </div>
     </div>
     
@@ -320,6 +320,7 @@
       <button class="btn btn-github" id="main-gh-btn" onclick="quickSaveGithub()" title="Guardado rápido en GitHub"><i class="ti ti-brand-github" aria-hidden="true"></i> Guardar en GitHub</button>
       <button class="btn btn-github" onclick="openGithubModal()" style="padding: 6px 8px; border-left: 1px solid rgba(255,255,255,0.2);" title="Configuración de GitHub"><i class="ti ti-settings" aria-hidden="true"></i></button>
     </div>
+    <button class="btn only-editable" id="main-gh-revert-btn" onclick="quickRevertGithub()" title="Descarta tus cambios locales y regresa al último commit guardado en GitHub" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-history" aria-hidden="true"></i> Restaurar última versión</button>
     <button class="btn btn-navy" onclick="openDashboard()" title="Abrir análisis y gráficas"><i class="ti ti-chart-bar" aria-hidden="true"></i> Dashboard de Estadísticas</button>
     <button class="btn btn-navy" onclick="openExport('pdf')" title="Exporta un documento limpio listo para imprimir"><i class="ti ti-file-text" aria-hidden="true"></i> Exportar PDF Final</button>
 </div>
@@ -637,17 +638,17 @@
 <div class="modal-bg" id="modal-export">
   <div class="modal" style="width:400px">
     <div class="modal-header">
-      <h2 id="export-modal-title">Guardar Proyecto (Editable)</h2>
+      <h2 id="export-modal-title">Descargar Repositorio (ZIP)</h2>
       <button class="btn-ghost btn" onclick="closeModal('modal-export')"><i class="ti ti-x"></i></button>
     </div>
     <div class="form-group">
       <label class="form-label">Nombre del archivo</label>
       <input class="form-input" type="text" id="export-filename" placeholder="reporte_produccion">
     </div>
-    <p style="font-size:12px;color:var(--color-text-secondary);margin-top:-6px;line-height:1.4" id="export-hint">Se creará o sobrescribirá una copia de esta página .html con todo lo que has avanzado. Ábrela mañana para seguir editando.</p>
+    <p style="font-size:12px;color:var(--color-text-secondary);margin-top:-6px;line-height:1.4" id="export-hint">Se descargará un archivo comprimido (.zip) con todo tu proyecto, código, estilos, bases de datos y archivos para un respaldo total.</p>
     <div class="form-footer">
       <button class="btn" onclick="closeModal('modal-export')">Cancelar</button>
-      <button class="btn btn-navy" onclick="doExport()" id="export-btn">Guardando...</button>
+      <button class="btn btn-navy" onclick="doExport()" id="export-btn">Empaquetando ZIP...</button>
     </div>
   </div>
 </div>
@@ -692,7 +693,8 @@
       <label for="gh-remember" style="font-size:12px;font-weight:600;color:var(--color-text-secondary);cursor:pointer">Recordar estos datos en este navegador</label>
     </div>
     <p id="gh-status" style="font-size:12px;margin-top:14px;line-height:1.4;display:none"></p>
-    <div class="form-footer">
+    <div class="form-footer" style="flex-wrap:wrap;">
+      <button class="btn" id="gh-revert-btn" onclick="revertToLastCommit()" title="Descarta tus cambios locales y regresa al último commit guardado en GitHub"><i class="ti ti-history"></i> Restaurar última versión</button>
       <button class="btn" onclick="closeModal('modal-github')">Cancelar</button>
       <button class="btn btn-github" onclick="pushToGithub()" id="gh-save-btn"><i class="ti ti-brand-github"></i> Subir cambios</button>
     </div>
@@ -711,5 +713,6 @@
 
 <script src="js/app.js"></script>
 
-</body></html>
 
+
+</body></html>

@@ -1797,13 +1797,19 @@ async function pushToGithub() {
   const branch = document.getElementById('gh-branch').value.trim() || 'main';
   const token = document.getElementById('gh-token').value.trim();
   const remember = document.getElementById('gh-remember').checked;
+  const isModalOpen = document.getElementById('modal-github').classList.contains('open');
 
   if (!repo || !path || !token) {
     setGithubStatus('Completa repositorio, ruta del archivo y token.', 'error');
+    if (!isModalOpen) {
+        alert('Faltan datos de configuración de GitHub (Token o Repositorio). Por favor, haz clic en el icono de engranaje para configurarlos.');
+        openGithubModal();
+    }
     return;
   }
   if (!/^[^\/\s]+\/[^\/\s]+$/.test(repo)) {
     setGithubStatus('El repositorio debe tener el formato usuario/repositorio.', 'error');
+    if (!isModalOpen) alert('El repositorio debe tener el formato usuario/repositorio.');
     return;
   }
 
@@ -1815,11 +1821,11 @@ async function pushToGithub() {
 
   const btn = document.getElementById('gh-save-btn');
   const mainBtn = document.getElementById('main-gh-btn');
-  const originalHtml = btn.innerHTML;
-  const originalMainHtml = mainBtn ? mainBtn.innerHTML : '';
-  btn.innerHTML = 'Subiendo...';
-  btn.disabled = true;
-  if(mainBtn) { mainBtn.innerHTML = '<i class="ti ti-loader"></i> Subiendo...'; mainBtn.disabled = true; }
+  const originalHtml = btn ? btn.innerHTML : '';
+  const originalMainHtml = mainBtn ? mainBtn.innerHTML : '<i class="ti ti-brand-github" aria-hidden="true"></i> Guardar en GitHub';
+  
+  if(btn) { btn.innerHTML = 'Subiendo...'; btn.disabled = true; }
+  if(mainBtn) { mainBtn.innerHTML = '<i class="ti ti-loader"></i> Guardando...'; mainBtn.disabled = true; }
   setGithubStatus('Conectando con GitHub...', 'info');
 
   const headers = {
@@ -1876,7 +1882,6 @@ async function pushToGithub() {
       }
     }
 
-    
     if (Array.isArray(data.fichasTecnicas)) {
       for (let i = 0; i < data.fichasTecnicas.length; i++) {
         const f = data.fichasTecnicas[i];
@@ -1917,16 +1922,47 @@ async function pushToGithub() {
 
     setGithubStatus(`✅ Cambios subidos correctamente a GitHub${nuevasImagenes ? ` (${nuevasImagenes} imagen(es) nueva(s))` : ''}.`, 'ok');
     render();
+
+    // Visual feedback on Main Button
+    if(mainBtn) {
+        mainBtn.innerHTML = '<i class="ti ti-check"></i> ¡Guardado exitoso!';
+        mainBtn.style.backgroundColor = '#10b981'; // Green
+        mainBtn.style.color = '#fff';
+        mainBtn.style.borderColor = '#10b981';
+        setTimeout(() => {
+            mainBtn.innerHTML = originalMainHtml;
+            mainBtn.style.backgroundColor = '';
+            mainBtn.style.color = '';
+            mainBtn.style.borderColor = '';
+            mainBtn.disabled = false;
+        }, 3500);
+    }
+    if(isModalOpen) {
+        setTimeout(() => closeModal('modal-github'), 1000);
+    }
+
   } catch (err) {
     console.error('Error al subir a GitHub:', err);
     setGithubStatus('❌ ' + (err.message || 'No se pudo conectar con GitHub. Verifica el token y el repositorio.'), 'error');
+    if(!isModalOpen) alert('❌ Error al guardar en GitHub:\n' + (err.message || 'Verifica el token y el repositorio.'));
+    
+    if(mainBtn) {
+        mainBtn.innerHTML = '<i class="ti ti-alert-triangle"></i> Falló al guardar';
+        mainBtn.style.backgroundColor = '#ef4444'; // Red
+        mainBtn.style.color = '#fff';
+        mainBtn.style.borderColor = '#ef4444';
+        setTimeout(() => {
+            mainBtn.innerHTML = originalMainHtml;
+            mainBtn.style.backgroundColor = '';
+            mainBtn.style.color = '';
+            mainBtn.style.borderColor = '';
+            mainBtn.disabled = false;
+        }, 4000);
+    }
   } finally {
-    btn.innerHTML = originalHtml;
-    btn.disabled = false;
-    if(mainBtn) { mainBtn.innerHTML = originalMainHtml; mainBtn.disabled = false; }
+    if(btn) { btn.innerHTML = originalHtml; btn.disabled = false; }
   }
 }
-
 function buildProjectHTMLString() {
   const clone = document.documentElement.cloneNode(true);
   clone.querySelector('body').classList.add('is-locked');
@@ -2706,7 +2742,17 @@ function quickSaveGithub() {
       document.getElementById('gh-remember').checked = true;
       pushToGithub();
   } else {
+      alert("⚠️ Aún no has configurado la conexión con GitHub.\nPor favor, haz clic en el icono de engranaje para ingresar tu Token y Repositorio.");
       openGithubModal();
   }
 }
+
+// Atajo de teclado: Ctrl + S para guardado rápido
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault();
+    if(isEditableMode) quickSaveGithub();
+  }
+});
+
 

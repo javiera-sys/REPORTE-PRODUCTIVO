@@ -1951,6 +1951,145 @@ async function pushToGithub() {
   }
 }
 
+function base64ToUtf8(b64) {
+  const binary = atob(b64.replace(/\n/g, ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+function quickRevertGithub() {
+  const cfg = loadGithubConfig();
+  if (cfg && cfg.repo && cfg.path && cfg.token) {
+    document.getElementById('gh-repo').value = cfg.repo;
+    document.getElementById('gh-path').value = cfg.path;
+    document.getElementById('gh-branch').value = cfg.branch || 'main';
+    document.getElementById('gh-token').value = cfg.token;
+    document.getElementById('gh-remember').checked = true;
+    revertToLastCommit();
+  } else {
+    alert('Primero configura la conexión con GitHub (ícono de engranaje junto a "Guardar en GitHub") antes de poder restaurar la última versión.');
+    openGithubModal();
+  }
+}
+
+async function revertToLastCommit() {
+  const repo = normalizeRepoInput(document.getElementById('gh-repo').value);
+  document.getElementById('gh-repo').value = repo;
+  const path = document.getElementById('gh-path').value.trim().replace(/^\/+/, '');
+  const branch = document.getElementById('gh-branch').value.trim() || 'main';
+  const token = document.getElementById('gh-token').value.trim();
+
+  if (!repo || !path || !token) {
+    setGithubStatus('Completa repositorio, ruta del archivo y token antes de restaurar.', 'error');
+    return;
+  }
+  if (!/^[^\/\s]+\/[^\/\s]+$/.test(repo)) {
+    setGithubStatus('El repositorio debe tener el formato usuario/repositorio.', 'error');
+    return;
+  }
+
+  const confirmado = confirm(
+    '¿Restaurar el proyecto a la última versión guardada en GitHub?\n\n' +
+    'Se perderán todos los cambios locales que todavía no hayas subido. Esta acción no se puede deshacer.'
+  );
+  if (!confirmado) return;
+
+  const revertBtn = document.getElementById('gh-revert-btn');
+  const mainRevertBtn = document.getElementById('main-gh-revert-btn');
+  const originalHtml = revertBtn ? revertBtn.innerHTML : '';
+  const originalMainHtml = mainRevertBtn ? mainRevertBtn.innerHTML : '';
+  if (revertBtn) { revertBtn.innerHTML = 'Restaurando...'; revertBtn.disabled = true; }
+  if (mainRevertBtn) { mainRevertBtn.innerHTML = '<i class="ti ti-loader"></i> Restaurando...'; mainRevertBtn.disabled = true; }
+  setGithubStatus('Buscando el último commit en GitHub...', 'info');
+
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github+json'
+  };
+
+  const baseDir = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : '';
+  const dataRepoPath = baseDir + 'data/cambios.json';
+  const modelosRepoPath = baseDir + 'data/modelos.json';
+
+  try {
+    // 1. Encontrar el último commit confirmado en la rama activa
+    const branchUrl = `https://api.github.com/repos/${repo}/branches/${encodeURIComponent(branch)}`;
+    const branchResp = await fetch(branchUrl, { headers, cache: 'no-store' });
+    if (!branchResp.ok) {
+      if (branchResp.status === 404) {
+        throw new Error(`No se encontró la rama "${branch}" en ${repo}. Revisa el nombre de la rama.`);
+      }
+      if (branchResp.status === 401 || branchResp.status === 403) {
+        throw new Error('El token no tiene permiso para leer este repositorio. Verifica que sea válido y tenga el scope "repo".');
+      }
+      const errBody = await branchResp.json().catch(() => ({}));
+      throw new Error(`No se pudo consultar la rama (${branchResp.status}): ${errBody.message || 'error desconocido'}`);
+    }
+    const branchInfo = await branchResp.json();
+    const commitSha = branchInfo.commit && branchInfo.commit.sha;
+    const commitMessageFull = (branchInfo.commit && branchInfo.commit.commit && branchInfo.commit.commit.message) || '(sin mensaje)';
+    const commitShort = commitSha ? commitSha.slice(0, 7) : '???';
+    const commitMessage = commitMessageFull.split('\n')[0];
+
+    if (!commitSha) throw new Error('GitHub no devolvió información del último commit de la rama.');
+
+    // 2. Descargar data/cambios.json exactamente como estaba en ese commit
+    setGithubStatus('Descargando la última versión de los datos...', 'info');
+    const dataResp = await fetch(`${githubApiUrl(repo, dataRepoPath)}?ref=${encodeURIComponent(commitSha)}`, { headers, cache: 'no-store' });
+    if (!dataResp.ok) {
+      if (dataResp.status === 404) {
+        throw new Error(`No se encontró "${dataRepoPath}" en el último commit. Revisa que la ruta configurada sea correcta.`);
+      }
+      const errBody = await dataResp.json().catch(() => ({}));
+      throw new Error(`No se pudo descargar los datos (${dataResp.status}): ${errBody.message || 'error desconocido'}`);
+    }
+    const dataInfo = await dataResp.json();
+    let restoredData;
+    try {
+      restoredData = JSON.parse(base64ToUtf8(dataInfo.content));
+    } catch (e) {
+      throw new Error('El archivo data/cambios.json del repositorio no es un JSON válido. No se pudo restaurar.');
+    }
+
+    // 3. Descargar data/modelos.json también, si existe (no es crítico si falla)
+    let restoredModelos = null;
+    try {
+      const modelosResp = await fetch(`${githubApiUrl(repo, modelosRepoPath)}?ref=${encodeURIComponent(commitSha)}`, { headers, cache: 'no-store' });
+      if (modelosResp.ok) {
+        const modelosInfo = await modelosResp.json();
+        restoredModelos = JSON.parse(base64ToUtf8(modelosInfo.content));
+      }
+    } catch (e) {
+      console.warn('No se pudo restaurar data/modelos.json, se conserva el actual:', e);
+    }
+
+    // 4. Aplicar los datos restaurados localmente, descartando cambios sin subir
+    data = restoredData;
+    ensureAccessPasswords();
+    if (Array.isArray(restoredModelos)) {
+      modelosDB = restoredModelos;
+    }
+    modelosDBChanged = false;
+    editingItemId = null;
+    render();
+
+    setGithubStatus(`✅ Proyecto restaurado al commit ${commitShort}: "${commitMessage}".`, 'ok');
+    alert(`✅ El proyecto se restauró correctamente.\n\nCommit: ${commitShort}\nMensaje: ${commitMessage}`);
+  } catch (err) {
+    console.error('Error al restaurar desde GitHub:', err);
+    let msg = err.message || 'No se pudo restaurar la última versión.';
+    if (err instanceof TypeError) {
+      msg = 'No se pudo conectar con GitHub. Revisa tu conexión a internet e inténtalo de nuevo.';
+    }
+    setGithubStatus('❌ ' + msg, 'error');
+    alert('❌ No se pudo restaurar el proyecto.\n\n' + msg);
+  } finally {
+    if (revertBtn) { revertBtn.innerHTML = originalHtml; revertBtn.disabled = false; }
+    if (mainRevertBtn) { mainRevertBtn.innerHTML = originalMainHtml; mainRevertBtn.disabled = false; }
+  }
+}
+
 function buildProjectHTMLString() {
   const clone = document.documentElement.cloneNode(true);
   clone.querySelector('body').classList.add('is-locked');

@@ -1785,17 +1785,39 @@ function githubApiUrl(repo, repoPath) {
   return `https://api.github.com/repos/${repo}/contents/${repoPath.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-async function putFileToGithub(repo, repoPath, branch, headers, contentBase64, message) {
+/* ============================================================
+   Caché de "sha" por archivo (repo|ruta|rama) para evitar el GET
+   previo al PUT en guardados sucesivos dentro de la misma sesión.
+   Si GitHub responde 409 (conflicto porque el archivo cambió en
+   otro lado, p.ej. otro dispositivo), se limpia y se reintenta
+   una vez con el sha fresco — así nunca se sobreescribe a ciegas.
+   ============================================================ */
+const ghShaCache = {};
+function ghCacheKey(repo, repoPath, branch) { return `${repo}|${repoPath}|${branch}`; }
+
+/**
+ * Sube (crea o actualiza) un archivo en GitHub.
+ * - Si se pasa `knownSha`, se omite la consulta GET y se hace PUT directo (ahorra 1 petición).
+ * - Si `knownSha` es null explícito, se fuerza creación sin sha (para archivos nuevos con nombre único, ej. imágenes).
+ * - Si `knownSha` es undefined, se hace GET primero para obtener el sha actual (comportamiento seguro por defecto).
+ */
+async function putFileToGithub(repo, repoPath, branch, headers, contentBase64, message, knownSha) {
   const apiUrl = githubApiUrl(repo, repoPath);
-  let sha = undefined;
-  const getResp = await fetch(`${apiUrl}?ref=${encodeURIComponent(branch)}`, { headers, cache: 'no-store' });
-  if (getResp.status === 200) {
-    const info = await getResp.json();
-    sha = info.sha;
-  } else if (getResp.status !== 404) {
-    const errBody = await getResp.json().catch(() => ({}));
-    throw new Error(`No se pudo consultar ${repoPath} (${getResp.status}): ${errBody.message || 'error desconocido'}`);
+  let sha = knownSha;
+
+  if (sha === undefined) {
+    const getResp = await fetch(`${apiUrl}?ref=${encodeURIComponent(branch)}`, { headers, cache: 'no-store' });
+    if (getResp.status === 200) {
+      const info = await getResp.json();
+      sha = info.sha;
+    } else if (getResp.status !== 404) {
+      const errBody = await getResp.json().catch(() => ({}));
+      const e = new Error(`No se pudo consultar ${repoPath} (${getResp.status}): ${errBody.message || 'error desconocido'}`);
+      e.status = getResp.status;
+      throw e;
+    }
   }
+
   const putResp = await fetch(apiUrl, {
     method: 'PUT',
     headers: { ...headers, 'Content-Type': 'application/json' },
@@ -1808,9 +1830,54 @@ async function putFileToGithub(repo, repoPath, branch, headers, contentBase64, m
   });
   if (!putResp.ok) {
     const errBody = await putResp.json().catch(() => ({}));
-    throw new Error(`GitHub respondió ${putResp.status} al guardar ${repoPath}: ${errBody.message || 'error desconocido'}`);
+    const e = new Error(`GitHub respondió ${putResp.status} al guardar ${repoPath}: ${errBody.message || 'error desconocido'}`);
+    e.status = putResp.status;
+    throw e;
   }
   return putResp.json().catch(() => null);
+}
+
+/**
+ * Guarda un archivo cuyo sha ya conocemos (o cacheamos), reintentando una sola vez
+ * con sha fresco si GitHub responde 409 (conflicto por cambios de otro dispositivo).
+ */
+async function putFileToGithubCached(repo, repoPath, branch, headers, contentBase64, message) {
+  const key = ghCacheKey(repo, repoPath, branch);
+  const cachedSha = ghShaCache[key];
+  try {
+    const result = await putFileToGithub(repo, repoPath, branch, headers, contentBase64, message, cachedSha);
+    if (result && result.content && result.content.sha) ghShaCache[key] = result.content.sha;
+    return result;
+  } catch (err) {
+    if (err.status === 409 && cachedSha !== undefined) {
+      // El sha en caché quedó obsoleto (alguien más guardó primero) -> se refresca y reintenta UNA vez.
+      delete ghShaCache[key];
+      const result = await putFileToGithub(repo, repoPath, branch, headers, contentBase64, message, undefined);
+      if (result && result.content && result.content.sha) ghShaCache[key] = result.content.sha;
+      return result;
+    }
+    throw err;
+  }
+}
+
+/** Crea un archivo nuevo con nombre garantizado único (imágenes/fichas con uid()): un solo PUT, sin GET previo. */
+function createNewFileOnGithub(repo, repoPath, branch, headers, contentBase64, message) {
+  return putFileToGithub(repo, repoPath, branch, headers, contentBase64, message, null);
+}
+
+/** Ejecuta tareas async con un límite de concurrencia (evita saturar la API pero deja de ser secuencial). */
+async function runWithConcurrency(tasks, limit) {
+  const results = new Array(tasks.length);
+  let idx = 0;
+  async function worker() {
+    while (idx < tasks.length) {
+      const current = idx++;
+      results[current] = await tasks[current]();
+    }
+  }
+  const poolSize = Math.max(1, Math.min(limit, tasks.length));
+  await Promise.all(Array.from({ length: poolSize }, worker));
+  return results;
 }
 
 /* Confirma que exista un ítem/campo en edición antes de subir, para no perder
@@ -1877,9 +1944,17 @@ async function pushToGithub() {
   const dataRepoPath = baseDir + 'data/cambios.json';
   const imagesRepoPrefix = baseDir + 'data/images/';
 
+  // --- Medición de tiempos por etapa (queda en consola para diagnóstico) ---
+  const t0 = performance.now();
+  const timings = {};
+  const mark = (label, from) => { timings[label] = Math.round(performance.now() - from); };
+
   try {
-    let nuevasImagenes = 0;
-    
+    // 1) Preparar: recolectar todas las imágenes/fichas nuevas como tareas independientes
+    //    (cada una tiene nombre único, así que se pueden crear en paralelo sin GET previo).
+    const tPrep = performance.now();
+    const uploadTasks = [];
+
     for (const nave of data.naves) {
       if (Array.isArray(nave.images)) {
         for (let i = 0; i < nave.images.length; i++) {
@@ -1888,17 +1963,16 @@ async function pushToGithub() {
             const ext = extFromDataUri(img);
             const fileName = `${nave.id}_${uid()}.${ext}`;
             const b64 = img.split(',', 2)[1];
-            setGithubStatus(`Subiendo imagen general ${nuevasImagenes + 1}...`, 'info');
-            await putFileToGithub(
-              repo, imagesRepoPrefix + fileName, branch, headers, b64,
-              `Nueva imagen de mueble (${new Date().toLocaleString('es-MX')})`
-            );
-            nave.images[i] = 'data/images/' + fileName;
-            nuevasImagenes++;
+            uploadTasks.push({
+              run: () => createNewFileOnGithub(
+                repo, imagesRepoPrefix + fileName, branch, headers, b64,
+                `Nueva imagen de mueble (${new Date().toLocaleString('es-MX')})`
+              ),
+              apply: () => { nave.images[i] = 'data/images/' + fileName; }
+            });
           }
         }
       }
-      
       if (Array.isArray(nave.items)) {
         for (const item of nave.items) {
           if (Array.isArray(item.adjuntos)) {
@@ -1908,21 +1982,19 @@ async function pushToGithub() {
                 const ext = extFromDataUri(adj);
                 const fileName = `adj_${item.id}_${uid()}.${ext}`;
                 const b64 = adj.split(',', 2)[1];
-                setGithubStatus(`Subiendo imagen de reporte ${nuevasImagenes + 1}...`, 'info');
-                await putFileToGithub(
-                  repo, imagesRepoPrefix + fileName, branch, headers, b64,
-                  `Nueva imagen de reporte (${new Date().toLocaleString('es-MX')})`
-                );
-                item.adjuntos[j] = 'data/images/' + fileName;
-                nuevasImagenes++;
+                uploadTasks.push({
+                  run: () => createNewFileOnGithub(
+                    repo, imagesRepoPrefix + fileName, branch, headers, b64,
+                    `Nueva imagen de reporte (${new Date().toLocaleString('es-MX')})`
+                  ),
+                  apply: () => { item.adjuntos[j] = 'data/images/' + fileName; }
+                });
               }
             }
           }
         }
       }
     }
-
-    
     if (Array.isArray(data.fichasTecnicas)) {
       for (let i = 0; i < data.fichasTecnicas.length; i++) {
         const f = data.fichasTecnicas[i];
@@ -1930,48 +2002,78 @@ async function pushToGithub() {
           let ext = 'pdf';
           if (f.content.includes('image/jpeg')) ext = 'jpg';
           else if (f.content.includes('image/png')) ext = 'png';
-          
           const fileName = `ficha_${uid()}.${ext}`;
           const b64 = f.content.split(',', 2)[1];
-          setGithubStatus(`Subiendo ficha técnica ${nuevasImagenes + 1}...`, 'info');
-          await putFileToGithub(
-            repo, imagesRepoPrefix + fileName, branch, headers, b64,
-            `Nueva ficha técnica (${f.name})`
-          );
-          f.content = 'data/images/' + fileName;
-          nuevasImagenes++;
+          uploadTasks.push({
+            run: () => createNewFileOnGithub(
+              repo, imagesRepoPrefix + fileName, branch, headers, b64,
+              `Nueva ficha técnica (${f.name})`
+            ),
+            apply: () => { f.content = 'data/images/' + fileName; }
+          });
         }
       }
     }
-    
+    mark('preparar', tPrep);
+
+    // 2) Subir todos los archivos nuevos EN PARALELO (antes era secuencial: 1 GET+1 PUT por imagen, una por una).
+    const tImgs = performance.now();
+    let nuevasImagenes = 0;
+    if (uploadTasks.length) {
+      let completadas = 0;
+      setGithubStatus(`Subiendo ${uploadTasks.length} imagen(es)/archivo(s) nuevo(s)...`, 'info');
+      await runWithConcurrency(
+        uploadTasks.map(t => async () => {
+          await t.run();
+          t.apply();
+          completadas++;
+          nuevasImagenes++;
+          setGithubStatus(`Subiendo archivos nuevos... (${completadas}/${uploadTasks.length})`, 'info');
+        }),
+        5 // hasta 5 subidas simultáneas
+      );
+    }
+    mark('imagenes', tImgs);
+
+    // 3) Guardar data/cambios.json — usa el sha en caché de la sesión (sin GET previo) cuando existe.
+    const tData = performance.now();
     setGithubStatus('Guardando datos...', 'info');
     const dataString = JSON.stringify(data);
-    const dataPutResult = await putFileToGithub(
+    const dataPutResult = await putFileToGithubCached(
       repo, dataRepoPath, branch, headers, utf8ToBase64(dataString),
       `Actualización del reporte desde la app (${new Date().toLocaleString('es-MX')})`
     );
+    mark('datos_cambios_json', tData);
 
+    // 4) Guardar modelos.json SOLO si de verdad cambió.
+    const tModelos = performance.now();
     if(modelosDBChanged){
       setGithubStatus('Guardando base de datos de modelos...', 'info');
       const modelosRepoPath = baseDir + 'data/modelos.json';
-      await putFileToGithub(
+      await putFileToGithubCached(
         repo, modelosRepoPath, branch, headers, utf8ToBase64(JSON.stringify(modelosDB)),
         `Actualización de base de datos de modelos (${new Date().toLocaleString('es-MX')})`
       );
       modelosDBChanged = false;
     }
+    mark('modelos_json', tModelos);
 
-    // Confirmación real: tomamos el sha del commit que GitHub acaba de crear.
-    // Si esto no viene en la respuesta, algo no se guardó de verdad aunque no haya
-    // habido un error de red.
+    // 5) Actualizar interfaz: solo el mensaje de estado, sin re-renderizar toda la app
+    //    (los datos en memoria ya reflejaban el cambio antes de subir; no hay nada visual que refrescar).
+    const tUI = performance.now();
     const commitSha = dataPutResult && dataPutResult.commit && dataPutResult.commit.sha
       ? dataPutResult.commit.sha.slice(0, 7)
       : null;
     const commitMsg = commitSha ? ` (commit ${commitSha})` : '';
     setGithubStatus(`✅ Cambios subidos correctamente a GitHub${nuevasImagenes ? ` (${nuevasImagenes} imagen(es) nueva(s))` : ''}${commitMsg}.`, 'ok');
-    render();
+    mark('actualizar_ui', tUI);
+
+    timings.total = Math.round(performance.now() - t0);
+    console.log('[GitHub Save] Tiempos por etapa (ms):', timings);
   } catch (err) {
     console.error('Error al subir a GitHub:', err);
+    timings.total = Math.round(performance.now() - t0);
+    console.log('[GitHub Save] Tiempos por etapa hasta el error (ms):', timings);
     setGithubStatus('❌ ' + (err.message || 'No se pudo conectar con GitHub. Verifica el token y el repositorio.'), 'error');
   } finally {
     btn.innerHTML = originalHtml;
@@ -2102,6 +2204,12 @@ async function revertToLastCommit() {
     modelosDBChanged = false;
     editingItemId = null;
     render();
+
+    // Actualiza el sha en caché con el que acabamos de leer, así el próximo "Guardar en GitHub"
+    // también evita el GET previo (ya sabemos exactamente en qué versión estamos parados).
+    if (dataInfo && dataInfo.sha) {
+      ghShaCache[ghCacheKey(repo, dataRepoPath, branch)] = dataInfo.sha;
+    }
 
     setGithubStatus(`✅ Proyecto restaurado al commit ${commitShort}: "${commitMessage}".`, 'ok');
     alert(`✅ El proyecto se restauró correctamente.\n\nCommit: ${commitShort}\nMensaje: ${commitMessage}`);

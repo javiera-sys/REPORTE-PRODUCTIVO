@@ -228,6 +228,23 @@ function toggleProceso(naveId, itemId, field, el, event) {
   }
 }
 
+function toggleCancelado(naveId, itemId, event) {
+  if(event) event.stopPropagation();
+  if (!isEditableMode) return;
+  const nave = data.naves.find(n => n.id === naveId);
+  if(!nave) return;
+  const item = nave.items.find(i => i.id === itemId);
+  if(!item) return;
+
+  if (!item.cancelado) {
+    if (!confirm('¿Marcar este cambio como Cancelado?\n\nEl registro no se borra, solo se marca visualmente como no válido.')) return;
+    item.cancelado = true;
+  } else {
+    item.cancelado = false;
+  }
+  render();
+}
+
 function subirAdjunto(event, naveId, itemId, idx) {
   if (!isEditableMode) return;
   const file = event.target.files[0];
@@ -463,9 +480,11 @@ function filterItems(){
       const textMatch = !q || naveMatches || itemText.includes(q);
       
       const isDone = itemCard.classList.contains('plano-done');
+      const isCancelado = itemCard.classList.contains('item-cancelado');
       let statusMatch = true;
       if (filterStatus === 'pending' && isDone) statusMatch = false;
       if (filterStatus === 'done' && !isDone) statusMatch = false;
+      if (filterStatus === 'cancelado' && !isCancelado) statusMatch = false;
 
       const itemMatches = textMatch && statusMatch;
 
@@ -573,6 +592,9 @@ function renderItemCard(item, naveId){
   if (!item.proceso) {
     item.proceso = { habilitado: false, planos: false, etiquetas: false, planoTerminado: false };
   }
+  if (item.cancelado === undefined) {
+    item.cancelado = false;
+  }
   if (!item.adjuntos) {
     item.adjuntos = ["", "", "", "", ""];
   }
@@ -631,17 +653,23 @@ function renderItemCard(item, naveId){
     ? `<div title="Registro nuevo (últimas 72h)" style="color:#f59e0b; display:flex; align-items:center; justify-content:center; width:20px; height:20px;"><i class="ti ti-star-filled" style="font-size:16px"></i></div>` 
     : `<div style="width:20px; height:20px;"></div>`;
 
-  return `<div class="item-card ${proc.planoTerminado ? 'plano-done' : ''}" id="ic-${item.id}">
+  const canceladoBadgeHtml = item.cancelado
+    ? `<span class="cancelado-badge" title="Este cambio fue marcado como cancelado"><i class="ti ti-ban"></i> CANCELADO</span>`
+    : '';
+
+  return `<div class="item-card ${proc.planoTerminado ? 'plano-done' : ''} ${item.cancelado ? 'item-cancelado' : ''}" id="ic-${item.id}">
     <div class="item-dot ${dotClass(item.type)}" style="margin-top:5px"></div>
     <div class="item-content">
       <div class="item-title-row">
         <div style="display:flex; align-items:flex-start; gap:8px; flex:1; min-width:0;">
           ${planoTerminadoHtml}
           <span class="item-title-text">${escHtml(item.title)}</span>
+          ${canceladoBadgeHtml}
         </div>
         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; margin-left:12px;">
           ${metaHtml}
           <div class="item-actions-row only-editable">
+            <button class="btn ${item.cancelado ? 'btn-ghost' : 'btn-danger-ghost'}" title="${item.cancelado ? 'Reactivar cambio' : 'Cancelar cambio'}" onclick="toggleCancelado('${naveId}','${item.id}', event)"><i class="ti ${item.cancelado ? 'ti-rotate' : 'ti-ban'}" style="font-size:13px"></i></button>
             <button class="btn btn-ghost" title="Editar" onclick="startEdit('${item.id}')"><i class="ti ti-pencil" style="font-size:13px"></i></button>
             <button class="btn btn-danger-ghost" title="Eliminar" onclick="removeItem('${naveId}','${item.id}')"><i class="ti ti-trash" style="font-size:13px"></i></button>
           </div>
@@ -1401,6 +1429,7 @@ function saveItem(){
       subType,
       createdAt: Date.now(), 
       proceso: { habilitado: false, planos: false, etiquetas: false, planoTerminado: false },
+      cancelado: false,
       adjuntos: ["","","","",""]
     });
     if(nave.tipo === 'errores' && newCat === 'mejora') nave.tipo = 'ambos';

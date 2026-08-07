@@ -2565,38 +2565,42 @@ function renderDashboard() {
       }]
   });
 
-  // Chart 2
-  let cKeys = Object.keys(clasifCounts);
-  const palette = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e'];
-  
-  let coloredData = cKeys.map((k, i) => {
+  // Chart 2 (Clasificación) - ordenado de mayor a menor, con alto dinámico según cantidad de categorías
+  let cEntries = Object.entries(clasifCounts).sort((a, b) => a[1] - b[1]); // ascendente: en barra horizontal ECharts, el primero queda abajo
+  let cKeys = cEntries.map(e => e[0]);
+  const palette = ['#3b82f6', '#06b6d4', '#10b981', '#84cc16', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#a855f7', '#6366f1', '#0ea5e9', '#d946ef', '#f43f5e', '#8b5cf6'];
+
+  let coloredData = cEntries.map(([k, v], i) => {
       return {
-          value: clasifCounts[k],
+          value: v,
           name: k,
           itemStyle: { color: palette[i % palette.length] }
       };
   });
 
+  // Alto dinámico: cada categoría necesita ~34px para no amontonarse, con un mínimo razonable
+  const clasifBox = document.getElementById('chart-clasificacion');
+  const clasifHeight = Math.max(250, cKeys.length * 34 + 60);
+  clasifBox.style.height = clasifHeight + 'px';
+
   chartClasif.setOption({
-      tooltip: { trigger: 'axis' },
+      tooltip: { trigger: 'item' },
+      grid: { left: '3%', right: '8%', top: 10, bottom: 20, containLabel: true },
       xAxis: { type: 'value' },
-      yAxis: { type: 'category', data: cKeys, axisLabel: { width: 120, overflow: 'break' } },
-      grid: { left: '35%' },
+      yAxis: {
+          type: 'category',
+          data: cKeys,
+          axisLabel: { width: 160, overflow: 'truncate', fontSize: 11 }
+      },
       series: [{
           data: coloredData,
           type: 'bar',
-          colorBy: 'data',
-          label: { show: true, position: 'right' }
+          barMaxWidth: 22,
+          label: { show: true, position: 'right', fontSize: 11, fontWeight: 600 }
       }]
-  });
-  
-  const legendHtml = cKeys.map((k, i) => {
-      return `<div style="display:flex; align-items:center; gap:4px; font-size:10px; color:#475569;">
-          <span style="width:10px; height:10px; border-radius:2px; background:${palette[i % palette.length]}"></span> ${k}
-      </div>`;
-  }).join('');
-  const legContainer = document.getElementById('clasificacion-legend');
-  if(legContainer) legContainer.innerHTML = legendHtml;
+  }, true);
+  chartClasif.resize();
+
 
   // Chart 3
   chartImpacto.setOption({

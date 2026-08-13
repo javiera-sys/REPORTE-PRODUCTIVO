@@ -245,23 +245,58 @@ function toggleCancelado(naveId, itemId, event) {
   render();
 }
 
+/* ---- Compresión de imágenes antes de guardarlas ----
+   Las fotos de celular (Android/iOS) pueden pesar varios MB, lo que hace lenta
+   o inestable la subida a GitHub, sobre todo en datos móviles. Se redimensionan
+   a un máximo razonable para visualización en pantalla y se comprimen a JPEG. */
+function compressImageDataUrl(dataUrl, maxDim = 1600, quality = 0.82) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch (e) {
+        console.warn('No se pudo comprimir la imagen, se usa el original:', e);
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => {
+      console.warn('No se pudo procesar la imagen para comprimir, se usa el original.');
+      resolve(dataUrl);
+    };
+    img.src = dataUrl;
+  });
+}
+
 function subirAdjunto(event, naveId, itemId, idx) {
   if (!isEditableMode) return;
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     const nave = data.naves.find(n => n.id === naveId);
     if(nave) {
       const item = nave.items.find(i => i.id === itemId);
       if(item) {
         if(!item.adjuntos) item.adjuntos = ["","","","",""];
-        item.adjuntos[idx] = e.target.result;
+        item.adjuntos[idx] = await compressImageDataUrl(e.target.result);
         render(); 
       }
     }
   };
   reader.readAsDataURL(file);
+  event.target.value = '';
 }
 
 function eliminarAdjunto(event, naveId, itemId, idx) {
@@ -1040,10 +1075,11 @@ function handleImg(e){
   if (!isEditableMode) return;
   const file=e.target.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=ev=>{
+  reader.onload=async ev=>{
     const n=data.naves.find(x=>x.id===currentImgNaveId);
     if(n && n.images.length < 10){
-      n.images.push(ev.target.result);
+      const compressed = await compressImageDataUrl(ev.target.result);
+      n.images.push(compressed);
       render();
     }
   };
@@ -1068,10 +1104,11 @@ document.addEventListener('paste', function(e) {
       e.preventDefault();
       const blob = items[i].getAsFile();
       const reader = new FileReader();
-      reader.onload = (ev) => {
+      reader.onload = async (ev) => {
         const n = data.naves.find(x => x.id === targetId);
         if (n && n.images.length < 10) {
-          n.images.push(ev.target.result);
+          const compressed = await compressImageDataUrl(ev.target.result);
+          n.images.push(compressed);
           render();
         } else if (n && n.images.length >= 10) {
            alert("Límite de 10 imágenes alcanzado para este mueble.");
@@ -1766,6 +1803,7 @@ function utf8ToBase64(str) {
 function setGithubStatus(msg, type) {
   const status = document.getElementById('gh-status');
   status.style.display = 'block';
+  status.style.whiteSpace = 'pre-line';
   status.style.color = type === 'error' ? 'var(--red)' : (type === 'ok' ? 'var(--green)' : 'var(--color-text-secondary)');
   status.textContent = msg;
 }
@@ -1964,6 +2002,7 @@ async function pushToGithub() {
             const fileName = `${nave.id}_${uid()}.${ext}`;
             const b64 = img.split(',', 2)[1];
             uploadTasks.push({
+              label: `Imagen general de "${nave.nave || nave.consola || 'mueble'}"`,
               run: () => createNewFileOnGithub(
                 repo, imagesRepoPrefix + fileName, branch, headers, b64,
                 `Nueva imagen de mueble (${new Date().toLocaleString('es-MX')})`
@@ -1983,6 +2022,7 @@ async function pushToGithub() {
                 const fileName = `adj_${item.id}_${uid()}.${ext}`;
                 const b64 = adj.split(',', 2)[1];
                 uploadTasks.push({
+                  label: `Foto adjunta de "${item.title || 'un cambio'}"`,
                   run: () => createNewFileOnGithub(
                     repo, imagesRepoPrefix + fileName, branch, headers, b64,
                     `Nueva imagen de reporte (${new Date().toLocaleString('es-MX')})`
@@ -2005,6 +2045,7 @@ async function pushToGithub() {
           const fileName = `ficha_${uid()}.${ext}`;
           const b64 = f.content.split(',', 2)[1];
           uploadTasks.push({
+            label: `Ficha técnica "${f.name}"`,
             run: () => createNewFileOnGithub(
               repo, imagesRepoPrefix + fileName, branch, headers, b64,
               `Nueva ficha técnica (${f.name})`
@@ -2016,19 +2057,38 @@ async function pushToGithub() {
     }
     mark('preparar', tPrep);
 
-    // 2) Subir todos los archivos nuevos EN PARALELO (antes era secuencial: 1 GET+1 PUT por imagen, una por una).
+    // 2) Subir todos los archivos nuevos EN PARALELO. Cada imagen se maneja de forma
+    //    INDEPENDIENTE: si una falla (ej. conexión inestable en celular), NO se cancela
+    //    el resto ni se pierde el guardado de los datos del cambio. Se reintenta 1 vez
+    //    automáticamente antes de darla por fallida.
     const tImgs = performance.now();
     let nuevasImagenes = 0;
+    const fallosImagenes = [];
     if (uploadTasks.length) {
       let completadas = 0;
       setGithubStatus(`Subiendo ${uploadTasks.length} imagen(es)/archivo(s) nuevo(s)...`, 'info');
       await runWithConcurrency(
-        uploadTasks.map(t => async () => {
-          await t.run();
-          t.apply();
-          completadas++;
-          nuevasImagenes++;
-          setGithubStatus(`Subiendo archivos nuevos... (${completadas}/${uploadTasks.length})`, 'info');
+        uploadTasks.map((t, taskIdx) => async () => {
+          try {
+            try {
+              await t.run();
+            } catch (firstErr) {
+              // Reintento único: útil para cortes breves de red en celular.
+              console.warn(`Fallo al subir archivo ${taskIdx + 1}, reintentando una vez...`, firstErr);
+              await t.run();
+            }
+            t.apply();
+            nuevasImagenes++;
+          } catch (err) {
+            console.error(`No se pudo subir el archivo ${taskIdx + 1} tras reintentar:`, err);
+            fallosImagenes.push({ label: t.label, message: err.message || 'error desconocido' });
+            // OJO: no se llama a t.apply(), así que la imagen se queda como data-URI
+            // dentro de `data` y se guarda embebida en cambios.json (no se pierde),
+            // aunque no haya quedado como archivo aparte en /data/images/.
+          } finally {
+            completadas++;
+            setGithubStatus(`Subiendo archivos nuevos... (${completadas}/${uploadTasks.length})`, 'info');
+          }
         }),
         5 // hasta 5 subidas simultáneas
       );
@@ -2065,7 +2125,20 @@ async function pushToGithub() {
       ? dataPutResult.commit.sha.slice(0, 7)
       : null;
     const commitMsg = commitSha ? ` (commit ${commitSha})` : '';
-    setGithubStatus(`✅ Cambios subidos correctamente a GitHub${nuevasImagenes ? ` (${nuevasImagenes} imagen(es) nueva(s))` : ''}${commitMsg}.`, 'ok');
+
+    if (fallosImagenes.length > 0) {
+      // Guardado parcial: el cambio y sus datos SÍ se subieron; algunas imágenes no.
+      // Como no se pierden (quedan embebidas en cambios.json), basta con reintentar
+      // el guardado más tarde para que esas fotos terminen de subirse como archivo aparte.
+      const detalle = fallosImagenes.map(f => `• ${f.label}: ${f.message}`).join('\n');
+      setGithubStatus(
+        `⚠️ El cambio se guardó${commitMsg}, pero ${fallosImagenes.length} imagen(es) no se pudieron subir tras reintentar. ` +
+        `Las fotos no se perdieron (quedaron guardadas dentro del registro); vuelve a darle "Guardar en GitHub" cuando tengas mejor conexión para reintentarlas.\n${detalle}`,
+        'error'
+      );
+    } else {
+      setGithubStatus(`✅ Cambios subidos correctamente a GitHub${nuevasImagenes ? ` (${nuevasImagenes} imagen(es) nueva(s))` : ''}${commitMsg}.`, 'ok');
+    }
     mark('actualizar_ui', tUI);
 
     timings.total = Math.round(performance.now() - t0);

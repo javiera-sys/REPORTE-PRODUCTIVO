@@ -732,7 +732,7 @@ function renderNave(nave, index, total){
   nave.images.forEach((img, idx) => {
     galleryHtml += `
       <div class="img-item">
-        <img src="${img}" alt="Mueble" title="Haz clic para ampliar" onclick="viewImage('${img}')" />
+        <img src="${img}" alt="Mueble" title="Haz clic para ampliar" onclick="viewImage(this.src)" />
         <button class="del-img-btn only-editable" onclick="removeImg('${nave.id}', ${idx})" title="Eliminar imagen"><i class="ti ti-trash"></i></button>
       </div>`;
   });

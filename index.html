@@ -334,7 +334,7 @@
   <div class="modal">
     <div class="modal-header">
       <h2>Permiso de Edición</h2>
-      <button class="btn-ghost btn" onclick="closeModal('modal-auth')"><i class="ti ti-x"></i></button>
+      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-auth')"><i class="ti ti-x"></i></button>
     </div>
     <div class="auth-icon-wrap"><i class="ti ti-shield-lock"></i></div>
     <div class="auth-title">Permiso de Edición</div>
@@ -355,7 +355,7 @@
   <div class="modal">
     <div class="modal-header">
       <h2>Administrar Accesos</h2>
-      <button class="btn-ghost btn" onclick="closeModal('modal-manage-access')"><i class="ti ti-x"></i></button>
+      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-manage-access')"><i class="ti ti-x"></i></button>
     </div>
     <div class="form-group">
       <label class="form-label">Contraseñas activas</label>
@@ -378,7 +378,7 @@
   <div class="modal">
     <div class="modal-header">
       <h2>Nuevo mueble</h2>
-      <button class="btn-ghost btn" onclick="closeModal('modal-nave')"><i class="ti ti-x"></i></button>
+      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-nave')"><i class="ti ti-x"></i></button>
     </div>
     <div class="form-group">
       <label class="form-label">Nave <span style="color:var(--red)">*</span></label>
@@ -422,7 +422,7 @@
       <h2 style="margin:0; display:flex; align-items:center; gap:8px;"><i class="ti ti-chart-pie" style="color:var(--accent)"></i> Dashboard de Estadísticas</h2>
       <div style="display:flex; gap:10px;">
         <button class="btn btn-green" onclick="generateStatsPDF()"><i class="ti ti-file-type-pdf"></i> Generar Reporte Estadístico</button>
-        <button class="btn-ghost btn" onclick="closeModal('modal-dashboard')"><i class="ti ti-x"></i></button>
+        <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-dashboard')"><i class="ti ti-x"></i></button>
       </div>
     </div>
     <div class="dash-grid">
@@ -471,7 +471,7 @@
   <div class="modal" style="width:400px">
     <div class="modal-header">
       <h2>Agrupar variantes IUP</h2>
-      <button class="btn-ghost btn" onclick="closeModal('modal-iup')"><i class="ti ti-x"></i></button>
+      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-iup')"><i class="ti ti-x"></i></button>
     </div>
     <p style="font-size:13px; color:var(--color-text-secondary); margin-top:-5px; line-height:1.4" id="iup-modal-desc">
     </p>
@@ -508,7 +508,7 @@
   <div class="modal">
     <div class="modal-header">
       <h2>Editar Cabecera del Mueble</h2>
-      <button class="btn-ghost btn" onclick="closeModal('modal-edit-nave')"><i class="ti ti-x"></i></button>
+      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-edit-nave')"><i class="ti ti-x"></i></button>
     </div>
     <input type="hidden" id="edit-nave-id" value="">
     <div class="form-group">
@@ -535,7 +535,7 @@
   <div class="modal">
     <div class="modal-header">
       <h2 id="modal-pg-h">Agregar Pendiente General</h2>
-      <button class="btn-ghost btn" onclick="closeModal('modal-pg')"><i class="ti ti-x"></i></button>
+      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-pg')"><i class="ti ti-x"></i></button>
     </div>
     <input type="hidden" id="pg-edit-id" value="">
     <div class="form-group">
@@ -557,7 +557,7 @@
   <div class="modal">
     <div class="modal-header">
       <h2 id="modal-item-h">Agregar elemento</h2>
-      <button class="btn-ghost btn" onclick="closeModal('modal-item')"><i class="ti ti-x"></i></button>
+      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-item')"><i class="ti ti-x"></i></button>
     </div>
     <div class="form-group">
       <label class="form-label">Categoría</label>
@@ -607,7 +607,7 @@
   <div class="modal" style="width:400px">
     <div class="modal-header">
       <h2>Editar Modelo</h2>
-      <button class="btn-ghost btn" onclick="closeModal('modal-edit-model')"><i class="ti ti-x"></i></button>
+      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-edit-model')"><i class="ti ti-x"></i></button>
     </div>
     <input type="hidden" id="edit-model-nave-id" value="">
     <input type="hidden" id="edit-model-idx" value="">
@@ -639,7 +639,7 @@
   <div class="modal" style="width:400px">
     <div class="modal-header">
       <h2 id="export-modal-title">Descargar Repositorio (ZIP)</h2>
-      <button class="btn-ghost btn" onclick="closeModal('modal-export')"><i class="ti ti-x"></i></button>
+      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-export')"><i class="ti ti-x"></i></button>
     </div>
     <div class="form-group">
       <label class="form-label">Nombre del archivo</label>
@@ -658,7 +658,7 @@
   <div class="modal" style="width:460px">
     <div class="modal-header">
       <h2><i class="ti ti-brand-github" style="vertical-align:-2px;margin-right:6px"></i>Guardar en GitHub</h2>
-      <button class="btn-ghost btn" onclick="closeModal('modal-github')"><i class="ti ti-x"></i></button>
+      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-github')"><i class="ti ti-x"></i></button>
     </div>
     <p style="font-size:12px;color:var(--color-text-secondary);margin-top:-6px;margin-bottom:14px;line-height:1.45">
       Sube tus cambios (datos e imágenes nuevas) al repositorio de GitHub donde vive tu <b>index.html</b>. El HTML/CSS/JS no se vuelven a subir aquí — solo se actualiza <code>data/cambios.json</code> y, si agregaste fotos nuevas, los archivos dentro de <code>data/images/</code>.

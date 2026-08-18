@@ -353,3 +353,120 @@ textarea.form-input { resize: vertical; min-height: 80px; line-height: 1.5; }
   .nave-left{border-right:none;border-bottom:1px solid var(--color-border-tertiary)}
   .bottom-toolbar { padding: 10px; border-radius: 12px; }
 }
+
+/* ============================================================
+   SISTEMA RESPONSIVE AMPLIADO + ACCESIBILIDAD TÁCTIL
+   No se renombra ni elimina ninguna clase existente: solo se
+   agregan reglas nuevas y se refuerzan tamaños/espaciados para
+   tablet, Android e iOS. La lógica y los data-attributes que usa
+   el JS no se tocan.
+   ============================================================ */
+
+/* Foco visible consistente (teclado / lectores de pantalla) */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, .btn:focus-visible, .btn-filter:focus-visible { outline-offset: 3px; }
+
+/* Evita "double-tap zoom" accidental en botones dentro de iOS/Android */
+button, .btn, .btn-filter, .hbtn { touch-action: manipulation; }
+
+/* Tablets (768px–1024px): la app sigue en 2 columnas pero con más aire */
+@media (max-width: 1024px) {
+  .app { max-width: 100%; padding: 1.25rem 1rem 7rem; }
+  .dash-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+
+/* Tablets chicas / móviles en horizontal (hasta 900px):
+   el cuerpo de cada mueble pasa de 2 columnas a 1 antes que antes,
+   para que "Modelos + Imágenes" no queden apretados junto al listado. */
+@media (max-width: 900px) {
+  .nave-body { grid-template-columns: 1fr; }
+  .nave-left { border-right: none; border-bottom: 1px solid var(--color-border-tertiary); }
+  .modal { width: 92vw; }
+}
+
+/* Móviles (hasta 640px): prioridad total a que todo sea tocable con el dedo */
+@media (max-width: 640px) {
+  .app { padding: 0.75rem 0.6rem 7.5rem; }
+
+  /* Header: apilado y compacto, sin recortar el título */
+  .top-bar { border-radius: 16px; padding: 10px 12px; top: 6px; }
+  .top-header-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .top-bar-left h1 { font-size: 14px; }
+  .top-header-row > div:last-child { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* Barra de filtros: se convierte en una fila con scroll horizontal
+     táctil en vez de amontonar botones envueltos en varias líneas. */
+  .filter-row { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 10px; scrollbar-width: thin; }
+  .filter-group { flex-wrap: nowrap; flex-shrink: 0; }
+  .filter-divider { flex-shrink: 0; }
+  .btn-filter { padding: 9px 14px; font-size: 12.5px; min-height: 40px; }
+
+  /* Tarjetas de "mueble/nave" */
+  .nave-header { padding: 12px 14px; }
+  .nave-header-right { width: 100%; justify-content: flex-end; }
+  .hbtn { padding: 8px 12px; min-height: 38px; }
+
+  /* Tarjetas de cambio: acciones más grandes para dedo, sin perder el layout */
+  .item-card { padding: 12px; }
+  .item-actions-row .btn { min-width: 38px; min-height: 38px; justify-content: center; }
+  .proceso-item { padding: 7px 12px; min-height: 34px; }
+
+  /* Espacios de imagen adjunta (dentro de cada cambio): 40x32 es
+     demasiado chico para el dedo; se agranda solo en pantallas táctiles. */
+  .espacio-imagen { width: 52px; height: 44px; }
+  .contenedor-adjuntos { gap: 10px; }
+  .btn-eliminar-adjunto { width: 20px; height: 20px; top: -6px; right: -6px; }
+
+  /* Galería de imágenes del mueble: miniaturas más grandes y tocables */
+  .img-gallery { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  .img-item, .img-box { height: 92px; }
+  .del-img-btn { opacity: 1; width: 26px; height: 26px; } /* sin :hover en táctil, siempre visible */
+
+  /* Modales: ocupan casi toda la pantalla y permiten scroll interno
+     si el formulario es más alto que el viewport (teclado incluido). */
+  .modal-bg { align-items: flex-end; }
+  .modal { width: 100%; max-width: 100%; border-radius: 20px 20px 0 0; padding: 1.25rem 1.1rem 1.5rem; max-height: 88vh; overflow-y: auto; animation: slideUp 0.25s ease-out forwards; }
+  .modal-header h2 { font-size: 17px; }
+  .form-footer { flex-wrap: wrap; }
+  .form-footer .btn { flex: 1; justify-content: center; min-height: 42px; }
+
+  /* Inputs de formulario: alto mínimo cómodo para teclado táctil */
+  .form-input, .add-model-row input, #search-input { min-height: 42px; }
+
+  /* Toolbar inferior flotante: botones más grandes, scroll horizontal ya soportado */
+  .bottom-toolbar { padding: 8px; gap: 8px; bottom: 12px; }
+  .bottom-toolbar .btn { min-height: 42px; }
+
+  /* Dashboard de estadísticas: todo a una columna y menos alto por gráfica */
+  .dashboard-modal { width: 100%; height: 94vh; border-radius: 16px 16px 0 0; }
+  .dash-grid { grid-template-columns: 1fr; gap: 14px; }
+  .chart-container { min-height: 260px; padding: 12px; }
+  .dash-header { flex-wrap: wrap; gap: 8px; }
+
+  /* Menú desplegable (Excel / fichas): que no se salga de la pantalla */
+  .dropdown-menu { min-width: 0; width: min(320px, 92vw); }
+
+  /* Botón flotante de volver arriba: lejos del pulgar de acciones del toolbar */
+  .scroll-top-btn { bottom: 92px; right: 16px; width: 48px; height: 48px; }
+}
+
+/* Pantallas muy angostas (iPhone SE y similares, ~360px o menos) */
+@media (max-width: 380px) {
+  .top-bar-left h1 { font-size: 13px; }
+  .nave-title { font-size: 13px; }
+  .item-title-text { font-size: 12.5px; }
+  .modal { padding: 1rem 0.9rem 1.25rem; }
+}
+
+/* Dispositivos con puntero grueso (dedo) aunque el ancho sea grande
+   (ej. tablet Android/iPad en landscape): igual se agranda el touch target. */
+@media (pointer: coarse) {
+  .item-actions-row .btn, .btn-ghost, .btn-danger-ghost { min-width: 38px; min-height: 38px; }
+  .del-model, .edit-model { padding: 6px !important; }
+  .espacio-imagen { width: 48px; height: 40px; }
+}
+
+/* Respeta la preferencia del usuario de reducir animaciones */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}

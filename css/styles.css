@@ -473,6 +473,13 @@ button, .btn, .btn-filter, .hbtn { touch-action: manipulation; }
   /* Menú desplegable (Excel / fichas): que no se salga de la pantalla */
   .dropdown-menu { min-width: 0; width: min(320px, 92vw); }
 
+  /* Autocompletado (ej. "Códigos de mueble" al crear un mueble nuevo):
+     al estar el modal con scroll interno, un menú muy alto se recorta
+     contra el borde del modal (y contra el teclado en pantalla). Se
+     limita su alto y se agranda cada opción para que sea fácil de tocar. */
+  .autocomplete-list { max-height: 150px; }
+  .autocomplete-item { padding: 11px 12px; font-size: 13px; min-height: 40px; }
+
   /* Botón flotante de volver arriba: se sube lo suficiente para no
      quedar tapado por la toolbar inferior, que ahora puede ocupar
      varias filas según cuántos botones quepan por fila. */

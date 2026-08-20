@@ -1155,7 +1155,31 @@ document.addEventListener('click', (e)=>{
   if(menuF && menuF.classList.contains('open') && !clickedInsideF && !clickedBtnF){
     menuF.classList.remove('open');
   }
+
+  const moreMenu = document.getElementById('toolbar-secondary');
+  const moreBtn = document.getElementById('toolbar-more-btn');
+  const clickedInsideMore = moreMenu && moreMenu.contains(e.target);
+  const clickedMoreBtn = moreBtn && moreBtn.contains(e.target);
+  if(moreMenu && moreMenu.classList.contains('open') && !clickedInsideMore && !clickedMoreBtn){
+    moreMenu.classList.remove('open');
+    if(moreBtn) moreBtn.setAttribute('aria-expanded', 'false');
+  }
 });
+
+/* Barra inferior en móvil: el resto de acciones (Importar, Excel, Descargar
+   Repositorio, Restaurar última versión, Dashboard, Exportar PDF) se
+   despliegan como una lista normal arriba del botón "Más", en vez de vivir
+   ocultas con scroll interno dentro de la barra flotante. En PC este botón
+   no se muestra (ver CSS) y todo sigue visible como antes. */
+function toggleToolbarMore(event){
+  if(event) event.stopPropagation();
+  const menu = document.getElementById('toolbar-secondary');
+  const btn = document.getElementById('toolbar-more-btn');
+  if(!menu) return;
+  const willOpen = !menu.classList.contains('open');
+  menu.classList.toggle('open', willOpen);
+  if(btn) btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+}
 
 /* ---- Exportar a Excel (.xlsx) ---- */
 function exportarExcel(){

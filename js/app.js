@@ -915,6 +915,11 @@ function mostrarSugerenciasTagModal(){
   if(!inp || !cont) return;
   const matches = buscarModelosDB(inp.value, 8);
   renderAutocompleteList(cont, matches, (m)=>`seleccionarSugerenciaTagModal('${m.codigo.replace(/'/g,"\\'")}')`);
+  // En móvil el modal tiene scroll propio y el teclado ocupa media pantalla;
+  // esto evita que el menú de sugerencias quede tapado o cortado al abrirse.
+  if (matches.length) {
+    setTimeout(() => inp.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50);
+  }
 }
 function ocultarSugerenciasTagModal(){
   const cont = document.getElementById('tag-autocomplete');

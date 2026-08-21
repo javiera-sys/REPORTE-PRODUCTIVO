@@ -1155,31 +1155,33 @@ document.addEventListener('click', (e)=>{
   if(menuF && menuF.classList.contains('open') && !clickedInsideF && !clickedBtnF){
     menuF.classList.remove('open');
   }
-
-  const moreMenu = document.getElementById('toolbar-secondary');
-  const moreBtn = document.getElementById('toolbar-more-btn');
-  const clickedInsideMore = moreMenu && moreMenu.contains(e.target);
-  const clickedMoreBtn = moreBtn && moreBtn.contains(e.target);
-  if(moreMenu && moreMenu.classList.contains('open') && !clickedInsideMore && !clickedMoreBtn){
-    moreMenu.classList.remove('open');
-    if(moreBtn) moreBtn.setAttribute('aria-expanded', 'false');
-  }
 });
 
-/* Barra inferior en móvil: el resto de acciones (Importar, Excel, Descargar
-   Repositorio, Restaurar última versión, Dashboard, Exportar PDF) se
-   despliegan como una lista normal arriba del botón "Más", en vez de vivir
-   ocultas con scroll interno dentro de la barra flotante. En PC este botón
-   no se muestra (ver CSS) y todo sigue visible como antes. */
-function toggleToolbarMore(event){
-  if(event) event.stopPropagation();
-  const menu = document.getElementById('toolbar-secondary');
-  const btn = document.getElementById('toolbar-more-btn');
+/* Panel lateral de acciones (reemplaza la antigua barra inferior flotante,
+   que se recortaba de forma distinta según el ancho reportado por cada
+   navegador/dispositivo). Un único botón fijo, siempre en el mismo lugar,
+   abre un panel de ancho fijo con scroll vertical normal. */
+function toggleSideMenu(){
+  const menu = document.getElementById('side-menu');
+  const backdrop = document.getElementById('side-menu-backdrop');
+  const toggleBtn = document.getElementById('side-menu-toggle');
   if(!menu) return;
   const willOpen = !menu.classList.contains('open');
   menu.classList.toggle('open', willOpen);
-  if(btn) btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  if(backdrop) backdrop.classList.toggle('open', willOpen);
+  if(toggleBtn) toggleBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
 }
+function closeSideMenu(){
+  const menu = document.getElementById('side-menu');
+  const backdrop = document.getElementById('side-menu-backdrop');
+  const toggleBtn = document.getElementById('side-menu-toggle');
+  if(menu) menu.classList.remove('open');
+  if(backdrop) backdrop.classList.remove('open');
+  if(toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') closeSideMenu();
+});
 
 /* ---- Exportar a Excel (.xlsx) ---- */
 function exportarExcel(){
@@ -1694,7 +1696,9 @@ function exportPDFStatic(name) {
       .exporting-pdf .item-star-toggle,
       .exporting-pdf .model-link-btn,
       .exporting-pdf .add-model-row,
-      .exporting-pdf .bottom-toolbar,
+      .exporting-pdf .side-menu-toggle,
+      .exporting-pdf .side-menu,
+      .exporting-pdf .side-menu-backdrop,
       .exporting-pdf .scroll-top-btn {
         display: none !important;
       }

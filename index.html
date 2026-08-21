@@ -320,19 +320,19 @@
       <button class="btn-ghost btn" title="Cerrar" onclick="closeSideMenu()"><i class="ti ti-x"></i></button>
     </div>
     <div class="side-menu-body">
-      <button class="btn btn-purple only-editable" onclick="openAddNave()"><i class="ti ti-plus" aria-hidden="true"></i> Nuevo mueble</button>
+      <button class="btn btn-purple only-editable" onclick="closeSideMenu(); openAddNave()"><i class="ti ti-plus" aria-hidden="true"></i> Nuevo mueble</button>
       <div class="dropdown-wrap only-editable">
-        <button class="btn btn-github" id="main-gh-btn" onclick="quickSaveGithub()" title="Guardado rápido en GitHub"><i class="ti ti-brand-github" aria-hidden="true"></i> Guardar en GitHub</button>
-        <button class="btn btn-github" onclick="openGithubModal()" style="padding: 6px 8px; border-left: 1px solid rgba(255,255,255,0.2);" title="Configuración de GitHub"><i class="ti ti-settings" aria-hidden="true"></i></button>
+        <button class="btn btn-github" id="main-gh-btn" onclick="closeSideMenu(); quickSaveGithub()" title="Guardado rápido en GitHub"><i class="ti ti-brand-github" aria-hidden="true"></i> Guardar en GitHub</button>
+        <button class="btn btn-github" onclick="closeSideMenu(); openGithubModal()" style="padding: 6px 8px; border-left: 1px solid rgba(255,255,255,0.2);" title="Configuración de GitHub"><i class="ti ti-settings" aria-hidden="true"></i></button>
       </div>
-      <button class="btn btn-green only-editable" onclick="triggerImport()" title="Recupera información de un archivo anterior"><i class="ti ti-upload" aria-hidden="true"></i> Importar Datos</button>
+      <button class="btn btn-green only-editable" onclick="closeSideMenu(); triggerImport()" title="Recupera información de un archivo anterior"><i class="ti ti-upload" aria-hidden="true"></i> Importar Datos</button>
       <div class="dropdown-wrap">
-        <button class="btn btn-excel" id="excel-menu-btn" onclick="toggleExcelMenu(event)" title="Exportar o importar información en Excel"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i> Excel <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
+        <button class="btn btn-excel" id="excel-menu-btn" onclick="closeSideMenu(); toggleExcelMenu(event)" title="Exportar o importar información en Excel"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i> Excel <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
       </div>
-      <button class="btn btn-purple only-editable" onclick="openExport('zip')" title="Descarga una copia completa de todo el proyecto"><i class="ti ti-package" aria-hidden="true"></i> Descargar Repositorio</button>
-      <button class="btn only-editable" id="main-gh-revert-btn" onclick="quickRevertGithub()" title="Descarta tus cambios locales y regresa al último commit guardado en GitHub" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-history" aria-hidden="true"></i> Restaurar última versión</button>
-      <button class="btn btn-navy" onclick="openDashboard()" title="Abrir análisis y gráficas"><i class="ti ti-chart-bar" aria-hidden="true"></i> Dashboard de Estadísticas</button>
-      <button class="btn btn-navy" onclick="openExport('pdf')" title="Exporta un documento limpio listo para imprimir"><i class="ti ti-file-text" aria-hidden="true"></i> Exportar PDF Final</button>
+      <button class="btn btn-purple only-editable" onclick="closeSideMenu(); openExport('zip')" title="Descarga una copia completa de todo el proyecto"><i class="ti ti-package" aria-hidden="true"></i> Descargar Repositorio</button>
+      <button class="btn only-editable" id="main-gh-revert-btn" onclick="closeSideMenu(); quickRevertGithub()" title="Descarta tus cambios locales y regresa al último commit guardado en GitHub" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-history" aria-hidden="true"></i> Restaurar última versión</button>
+      <button class="btn btn-navy" onclick="closeSideMenu(); openDashboard()" title="Abrir análisis y gráficas"><i class="ti ti-chart-bar" aria-hidden="true"></i> Dashboard de Estadísticas</button>
+      <button class="btn btn-navy" onclick="closeSideMenu(); openExport('pdf')" title="Exporta un documento limpio listo para imprimir"><i class="ti ti-file-text" aria-hidden="true"></i> Exportar PDF Final</button>
     </div>
 </div>
 

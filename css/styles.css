@@ -451,11 +451,15 @@ button, .btn, .btn-filter, .hbtn { touch-action: manipulation; }
    celular, y se ensancha el contenedor en monitores grandes para que
    quepan ~4 tarjetas por fila, tal como pide el diseño. No se toca
    nada de renderItemCard ni del orden/contenido de las tarjetas.
-   ============================================================ */
-@media (min-width: 700px) {
+   Se usa auto-fit (no auto-fill): con auto-fill, cuando una sección
+   tiene pocas tarjetas (típico aquí: 1-3 por sección), las columnas
+   vacías quedan invisibles y la(s) tarjeta(s) real(es) no se estiran
+   -> se ve idéntico a una lista aunque el grid esté activo. auto-fit
+   sí las estira para llenar el ancho disponible. */
+@media (min-width: 600px) {
   .items-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 10px;
   }
   .items-grid .item-card { margin-bottom: 0; }
@@ -467,9 +471,9 @@ button, .btn, .btn-filter, .hbtn { touch-action: manipulation; }
 /* Escritorio grande: se libera el ancho máximo de la app (antes fijo en
    980px) para que el panel de tarjetas tenga espacio real y llegue a las
    ~4 columnas pedidas, sin afectar tablet/móvil. */
-@media (min-width: 1280px) {
+@media (min-width: 1100px) {
   .app { max-width: 1500px; }
-  .items-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .items-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
 }
 
 /* Tablets (768px–1024px): la app sigue en 2 columnas pero con más aire */

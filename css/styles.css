@@ -224,6 +224,12 @@ body.is-locked .plano-terminado-badge{cursor:not-allowed;pointer-events:none;opa
 .pill-mejora{background:#dcf6ea;color:#0a8858}
 .empty-section{font-size:12px;color:var(--color-text-secondary);font-style:italic;padding:10px 12px;background:var(--color-background-secondary);border-radius:10px}
 
+/* Contenedor de tarjetas de cada sección (errores/ajustes/mejoras).
+   Mobile-first: por defecto es un bloque normal -> las tarjetas se apilan
+   una debajo de otra exactamente como antes (lista, sin scroll horizontal).
+   En pantallas más anchas se convierte en grid (ver media queries abajo). */
+.items-grid{display:block}
+
 /* Items */
 .item-card{border:1px solid var(--color-border-tertiary);border-left:4px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:10px 13px;margin-bottom:7px;display:flex;gap:10px;align-items:flex-start;background:var(--color-background-primary);transition:border-color 0.15s, box-shadow 0.15s, transform 0.15s}
 .item-card:hover{box-shadow:var(--shadow-sm);transform:translateX(2px)}
@@ -438,6 +444,34 @@ button:focus-visible, .btn:focus-visible, .btn-filter:focus-visible { outline-of
 /* Evita "double-tap zoom" accidental en botones dentro de iOS/Android */
 button, .btn, .btn-filter, .hbtn { touch-action: manipulation; }
 
+/* ============================================================
+   GRID DE TARJETAS PARA "CAMBIOS" (errores/ajustes/mejoras)
+   Mobile-first: .items-grid es "display:block" por defecto (lista).
+   A partir de aquí se activa el grid en pantallas más anchas que un
+   celular, y se ensancha el contenedor en monitores grandes para que
+   quepan ~4 tarjetas por fila, tal como pide el diseño. No se toca
+   nada de renderItemCard ni del orden/contenido de las tarjetas.
+   ============================================================ */
+@media (min-width: 700px) {
+  .items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+  }
+  .items-grid .item-card { margin-bottom: 0; }
+  /* En grid, un "levantamiento" con sombra se ve mejor que el deslizado
+     horizontal (que tenía sentido solo en lista de una columna). */
+  .items-grid .item-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+}
+
+/* Escritorio grande: se libera el ancho máximo de la app (antes fijo en
+   980px) para que el panel de tarjetas tenga espacio real y llegue a las
+   ~4 columnas pedidas, sin afectar tablet/móvil. */
+@media (min-width: 1280px) {
+  .app { max-width: 1500px; }
+  .items-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+}
+
 /* Tablets (768px–1024px): la app sigue en 2 columnas pero con más aire */
 @media (max-width: 1024px) {
   .app { max-width: 100%; padding: 1.25rem 1rem 3rem; }
@@ -546,4 +580,13 @@ button, .btn, .btn-filter, .hbtn { touch-action: manipulation; }
 /* Respeta la preferencia del usuario de reducir animaciones */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+
+/* Impresión nativa del navegador (Ctrl+P): el PDF real de la app se genera
+   aparte con html2canvas (ver .exporting-pdf inyectado en app.js), pero
+   esta regla queda como respaldo por si el documento se imprime desde el
+   navegador directamente - siempre en formato de lista, nunca en grid. */
+@media print {
+  .items-grid { display: block !important; }
+  .item-card { margin-bottom: 7px !important; break-inside: avoid; page-break-inside: avoid; }
 }

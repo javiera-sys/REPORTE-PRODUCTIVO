@@ -769,7 +769,7 @@ function renderNave(nave, index, total){
         <span class="section-pill pill-error"><i class="ti ti-alert-circle" style="font-size:13px"></i> Reporte de errores</span>
         <button class="btn btn-xs btn-ghost only-editable" onclick="openAddItem('${nave.id}','error')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
       </div>
-      ${errores.length?errores.map(i=>renderItemCard(i,nave.id)).join(''):'<div class="empty-section">Sin errores registrados.</div>'}
+      ${errores.length?`<div class="items-grid">${errores.map(i=>renderItemCard(i,nave.id)).join('')}</div>`:'<div class="empty-section">Sin errores registrados.</div>'}
     </div>`:''
   const ajuSection=showAjustes?`
     ${showErrores&&errores.length?'<div class="divider"></div>':''}
@@ -778,7 +778,7 @@ function renderNave(nave, index, total){
         <span class="section-pill" style="background:#fef08a; color:#854d0e; border:1px solid #fde047; padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i class="ti ti-tool" style="font-size:13px"></i> Reporte de ajustes</span>
         <button class="btn btn-xs btn-ghost only-editable" onclick="openAddItem('${nave.id}','ajuste')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
       </div>
-      ${ajustes.length?ajustes.map(i=>renderItemCard(i,nave.id)).join(''):'<div class="empty-section">Sin ajustes registrados.</div>'}
+      ${ajustes.length?`<div class="items-grid">${ajustes.map(i=>renderItemCard(i,nave.id)).join('')}</div>`:'<div class="empty-section">Sin ajustes registrados.</div>'}
     </div>`:''
   const mejSection=showMejoras?`
     ${(showErrores&&errores.length)||(showAjustes&&ajustes.length)?'<div class="divider"></div>':''}
@@ -787,7 +787,7 @@ function renderNave(nave, index, total){
         <span class="section-pill pill-mejora"><i class="ti ti-sparkles" style="font-size:13px"></i> Reporte de mejoras</span>
         <button class="btn btn-xs btn-ghost scholarly only-editable" onclick="openAddItem('${nave.id}','mejora')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
       </div>
-      ${mejoras.length?mejoras.map(i=>renderItemCard(i,nave.id)).join(''):'<div class="empty-section">Sin mejoras registradas.</div>'}
+      ${mejoras.length?`<div class="items-grid">${mejoras.map(i=>renderItemCard(i,nave.id)).join('')}</div>`:'<div class="empty-section">Sin mejoras registradas.</div>'}
     </div>`:''
   
   return `<div class="nave-card" id="nave-${nave.id}" onmouseenter="currentImgNaveId='${nave.id}'">
@@ -1738,6 +1738,12 @@ function exportPDFStatic(name) {
       .exporting-pdf .nave-body-right {
         flex: 1 !important;
         min-width: 0 !important;
+      }
+      .exporting-pdf .items-grid {
+        display: block !important;
+      }
+      .exporting-pdf .item-card {
+        margin-bottom: 7px !important;
       }
       .exporting-pdf .nave-header,
       .exporting-pdf .item-card,

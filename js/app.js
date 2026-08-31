@@ -2003,6 +2003,16 @@ async function pushToGithub() {
     localStorage.removeItem(GH_CONFIG_KEY);
   }
 
+  // PWA offline: sin conexión no se intenta llegar a GitHub. Se guarda el
+  // estado actual en IndexedDB (no se pierde nada) y se sincroniza solo,
+  // en automático, en cuanto vuelva la conexión (ver evento 'online').
+  if (!navigator.onLine) {
+    await saveOfflineSnapshot(data);
+    setSyncStatusUI('pending');
+    setGithubStatus('📦 Sin conexión: tu cambio se guardó en este dispositivo y se subirá a GitHub automáticamente en cuanto vuelva el internet.', 'info');
+    return;
+  }
+
   const btn = document.getElementById('gh-save-btn');
   const mainBtn = document.getElementById('main-gh-btn');
   const originalHtml = btn.innerHTML;
@@ -2186,7 +2196,16 @@ async function pushToGithub() {
     console.error('Error al subir a GitHub:', err);
     timings.total = Math.round(performance.now() - t0);
     console.log('[GitHub Save] Tiempos por etapa hasta el error (ms):', timings);
-    setGithubStatus('❌ ' + (err.message || 'No se pudo conectar con GitHub. Verifica el token y el repositorio.'), 'error');
+    // Si la conexión se cayó a mitad del guardado (no un error de configuración/token),
+    // el cambio no se pierde: se respalda en IndexedDB para reintentarlo solo después.
+    const pareceFalloDeRed = (err instanceof TypeError) || !navigator.onLine;
+    if (pareceFalloDeRed) {
+      await saveOfflineSnapshot(data);
+      setSyncStatusUI('pending');
+      setGithubStatus('📦 Se perdió la conexión durante el guardado. Tu cambio quedó respaldado en este dispositivo y se sincronizará automáticamente en cuanto vuelva el internet.', 'error');
+    } else {
+      setGithubStatus('❌ ' + (err.message || 'No se pudo conectar con GitHub. Verifica el token y el repositorio.'), 'error');
+    }
   } finally {
     btn.innerHTML = originalHtml;
     btn.disabled = false;
@@ -2417,6 +2436,199 @@ async function exportProjectZip(name) {
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
 /* ---- Carga inicial de datos (data/cambios.json) ---- */
+/* ============================================================
+   PWA / MODO OFFLINE
+   - IndexedDB guarda un único respaldo "pendiente" (se sobrescribe,
+     nunca se acumulan copias -> imposible que se generen duplicados
+     al sincronizar).
+   - El Service Worker (firebase-messaging-sw.js) es quien decide qué
+     se cachea y cómo; aquí solo se activa el respaldo local de cambios
+     y se dispara la sincronización automática al recuperar conexión.
+   ============================================================ */
+const OFFLINE_DB_NAME = 'rpi_offline_db';
+const OFFLINE_DB_VERSION = 1;
+const OFFLINE_STORE = 'pending_saves';
+
+function openOfflineDB() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) { reject(new Error('IndexedDB no disponible en este navegador')); return; }
+    const req = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(OFFLINE_STORE)) {
+        db.createObjectStore(OFFLINE_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveOfflineSnapshot(dataObj) {
+  try {
+    const db = await openOfflineDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(OFFLINE_STORE, 'readwrite');
+      // id fijo 'pending': cada guardado sin conexión SOBRESCRIBE el mismo
+      // registro (no se van acumulando copias) -> nunca hay duplicados al sincronizar.
+      tx.objectStore(OFFLINE_STORE).put({ id: 'pending', dataJson: JSON.stringify(dataObj), savedAt: Date.now() });
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.error('No se pudo guardar el cambio localmente (IndexedDB):', err);
+  }
+}
+
+async function getOfflineSnapshot() {
+  try {
+    const db = await openOfflineDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(OFFLINE_STORE, 'readonly');
+      const req = tx.objectStore(OFFLINE_STORE).get('pending');
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.error('No se pudo leer el respaldo local (IndexedDB):', err);
+    return null;
+  }
+}
+
+async function clearOfflineSnapshot() {
+  try {
+    const db = await openOfflineDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(OFFLINE_STORE, 'readwrite');
+      tx.objectStore(OFFLINE_STORE).delete('pending');
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.error('No se pudo limpiar el respaldo local (IndexedDB):', err);
+  }
+}
+
+function updateConnStatusUI() {
+  const pill = document.getElementById('conn-status');
+  const label = document.getElementById('conn-status-label');
+  if (!pill || !label) return;
+  const icon = pill.querySelector('i');
+  if (navigator.onLine) {
+    pill.classList.remove('offline');
+    label.textContent = 'En línea';
+    if (icon) icon.className = 'ti ti-wifi';
+  } else {
+    pill.classList.add('offline');
+    label.textContent = 'Sin conexión';
+    if (icon) icon.className = 'ti ti-wifi-off';
+  }
+}
+
+function setSyncStatusUI(mode) {
+  // mode: 'hidden' | 'pending' | 'syncing' | 'synced'
+  const pill = document.getElementById('sync-status');
+  const label = document.getElementById('sync-status-label');
+  if (!pill || !label) return;
+  const icon = pill.querySelector('i');
+  if (mode === 'hidden') { pill.style.display = 'none'; return; }
+  pill.style.display = 'flex';
+  pill.classList.toggle('syncing', mode === 'syncing');
+  if (mode === 'pending') { label.textContent = 'Cambios sin sincronizar'; if (icon) icon.className = 'ti ti-cloud-off'; }
+  else if (mode === 'syncing') { label.textContent = 'Sincronizando...'; if (icon) icon.className = 'ti ti-loader'; }
+  else if (mode === 'synced') {
+    label.textContent = 'Sincronizado ✓'; if (icon) icon.className = 'ti ti-cloud-check';
+    setTimeout(() => setSyncStatusUI('hidden'), 4000);
+  }
+}
+
+/* Intenta subir a GitHub cualquier cambio pendiente guardado sin conexión.
+   Sube el estado ACTUAL en memoria (no la copia vieja guardada), porque
+   pudo haber seguido editando sin conexión después de ese primer guardado;
+   la copia en IndexedDB solo se usa como bandera de "hay algo pendiente"
+   y para restaurar el trabajo si se cerró la pestaña estando offline. */
+async function attemptOfflineSync() {
+  const pending = await getOfflineSnapshot();
+  if (!pending) { setSyncStatusUI('hidden'); return; }
+  if (!navigator.onLine) { setSyncStatusUI('pending'); return; }
+
+  const cfg = loadGithubConfig();
+  if (!cfg || !cfg.repo || !cfg.path || !cfg.token) {
+    // No hay configuración de GitHub guardada para sincronizar solo;
+    // se deja pendiente hasta que el usuario use "Guardar en GitHub" manualmente.
+    setSyncStatusUI('pending');
+    return;
+  }
+
+  setSyncStatusUI('syncing');
+  try {
+    const branch = cfg.branch || 'main';
+    const path = cfg.path.trim().replace(/^\/+/, '');
+    const baseDir = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : '';
+    const dataRepoPath = baseDir + 'data/cambios.json';
+    const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
+
+    await putFileToGithubCached(
+      cfg.repo, dataRepoPath, branch, headers, utf8ToBase64(JSON.stringify(data)),
+      `Sincronización automática de cambios guardados sin conexión (${new Date().toLocaleString('es-MX')})`
+    );
+
+    await clearOfflineSnapshot();
+    setSyncStatusUI('synced');
+    setGithubStatus('✅ Tus cambios guardados sin conexión ya se sincronizaron con GitHub.', 'ok');
+  } catch (err) {
+    console.error('No se pudo sincronizar el respaldo local:', err);
+    setSyncStatusUI('pending');
+  }
+}
+
+window.addEventListener('online', () => {
+  updateConnStatusUI();
+  attemptOfflineSync();
+});
+window.addEventListener('offline', () => {
+  updateConnStatusUI();
+});
+
+/* Botón "Descargar versión offline": le pide al Service Worker (que ya
+   está registrado para las notificaciones) que guarde el cascarón de la
+   app -HTML/CSS/JS/manifest/ícono-, nada de datos ni imágenes, para que
+   la app pueda abrirse sin conexión. No descarga nada hasta que se
+   presiona este botón. */
+async function downloadOfflineVersion() {
+  const btn = document.getElementById('btn-download-offline');
+  if (!('serviceWorker' in navigator)) {
+    alert('Tu navegador no soporta esta función.');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> Descargando...'; }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const onMessage = (event) => {
+      if (event.data && event.data.type === 'APP_SHELL_CACHED') {
+        navigator.serviceWorker.removeEventListener('message', onMessage);
+        if (btn) {
+          btn.disabled = false;
+          if (event.data.ok) {
+            btn.classList.add('is-cached');
+            btn.innerHTML = '<i class="ti ti-circle-check"></i> Versión offline lista';
+            setGithubStatus('✅ La app ya puede abrirse sin conexión desde este dispositivo.', 'ok');
+          } else {
+            btn.innerHTML = '<i class="ti ti-cloud-download" aria-hidden="true"></i> Descargar versión offline';
+            setGithubStatus('❌ No se pudo guardar la versión offline. Intenta de nuevo.', 'error');
+          }
+        }
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    reg.active.postMessage('CACHE_APP_SHELL');
+  } catch (err) {
+    console.error('No se pudo activar la versión offline:', err);
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-cloud-download" aria-hidden="true"></i> Descargar versión offline'; }
+    alert('No se pudo activar la versión offline: ' + (err.message || err));
+  }
+}
+
 async function cargarDatosIniciales(){
   try{
     const resp = await fetch('data/cambios.json', {cache:'no-store'});
@@ -2437,6 +2649,23 @@ async function cargarDatosIniciales(){
     }
   }
   cargarModelosDB();
+
+  // PWA offline: si quedaron cambios guardados localmente sin sincronizar
+  // (de una sesión anterior sin conexión), se restauran para no perderlos
+  // -son más recientes que lo que se acaba de cargar del servidor- y se
+  // intenta sincronizar de inmediato si ya hay conexión.
+  updateConnStatusUI();
+  try {
+    const pending = await getOfflineSnapshot();
+    if (pending) {
+      data = JSON.parse(pending.dataJson);
+      ensureAccessPasswords();
+      render();
+      if (navigator.onLine) { attemptOfflineSync(); } else { setSyncStatusUI('pending'); }
+    }
+  } catch (e) {
+    console.warn('No se pudo revisar cambios pendientes sin conexión:', e);
+  }
 }
 
 /* ---- Base de datos de modelos (data/modelos.json) ---- */

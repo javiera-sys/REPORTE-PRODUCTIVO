@@ -3,6 +3,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Reporte de Errores - Editable</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f6e8c">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon.svg">
 <link rel="stylesheet" href="css/styles.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap">
@@ -192,6 +196,28 @@
       border-color: #bbf7d0;
   }
 
+  /* INDICADOR DE CONEXIÓN Y SINCRONIZACIÓN (PWA/offline) */
+  .conn-status {
+      display: flex; align-items: center; gap: 6px;
+      background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;
+      border-radius: 20px; padding: 6px 12px; font-size: 12px; font-weight: 700;
+      transition: all 0.2s;
+  }
+  .conn-status.offline {
+      background: #fee2e2; color: #b91c1c; border-color: #fecaca;
+  }
+  .sync-status {
+      display: flex; align-items: center; gap: 6px;
+      background: #fef3c7; color: #b45309; border: 1px solid #fde68a;
+      border-radius: 20px; padding: 6px 12px; font-size: 12px; font-weight: 700;
+  }
+  .sync-status.syncing {
+      background: #e0f2f1; color: #0f6e8c; border-color: #99e6df;
+  }
+  #btn-download-offline.is-cached {
+      background: var(--green) !important;
+  }
+
   /* ESTILO PARA LA VERSIÓN (ISO 1.5) */
   .version-badge {
       font-size: 10px;
@@ -238,6 +264,14 @@
         </div>
       </div>
       <div style="display:flex; gap:10px; align-items:center;">
+        <span class="conn-status" id="conn-status" title="Estado de conexión y sincronización">
+          <i class="ti ti-wifi" aria-hidden="true"></i>
+          <span id="conn-status-label">En línea</span>
+        </span>
+        <span class="sync-status" id="sync-status" style="display:none;" title="Estado de sincronización con GitHub">
+          <i class="ti ti-cloud-off" aria-hidden="true"></i>
+          <span id="sync-status-label">Cambios sin sincronizar</span>
+        </span>
         <button class="btn-bell" id="btn-notify" onclick="requestNotificationPermission()" title="Activar/Desactivar Notificaciones en Tiempo Real">
           <i class="ti ti-bell"></i> <span id="notify-label">Notificaciones</span>
         </button>
@@ -333,6 +367,7 @@
       <button class="btn only-editable" id="main-gh-revert-btn" onclick="closeSideMenu(); quickRevertGithub()" title="Descarta tus cambios locales y regresa al último commit guardado en GitHub" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-history" aria-hidden="true"></i> Restaurar última versión</button>
       <button class="btn btn-navy" onclick="closeSideMenu(); openDashboard()" title="Abrir análisis y gráficas"><i class="ti ti-chart-bar" aria-hidden="true"></i> Dashboard de Estadísticas</button>
       <button class="btn btn-navy" onclick="closeSideMenu(); openExport('pdf')" title="Exporta un documento limpio listo para imprimir"><i class="ti ti-file-text" aria-hidden="true"></i> Exportar PDF Final</button>
+      <button class="btn" id="btn-download-offline" onclick="closeSideMenu(); downloadOfflineVersion()" title="Guarda el cascarón de la app (HTML/CSS/JS) para poder abrirla sin conexión" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-cloud-download" aria-hidden="true"></i> Descargar versión offline</button>
     </div>
 </div>
 

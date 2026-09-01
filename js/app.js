@@ -2895,6 +2895,15 @@ document.addEventListener('click', function(e) {
 
 
 let chartTipo, chartClasif, chartImpacto;
+
+// Si la ventana cambia de tamaño (o el celular rota) mientras el dashboard
+// está abierto, se reajustan las gráficas para que el lienzo interno nunca
+// quede desfasado del tamaño real en pantalla.
+window.addEventListener('resize', () => {
+  if (chartTipo) chartTipo.resize();
+  if (chartClasif) chartClasif.resize();
+  if (chartImpacto) chartImpacto.resize();
+});
 let dashFilters = { tipo: null, clasificacion: null, impacto: null };
 
 function openDashboard() {
@@ -3013,6 +3022,11 @@ function renderDashboard() {
           label: { show: true, position: 'top' }
       }]
   });
+  // Sin este resize(), si el contenedor cambió de tamaño desde la última vez
+  // (rotar el celular, redimensionar la ventana, o que el modal no terminó
+  // de dimensionarse a tiempo la primera vez), el lienzo interno queda con
+  // una resolución vieja y el navegador lo estira -> texto borroso/desfasado.
+  chartTipo.resize();
 
   // Chart 2 (Clasificación) - ordenado de mayor a menor, con alto dinámico según cantidad de categorías
   let cEntries = Object.entries(clasifCounts).sort((a, b) => a[1] - b[1]); // ascendente: en barra horizontal ECharts, el primero queda abajo
@@ -3072,6 +3086,7 @@ function renderDashboard() {
           }
       ]
   });
+  chartImpacto.resize();
   
   renderDashList(relatedItems);
 
@@ -3139,7 +3154,14 @@ async function generateStatsPDF() {
   const btn = document.querySelector('#modal-dashboard .btn-green');
   const oldTxt = btn.innerHTML;
   btn.innerHTML = '<i class="ti ti-loader"></i> Generando...';
-  
+
+  // Asegura que el lienzo de cada gráfica esté sincronizado con su tamaño
+  // actual en pantalla antes de exportarla a imagen (evita capturar una
+  // resolución vieja/desfasada si el layout cambió desde que se abrió el dashboard).
+  if (chartTipo) chartTipo.resize();
+  if (chartClasif) chartClasif.resize();
+  if (chartImpacto) chartImpacto.resize();
+
   // 1. Obtener base64 de las gráficas
   const c1Img = chartTipo.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
   const c2Img = chartClasif.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
@@ -3153,7 +3175,7 @@ async function generateStatsPDF() {
       n.items.forEach(i => {
           totalRegistros++;
           if(i.odt) totalODT++;
-          let mNames = n.models.map(m=>m.name).join(', ');
+          let mNames = n.models.map(m=>m.name).join('<br>');
           modelosRows += `<tr><td>${formatDateEs(i.fecha)}</td><td>${mNames}</td><td>${i.odt||'-'}</td><td>${(i.subType||i.type).toUpperCase()}</td><td>${i.proceso?.planoTerminado?'TERMINADO':'PENDIENTE'}</td></tr>`;
       });
   });

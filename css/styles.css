@@ -267,7 +267,7 @@ body.is-locked .plano-terminado-badge{cursor:not-allowed;pointer-events:none;opa
 .edit-actions{display:flex;gap:6px;margin-top:8px}
 
 /* Modals */
-.modal-bg { display: none; position: fixed; inset: 0; background: rgba(30, 27, 60, 0.55); backdrop-filter: blur(6px); z-index: 200; align-items: center; justify-content: center; }
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(30, 27, 60, 0.55); backdrop-filter: blur(6px); z-index: 400; align-items: center; justify-content: center; }
 .modal-bg.open { display: flex; animation: fadeIn 0.2s ease-out forwards; }
 .modal { background: var(--color-background-primary); border-radius: 22px; padding: 1.85rem; width: 560px; max-width: 95vw; border: 1px solid var(--color-border-tertiary); box-shadow: var(--shadow-lg); animation: slideUp 0.3s ease-out forwards; }
 .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.35rem; }

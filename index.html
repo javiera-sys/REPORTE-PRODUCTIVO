@@ -373,6 +373,7 @@
       <button class="btn btn-navy" onclick="closeSideMenu(); openDashboard()" title="Abrir análisis y gráficas"><i class="ti ti-chart-bar" aria-hidden="true"></i> Dashboard de Estadísticas</button>
       <button class="btn btn-navy" onclick="closeSideMenu(); openExport('pdf')" title="Exporta un documento limpio listo para imprimir"><i class="ti ti-file-text" aria-hidden="true"></i> Exportar PDF Final</button>
       <button class="btn" id="btn-download-offline" onclick="closeSideMenu(); downloadOfflineVersion()" title="Guarda el cascarón de la app (HTML/CSS/JS) para poder abrirla sin conexión" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-cloud-download" aria-hidden="true"></i> Descargar versión offline</button>
+      <button class="btn btn-navy" onclick="closeSideMenu(); openProcesosDiseno()" title="Módulo independiente de procesos de diseño (Excel)"><i class="ti ti-clipboard-list" aria-hidden="true"></i> Procesos de diseño</button>
     </div>
 </div>
 
@@ -515,6 +516,65 @@
   </div>
 </div>
 
+<!-- Módulo independiente: PROCESOS DE DISEÑO -->
+<div class="modal-bg" id="modal-procesos-diseno">
+  <div class="modal dashboard-modal">
+    <div class="dash-header">
+      <h2 style="margin:0; display:flex; align-items:center; gap:8px;"><i class="ti ti-clipboard-list" style="color:var(--accent)"></i> Procesos de Diseño</h2>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <span class="conn-status" id="pd-mode-badge" style="background:#f1f5f6;color:var(--color-text-secondary);border-color:var(--color-border-secondary);">
+          <i class="ti ti-eye" aria-hidden="true"></i> <span id="pd-mode-label">Solo lectura</span>
+        </span>
+        <button class="btn-ghost btn" title="Cerrar" onclick="closeProcesosDiseno()"><i class="ti ti-x"></i></button>
+      </div>
+    </div>
+
+    <div style="padding:16px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; flex:1;">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <button class="btn btn-green" onclick="triggerPdImport()" title="Leer un archivo .xlsx/.xls y mostrarlo en la tabla"><i class="ti ti-upload"></i> Importar Excel</button>
+        <input type="file" id="pd-import-input" accept=".xlsx,.xls" style="display:none" onchange="handlePdImport(event)">
+        <button class="btn btn-excel" onclick="exportPdExcel()" title="Exporta la tabla actual a .xlsx"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+        <span style="flex:1"></span>
+        <button class="btn btn-amber" id="pd-edit-btn" onclick="togglePdEdit()"><i class="ti ti-lock"></i> Editar datos</button>
+        <button class="btn btn-green" id="pd-save-btn" onclick="savePdChanges()" style="display:none;"><i class="ti ti-device-floppy"></i> Guardar cambios</button>
+      </div>
+
+      <p id="pd-status" style="font-size:12px;margin:0;line-height:1.4;display:none"></p>
+
+      <div id="pd-table-wrap" style="overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--color-border-tertiary); border-radius:12px;">
+        <table class="pd-table" id="pd-table">
+          <thead id="pd-table-head"></thead>
+          <tbody id="pd-table-body"></tbody>
+        </table>
+      </div>
+      <div id="pd-empty-state" style="display:none; text-align:center; padding:2.5rem 1rem; color:var(--color-text-secondary);">
+        <i class="ti ti-file-spreadsheet" style="font-size:32px; opacity:0.5;"></i>
+        <p style="margin-top:8px;">Todavía no hay datos. Usa "Importar Excel" para cargar un archivo .xlsx/.xls.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Contraseña para editar Procesos de Diseño (reutiliza las mismas
+     contraseñas de autorización que el resto de la app) -->
+<div class="modal-bg" id="modal-pd-auth">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Permiso de Edición</h2>
+      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-pd-auth')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="auth-icon-wrap"><i class="ti ti-shield-lock"></i></div>
+    <div class="auth-title">Editar Procesos de Diseño</div>
+    <div class="auth-subtitle">Ingresa la contraseña de producción para desbloquear</div>
+    <div class="form-group">
+      <input class="form-input" type="password" id="pd-auth-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')validatePdPassword()">
+    </div>
+    <div class="form-footer" style="justify-content: center; padding-top: 1rem; border-top: none; margin-top: 0.5rem;">
+      <button class="btn" onclick="closeModal('modal-pd-auth')">Cancelar</button>
+      <button class="btn btn-navy" onclick="validatePdPassword()">Desbloquear</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal: Variantes IUP -->
 <div class="modal-bg" id="modal-iup">

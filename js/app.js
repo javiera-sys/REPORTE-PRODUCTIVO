@@ -1295,6 +1295,249 @@ function handleImportModelos(e){
   reader.readAsArrayBuffer(file);
 }
 
+/* ============================================================
+   MÓDULO INDEPENDIENTE: PROCESOS DE DISEÑO
+   No modifica ninguna función existente. Reutiliza:
+   - El objeto global `data` (mismo sistema de guardado/GitHub) -> solo
+     se agrega `data.procesosDiseno = {headers:[], rows:[]}`, sin
+     storage paralelo.
+   - Las mismas contraseñas de autorización que ya usa el resto de la
+     app (`data.accessPasswords`) - la contraseña nunca se guarda, solo
+     se compara en memoria contra esa lista ya existente.
+   - La librería XLSX (SheetJS) ya cargada por la app.
+   - `pushToGithub()` para persistir (mismo pipeline de guardado, mismo
+     botón/config de GitHub que ya usa el resto de la app).
+   Su propio estado de edición (`pdEditMode`) es independiente del modo
+   de edición general de la app (candado de arriba).
+   ============================================================ */
+let pdEditMode = false;
+
+function ensureProcesosDiseno() {
+  if (!data.procesosDiseno || typeof data.procesosDiseno !== 'object' || !Array.isArray(data.procesosDiseno.rows)) {
+    data.procesosDiseno = { headers: [], rows: [] };
+  }
+  if (!Array.isArray(data.procesosDiseno.headers)) data.procesosDiseno.headers = [];
+}
+
+function setPdStatus(msg, type) {
+  const el = document.getElementById('pd-status');
+  if (!el) return;
+  if (!msg) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.style.whiteSpace = 'pre-line';
+  el.style.color = type === 'error' ? 'var(--red)' : (type === 'ok' ? 'var(--green)' : 'var(--color-text-secondary)');
+  el.textContent = msg;
+}
+
+function openProcesosDiseno() {
+  ensureProcesosDiseno();
+  document.getElementById('modal-procesos-diseno').classList.add('open');
+  setPdStatus('');
+  updatePdModeBadge();
+  renderPdTable();
+}
+
+function closeProcesosDiseno() {
+  closeModal('modal-procesos-diseno');
+  // Al salir del módulo siempre vuelve a modo lectura, sin importar cómo
+  // haya quedado la sesión anterior.
+  pdEditMode = false;
+}
+
+function updatePdModeBadge() {
+  const badge = document.getElementById('pd-mode-badge');
+  const label = document.getElementById('pd-mode-label');
+  const editBtn = document.getElementById('pd-edit-btn');
+  const saveBtn = document.getElementById('pd-save-btn');
+  if (!badge || !label) return;
+  const icon = badge.querySelector('i');
+  if (pdEditMode) {
+    badge.style.background = '#dcfce7'; badge.style.color = '#15803d'; badge.style.borderColor = '#bbf7d0';
+    label.textContent = 'Edición activa';
+    if (icon) icon.className = 'ti ti-lock-open';
+    if (editBtn) editBtn.style.display = 'none';
+    if (saveBtn) saveBtn.style.display = 'inline-flex';
+  } else {
+    badge.style.background = '#f1f5f6'; badge.style.color = 'var(--color-text-secondary)'; badge.style.borderColor = 'var(--color-border-secondary)';
+    label.textContent = 'Solo lectura';
+    if (icon) icon.className = 'ti ti-eye';
+    if (editBtn) editBtn.style.display = 'inline-flex';
+    if (saveBtn) saveBtn.style.display = 'none';
+  }
+}
+
+function togglePdEdit() {
+  document.getElementById('pd-auth-password').value = '';
+  document.getElementById('modal-pd-auth').classList.add('open');
+  setTimeout(() => document.getElementById('pd-auth-password').focus(), 100);
+}
+
+function validatePdPassword() {
+  ensureAccessPasswords();
+  const inputPass = document.getElementById('pd-auth-password').value;
+  if (data.accessPasswords.includes(inputPass)) {
+    pdEditMode = true;
+    closeModal('modal-pd-auth');
+    updatePdModeBadge();
+    renderPdTable();
+    setPdStatus('🔓 Edición activada. Los cambios de la tabla no se guardan de forma permanente hasta que presiones "Guardar cambios".', 'ok');
+  } else {
+    const modal = document.querySelector('#modal-pd-auth .modal');
+    modal.classList.remove('auth-shake');
+    void modal.offsetWidth;
+    modal.classList.add('auth-shake');
+    setPdStatus('❌ Contraseña incorrecta.', 'error');
+  }
+}
+
+
+function triggerPdImport() {
+  document.getElementById('pd-import-input').click();
+}
+
+function handlePdImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (typeof XLSX === 'undefined') {
+    alert('No se pudo cargar la librería de Excel. Revisa tu conexión a internet e intenta de nuevo.');
+    e.target.value = ''; return;
+  }
+  const wrap = document.getElementById('pd-table-wrap');
+  if (wrap) wrap.classList.add('pd-loading');
+  setPdStatus('Leyendo archivo...', 'info');
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      if (!rows.length) { setPdStatus('El archivo está vacío.', 'error'); return; }
+
+      const headers = rows[0].map((h, idx) => String(h || '').trim() || `Columna ${idx + 1}`);
+      const dataRows = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r || r.every(c => String(c || '').trim() === '')) continue;
+        const obj = {};
+        headers.forEach((h, idx) => { obj[h] = r[idx] !== undefined ? String(r[idx]) : ''; });
+        dataRows.push(obj);
+      }
+
+      if (!dataRows.length) {
+        setPdStatus('No se encontraron registros con datos en el archivo.', 'error');
+        return;
+      }
+
+      ensureProcesosDiseno();
+      data.procesosDiseno = { headers, rows: dataRows };
+      renderPdTable();
+      setPdStatus(`✅ Se importaron ${dataRows.length} registro(s) con ${headers.length} columna(s). Para dejarlo guardado de forma permanente, activa "Editar datos" y luego "Guardar cambios".`, 'ok');
+    } catch (err) {
+      console.error('Error al importar Procesos de Diseño:', err);
+      setPdStatus('❌ No se pudo leer el archivo. Verifica que sea un .xlsx/.xls válido.', 'error');
+    } finally {
+      if (wrap) wrap.classList.remove('pd-loading');
+      e.target.value = '';
+    }
+  };
+  reader.onerror = () => {
+    setPdStatus('❌ No se pudo leer el archivo.', 'error');
+    if (wrap) wrap.classList.remove('pd-loading');
+    e.target.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderPdTable() {
+  ensureProcesosDiseno();
+  const thead = document.getElementById('pd-table-head');
+  const tbody = document.getElementById('pd-table-body');
+  const wrap = document.getElementById('pd-table-wrap');
+  const empty = document.getElementById('pd-empty-state');
+  if (!thead || !tbody || !wrap || !empty) return;
+
+  const { headers, rows } = data.procesosDiseno;
+
+  if (!headers.length || !rows.length) {
+    wrap.style.display = 'none';
+    empty.style.display = 'block';
+    thead.innerHTML = '';
+    tbody.innerHTML = '';
+    return;
+  }
+  wrap.style.display = 'block';
+  empty.style.display = 'none';
+
+  thead.innerHTML = '<tr>' + headers.map(h => `<th>${escHtml(h)}</th>`).join('') + '</tr>';
+
+  tbody.innerHTML = rows.map((row, rIdx) => {
+    return '<tr>' + headers.map(h => {
+      const val = row[h] !== undefined ? row[h] : '';
+      if (pdEditMode) {
+        return `<td><input class="pd-cell-input" value="${escHtml(val).replace(/"/g, '&quot;')}" onchange="editPdCell(${rIdx}, '${h.replace(/'/g, "\\'")}', this.value)"></td>`;
+      }
+      return `<td><span class="pd-cell-static">${escHtml(val)}</span></td>`;
+    }).join('') + '</tr>';
+  }).join('');
+}
+
+function editPdCell(rowIdx, header, value) {
+  ensureProcesosDiseno();
+  if (!data.procesosDiseno.rows[rowIdx]) return;
+  data.procesosDiseno.rows[rowIdx][header] = value;
+}
+
+async function savePdChanges() {
+  if (!pdEditMode) return;
+  ensureProcesosDiseno();
+  const saveBtn = document.getElementById('pd-save-btn');
+  const original = saveBtn ? saveBtn.innerHTML : '';
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="ti ti-loader"></i> Guardando...'; }
+  const wrap = document.getElementById('pd-table-wrap');
+  if (wrap) wrap.classList.add('pd-loading');
+  setPdStatus('Guardando cambios...', 'info');
+
+  try {
+    // Reutiliza EXACTAMENTE el mismo sistema de guardado que el resto de
+    // la app (GitHub) - no se crea ningún almacenamiento paralelo. Usa la
+    // misma configuración (repo/rama/token) ya guardada para "Guardar en GitHub".
+    await pushToGithub();
+    const ghStatus = document.getElementById('gh-status');
+    const txt = ghStatus ? (ghStatus.textContent || '') : '';
+    if (txt.includes('✅')) {
+      setPdStatus('✅ Cambios guardados correctamente.', 'ok');
+    } else if (txt) {
+      setPdStatus('⚠️ ' + txt, 'error');
+    } else {
+      setPdStatus('⚠️ No se pudo confirmar el guardado. Revisa la configuración de GitHub (ícono de engranaje junto a "Guardar en GitHub").', 'error');
+    }
+  } catch (err) {
+    console.error('Error al guardar Procesos de Diseño:', err);
+    setPdStatus('❌ No se pudo guardar: ' + (err.message || err), 'error');
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = original; }
+    if (wrap) wrap.classList.remove('pd-loading');
+  }
+}
+
+function exportPdExcel() {
+  ensureProcesosDiseno();
+  if (typeof XLSX === 'undefined') {
+    alert('No se pudo cargar la librería de Excel. Revisa tu conexión a internet e intenta de nuevo.');
+    return;
+  }
+  const { headers, rows } = data.procesosDiseno;
+  if (!rows.length) {
+    alert('No hay datos en Procesos de Diseño para exportar todavía.');
+    return;
+  }
+  const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Procesos de Diseño');
+  const fechaHoy = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `procesos_diseno_${fechaHoy}.xlsx`);
+}
+
 function triggerImport() {
   if (!isEditableMode) return;
   document.getElementById('import-input').click();

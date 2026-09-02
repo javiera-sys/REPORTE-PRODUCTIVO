@@ -599,3 +599,34 @@ button, .btn, .btn-filter, .hbtn { touch-action: manipulation; }
   .items-grid { display: block !important; }
   .item-card { margin-bottom: 7px !important; break-inside: avoid; page-break-inside: avoid; }
 }
+
+/* ============================================================
+   MÓDULO: PROCESOS DE DISEÑO
+   Tabla con scroll horizontal propio en vez de encogerse -> en móvil
+   se desliza de lado, nunca deforma/aprieta las columnas.
+   ============================================================ */
+.pd-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+.pd-table th {
+  background: var(--color-background-secondary); text-align: left; padding: 10px 12px;
+  border-bottom: 2px solid var(--color-border-secondary); white-space: nowrap;
+  position: sticky; top: 0; z-index: 1; color: var(--color-text-primary); font-weight: 700;
+}
+.pd-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border-tertiary); white-space: nowrap; }
+.pd-table tbody tr:hover { background: var(--color-background-secondary); }
+.pd-table td .pd-cell-input {
+  width: 100%; min-width: 130px; border: 1px solid transparent; background: transparent;
+  padding: 6px 8px; border-radius: 6px; font: inherit; color: inherit;
+}
+.pd-table td .pd-cell-input:hover { border-color: var(--color-border-secondary); }
+.pd-table td .pd-cell-input:focus {
+  outline: none; border-color: var(--accent); background: var(--color-background-primary);
+  box-shadow: 0 0 0 2px rgba(13,148,136,0.15);
+}
+.pd-table td .pd-cell-static { padding: 6px 8px; display: block; min-width: 90px; }
+#pd-table-wrap.pd-loading { opacity: 0.5; pointer-events: none; }
+
+@media (max-width: 640px) {
+  #modal-procesos-diseno .dashboard-modal { width: 100%; height: 94vh; border-radius: 16px 16px 0 0; }
+  .pd-table { font-size: 12.5px; }
+  .pd-table th, .pd-table td { padding: 8px 10px; }
+}

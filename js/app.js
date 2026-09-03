@@ -1299,24 +1299,45 @@ function handleImportModelos(e){
    MÓDULO INDEPENDIENTE: PROCESOS DE DISEÑO
    No modifica ninguna función existente. Reutiliza:
    - El objeto global `data` (mismo sistema de guardado/GitHub) -> solo
-     se agrega `data.procesosDiseno = {headers:[], rows:[]}`, sin
-     storage paralelo.
+     se agrega `data.procesosDiseno = {submodules:[...]}`, sin storage
+     paralelo. Es un CONTENEDOR de submódulos (hoy solo trae "Ficha
+     Técnica de Tolerancias" precargado, pero no está fijo en el código:
+     cualquier función de aquí que recorra `submodules` sirve para
+     cualquier submódulo que se agregue después).
    - Las mismas contraseñas de autorización que ya usa el resto de la
      app (`data.accessPasswords`) - la contraseña nunca se guarda, solo
      se compara en memoria contra esa lista ya existente.
    - La librería XLSX (SheetJS) ya cargada por la app.
-   - `pushToGithub()` para persistir (mismo pipeline de guardado, mismo
-     botón/config de GitHub que ya usa el resto de la app).
+   - `quickSaveGithub()` para persistir: es el MISMO handler que ya usa
+     el botón "Guardar en GitHub" que funciona (primero carga el token
+     guardado en los campos del formulario, y ENTONCES sube a GitHub).
+     Antes este módulo llamaba a `pushToGithub()` directo, saltándose
+     ese paso -> por eso fallaba si no se había abierto la configuración
+     de GitHub en la sesión. Corregido: se usa el mismo flujo, sin
+     ninguna lógica de token propia.
    Su propio estado de edición (`pdEditMode`) es independiente del modo
    de edición general de la app (candado de arriba).
    ============================================================ */
 let pdEditMode = false;
+let pdCurrentSubmoduleId = null; // null = viendo la lista de submódulos
+
+const PD_DEFAULT_SUBMODULES = [
+  { id: 'ficha_tolerancias', label: 'Ficha Técnica de Tolerancias', headers: [], rows: [] }
+];
 
 function ensureProcesosDiseno() {
-  if (!data.procesosDiseno || typeof data.procesosDiseno !== 'object' || !Array.isArray(data.procesosDiseno.rows)) {
-    data.procesosDiseno = { headers: [], rows: [] };
+  if (!data.procesosDiseno || typeof data.procesosDiseno !== 'object' || !Array.isArray(data.procesosDiseno.submodules)) {
+    data.procesosDiseno = { submodules: PD_DEFAULT_SUBMODULES.map(s => ({ ...s, headers: [], rows: [] })) };
   }
-  if (!Array.isArray(data.procesosDiseno.headers)) data.procesosDiseno.headers = [];
+  data.procesosDiseno.submodules.forEach(sm => {
+    if (!Array.isArray(sm.headers)) sm.headers = [];
+    if (!Array.isArray(sm.rows)) sm.rows = [];
+  });
+}
+
+function getPdSubmodule(id) {
+  ensureProcesosDiseno();
+  return data.procesosDiseno.submodules.find(s => s.id === id) || null;
 }
 
 function setPdStatus(msg, type) {
@@ -1333,8 +1354,9 @@ function openProcesosDiseno() {
   ensureProcesosDiseno();
   document.getElementById('modal-procesos-diseno').classList.add('open');
   setPdStatus('');
-  updatePdModeBadge();
-  renderPdTable();
+  pdCurrentSubmoduleId = null;
+  pdEditMode = false;
+  renderPdView();
 }
 
 function closeProcesosDiseno() {
@@ -1342,6 +1364,62 @@ function closeProcesosDiseno() {
   // Al salir del módulo siempre vuelve a modo lectura, sin importar cómo
   // haya quedado la sesión anterior.
   pdEditMode = false;
+}
+
+/* ---- Navegación entre la lista de submódulos y la tabla de uno de ellos ---- */
+function renderPdView() {
+  ensureProcesosDiseno();
+  const listView = document.getElementById('pd-list-view');
+  const tableView = document.getElementById('pd-table-view');
+  const toolbar = document.getElementById('pd-toolbar');
+  const titleEl = document.getElementById('pd-current-title');
+  const modeBadge = document.getElementById('pd-mode-badge');
+  if (!listView || !tableView) return;
+
+  if (!pdCurrentSubmoduleId) {
+    listView.style.display = 'block';
+    tableView.style.display = 'none';
+    if (toolbar) toolbar.style.display = 'none';
+    if (modeBadge) modeBadge.style.display = 'none';
+    renderPdSubmoduleList();
+  } else {
+    listView.style.display = 'none';
+    tableView.style.display = 'block';
+    if (toolbar) toolbar.style.display = 'flex';
+    if (modeBadge) modeBadge.style.display = 'flex';
+    const sm = getPdSubmodule(pdCurrentSubmoduleId);
+    if (titleEl) titleEl.textContent = sm ? sm.label : '';
+    updatePdModeBadge();
+    renderPdTable();
+  }
+}
+
+function renderPdSubmoduleList() {
+  const cont = document.getElementById('pd-submodule-list');
+  if (!cont) return;
+  cont.innerHTML = data.procesosDiseno.submodules.map(sm => `
+    <button class="btn" style="justify-content:flex-start; width:100%; min-height:56px; text-align:left;" onclick="openPdSubmodule('${sm.id}')">
+      <i class="ti ti-table" style="font-size:18px; margin-right:6px;"></i>
+      <span style="display:flex; flex-direction:column; align-items:flex-start;">
+        <span style="font-weight:700;">${escHtml(sm.label)}</span>
+        <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">${sm.rows.length} registro(s) · ${sm.headers.length} columna(s)</span>
+      </span>
+    </button>
+  `).join('');
+}
+
+function openPdSubmodule(id) {
+  pdCurrentSubmoduleId = id;
+  pdEditMode = false;
+  setPdStatus('');
+  renderPdView();
+}
+
+function backToPdList() {
+  pdCurrentSubmoduleId = null;
+  pdEditMode = false;
+  setPdStatus('');
+  renderPdView();
 }
 
 function updatePdModeBadge() {
@@ -1380,7 +1458,7 @@ function validatePdPassword() {
     closeModal('modal-pd-auth');
     updatePdModeBadge();
     renderPdTable();
-    setPdStatus('🔓 Edición activada. Los cambios de la tabla no se guardan de forma permanente hasta que presiones "Guardar cambios".', 'ok');
+    setPdStatus('🔓 Edición activada. Los cambios de la tabla no se guardan de forma permanente hasta que presiones "Guardar cambios del Excel".', 'ok');
   } else {
     const modal = document.querySelector('#modal-pd-auth .modal');
     modal.classList.remove('auth-shake');
@@ -1390,7 +1468,6 @@ function validatePdPassword() {
   }
 }
 
-
 function triggerPdImport() {
   document.getElementById('pd-import-input').click();
 }
@@ -1398,6 +1475,9 @@ function triggerPdImport() {
 function handlePdImport(e) {
   const file = e.target.files[0];
   if (!file) return;
+  const submoduleId = pdCurrentSubmoduleId;
+  const sm = getPdSubmodule(submoduleId);
+  if (!sm) { e.target.value = ''; return; }
   if (typeof XLSX === 'undefined') {
     alert('No se pudo cargar la librería de Excel. Revisa tu conexión a internet e intenta de nuevo.');
     e.target.value = ''; return;
@@ -1428,10 +1508,10 @@ function handlePdImport(e) {
         return;
       }
 
-      ensureProcesosDiseno();
-      data.procesosDiseno = { headers, rows: dataRows };
+      sm.headers = headers;
+      sm.rows = dataRows;
       renderPdTable();
-      setPdStatus(`✅ Se importaron ${dataRows.length} registro(s) con ${headers.length} columna(s). Para dejarlo guardado de forma permanente, activa "Editar datos" y luego "Guardar cambios".`, 'ok');
+      setPdStatus(`✅ Se importaron ${dataRows.length} registro(s) con ${headers.length} columna(s) en "${sm.label}". Para dejarlo guardado de forma permanente, activa "Editar datos" y luego "Guardar cambios del Excel".`, 'ok');
     } catch (err) {
       console.error('Error al importar Procesos de Diseño:', err);
       setPdStatus('❌ No se pudo leer el archivo. Verifica que sea un .xlsx/.xls válido.', 'error');
@@ -1449,14 +1529,17 @@ function handlePdImport(e) {
 }
 
 function renderPdTable() {
-  ensureProcesosDiseno();
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
   const thead = document.getElementById('pd-table-head');
   const tbody = document.getElementById('pd-table-body');
   const wrap = document.getElementById('pd-table-wrap');
   const empty = document.getElementById('pd-empty-state');
-  if (!thead || !tbody || !wrap || !empty) return;
+  const editorBar = document.getElementById('pd-editor-bar');
+  if (!sm || !thead || !tbody || !wrap || !empty) return;
 
-  const { headers, rows } = data.procesosDiseno;
+  if (editorBar) editorBar.style.display = pdEditMode ? 'flex' : 'none';
+
+  const { headers, rows } = sm;
 
   if (!headers.length || !rows.length) {
     wrap.style.display = 'none';
@@ -1468,28 +1551,86 @@ function renderPdTable() {
   wrap.style.display = 'block';
   empty.style.display = 'none';
 
-  thead.innerHTML = '<tr>' + headers.map(h => `<th>${escHtml(h)}</th>`).join('') + '</tr>';
+  thead.innerHTML = '<tr>' + headers.map((h, cIdx) => `
+    <th>
+      <span style="display:flex; align-items:center; gap:6px;">
+        ${escHtml(h)}
+        ${pdEditMode ? `<button class="btn-ghost btn" title="Eliminar columna" style="padding:2px 4px;min-height:auto;" onclick="deletePdColumn(${cIdx})"><i class="ti ti-trash" style="font-size:12px;color:var(--red)"></i></button>` : ''}
+      </span>
+    </th>`).join('') +
+    (pdEditMode ? '<th style="width:36px"></th>' : '') + '</tr>';
 
   tbody.innerHTML = rows.map((row, rIdx) => {
-    return '<tr>' + headers.map(h => {
+    const cells = headers.map(h => {
       const val = row[h] !== undefined ? row[h] : '';
       if (pdEditMode) {
         return `<td><input class="pd-cell-input" value="${escHtml(val).replace(/"/g, '&quot;')}" onchange="editPdCell(${rIdx}, '${h.replace(/'/g, "\\'")}', this.value)"></td>`;
       }
       return `<td><span class="pd-cell-static">${escHtml(val)}</span></td>`;
-    }).join('') + '</tr>';
+    }).join('');
+    const delCell = pdEditMode ? `<td><button class="btn-ghost btn" title="Eliminar fila" style="padding:4px;min-height:auto;" onclick="deletePdRow(${rIdx})"><i class="ti ti-trash" style="font-size:13px;color:var(--red)"></i></button></td>` : '';
+    return '<tr>' + cells + delCell + '</tr>';
   }).join('');
 }
 
 function editPdCell(rowIdx, header, value) {
-  ensureProcesosDiseno();
-  if (!data.procesosDiseno.rows[rowIdx]) return;
-  data.procesosDiseno.rows[rowIdx][header] = value;
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!sm || !sm.rows[rowIdx]) return;
+  sm.rows[rowIdx][header] = value;
+}
+
+/* ---- Editor tipo spreadsheet: insertar/eliminar filas y columnas ----
+   Todo se refleja de inmediato en `data.procesosDiseno` (el estado),
+   antes de guardar - "Guardar cambios del Excel" solo sube lo que ya
+   está en el estado en ese momento. */
+function addPdRow() {
+  if (!pdEditMode) return;
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!sm) return;
+  if (!sm.headers.length) { setPdStatus('Agrega al menos una columna antes de insertar filas.', 'error'); return; }
+  const newRow = {};
+  sm.headers.forEach(h => { newRow[h] = ''; });
+  sm.rows.push(newRow);
+  renderPdTable();
+}
+
+function deletePdRow(rowIdx) {
+  if (!pdEditMode) return;
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!sm || !sm.rows[rowIdx]) return;
+  if (!confirm('¿Eliminar esta fila? Se quitará del Excel al guardar.')) return;
+  sm.rows.splice(rowIdx, 1);
+  renderPdTable();
+}
+
+function addPdColumn() {
+  if (!pdEditMode) return;
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!sm) return;
+  const name = prompt('Nombre de la nueva columna:', `Columna ${sm.headers.length + 1}`);
+  if (!name || !name.trim()) return;
+  const finalName = name.trim();
+  if (sm.headers.includes(finalName)) { setPdStatus('Ya existe una columna con ese nombre.', 'error'); return; }
+  sm.headers.push(finalName);
+  sm.rows.forEach(r => { r[finalName] = ''; });
+  renderPdTable();
+}
+
+function deletePdColumn(colIdx) {
+  if (!pdEditMode) return;
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!sm || !sm.headers[colIdx]) return;
+  const colName = sm.headers[colIdx];
+  if (!confirm(`¿Eliminar la columna "${colName}"? Se quitará de todas las filas al guardar.`)) return;
+  sm.headers.splice(colIdx, 1);
+  sm.rows.forEach(r => { delete r[colName]; });
+  renderPdTable();
 }
 
 async function savePdChanges() {
   if (!pdEditMode) return;
-  ensureProcesosDiseno();
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!sm) return;
   const saveBtn = document.getElementById('pd-save-btn');
   const original = saveBtn ? saveBtn.innerHTML : '';
   if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="ti ti-loader"></i> Guardando...'; }
@@ -1498,18 +1639,26 @@ async function savePdChanges() {
   setPdStatus('Guardando cambios...', 'info');
 
   try {
-    // Reutiliza EXACTAMENTE el mismo sistema de guardado que el resto de
-    // la app (GitHub) - no se crea ningún almacenamiento paralelo. Usa la
-    // misma configuración (repo/rama/token) ya guardada para "Guardar en GitHub".
-    await pushToGithub();
+    // Reutiliza EXACTAMENTE el mismo handler que el botón "Guardar en
+    // GitHub" que ya funciona: primero carga el token/repo/rama guardados
+    // en el formulario, y luego sube a GitHub (pushToGithub). No hay
+    // ninguna lógica de autenticación/token propia de este módulo.
+    const ghStatusBefore = document.getElementById('gh-status');
+    const txtBefore = ghStatusBefore ? (ghStatusBefore.textContent || '') : '';
+
+    await quickSaveGithub();
+
     const ghStatus = document.getElementById('gh-status');
     const txt = ghStatus ? (ghStatus.textContent || '') : '';
+
     if (txt.includes('✅')) {
-      setPdStatus('✅ Cambios guardados correctamente.', 'ok');
-    } else if (txt) {
+      setPdStatus('✅ Cambios guardados correctamente en GitHub.', 'ok');
+    } else if (txt && txt !== txtBefore) {
       setPdStatus('⚠️ ' + txt, 'error');
     } else {
-      setPdStatus('⚠️ No se pudo confirmar el guardado. Revisa la configuración de GitHub (ícono de engranaje junto a "Guardar en GitHub").', 'error');
+      // txt no cambió: significa que quickSaveGithub() no tenía token/repo
+      // guardado y abrió la configuración de GitHub en vez de guardar.
+      setPdStatus('⚠️ No hay una conexión de GitHub configurada todavía. Completa "Guardar en GitHub" (ícono de engranaje) una vez, y luego vuelve a intentar "Guardar cambios del Excel".', 'error');
     }
   } catch (err) {
     console.error('Error al guardar Procesos de Diseño:', err);
@@ -1521,21 +1670,22 @@ async function savePdChanges() {
 }
 
 function exportPdExcel() {
-  ensureProcesosDiseno();
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!sm) return;
   if (typeof XLSX === 'undefined') {
     alert('No se pudo cargar la librería de Excel. Revisa tu conexión a internet e intenta de nuevo.');
     return;
   }
-  const { headers, rows } = data.procesosDiseno;
-  if (!rows.length) {
-    alert('No hay datos en Procesos de Diseño para exportar todavía.');
+  if (!sm.rows.length) {
+    alert(`No hay datos en "${sm.label}" para exportar todavía.`);
     return;
   }
-  const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+  const ws = XLSX.utils.json_to_sheet(sm.rows, { header: sm.headers });
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Procesos de Diseño');
+  XLSX.utils.book_append_sheet(wb, ws, sm.label.slice(0, 31));
   const fechaHoy = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `procesos_diseno_${fechaHoy}.xlsx`);
+  const fileSlug = sm.id.replace(/[^a-z0-9_-]/gi, '_');
+  XLSX.writeFile(wb, `${fileSlug}_${fechaHoy}.xlsx`);
 }
 
 function triggerImport() {
@@ -3614,7 +3764,7 @@ function quickSaveGithub() {
       document.getElementById('gh-branch').value = cfg.branch || 'main';
       document.getElementById('gh-token').value = cfg.token;
       document.getElementById('gh-remember').checked = true;
-      pushToGithub();
+      return pushToGithub();
   } else {
       openGithubModal();
   }

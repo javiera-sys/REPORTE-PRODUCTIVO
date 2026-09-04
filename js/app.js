@@ -2751,8 +2751,176 @@ async function revertToLastCommit() {
   }
 }
 
-function buildProjectHTMLString() {
-  const clone = document.documentElement.cloneNode(true);
+/* ============================================================
+   EXPORTACIÓN OFFLINE (ZIP) — descubrimiento automático de recursos
+   No se modifica GitHub/BD/guardado/Excel/PDF/filtros/edición/UI: esto
+   solo reescribe cómo se arma el ZIP de "Descargar Repositorio".
+
+   En vez de una lista fija de archivos ("excepciones manuales"), se
+   audita automáticamente:
+   - El DOM clonado: <link href>, <script src>, <img src>, url(...) en
+     atributos style.
+   - El contenido real de css/styles.css: sus propios url(...).
+   - El contenido real de js/app.js: fetch('...') y
+     serviceWorker.register('...') -> así se detectan solas rutas como
+     data/cambios.json, data/modelos.json o firebase-messaging-sw.js,
+     sin tenerlas escritas a mano en ningún lado.
+   - manifest.json: sus íconos declarados.
+   - El objeto `data` en memoria: imágenes de cada nave (n.images),
+     adjuntos de cada cambio (item.adjuntos) y fichas técnicas
+     (fichasTecnicas[].content) - así ninguna imagen cargada
+     dinámicamente desde la BD queda apuntando al repositorio original.
+   Los recursos externos (CDNs) se intentan descargar e incluir en
+   vendor/ y se reescriben las referencias a rutas locales; si alguno
+   no se puede traer (CORS, sin internet), se deja el enlace externo
+   tal cual y se anota en el reporte - nunca rompe el ZIP.
+   ============================================================ */
+
+function isLocalAssetRef(url) {
+  if (typeof url !== 'string') return false;
+  const u = url.trim();
+  if (!u) return false;
+  if (u.startsWith('data:') || u.startsWith('blob:')) return false;
+  if (/^https?:\/\//i.test(u)) return false;
+  if (u.startsWith('#') || u.startsWith('mailto:') || u.startsWith('tel:') || u.startsWith('javascript:')) return false;
+  return true;
+}
+function normalizeAssetPath(url) {
+  return url.trim().replace(/^\.\//, '').replace(/^\/+/, '').split('#')[0].split('?')[0];
+}
+function extractCssUrls(cssText) {
+  const out = [];
+  for (const m of cssText.matchAll(/url\((['"]?)([^'")]+)\1\)/g)) out.push(m[2]);
+  return out;
+}
+
+/* Recorre el DOM clonado y junta toda referencia local (relativa, sin
+   internet) a un archivo: hojas de estilo, scripts, imágenes, e íconos
+   declarados vía atributo style. */
+function collectLocalAssetPathsFromDom(clonedDoc) {
+  const paths = new Set();
+  clonedDoc.querySelectorAll('link[href]').forEach(el => {
+    const h = el.getAttribute('href');
+    if (isLocalAssetRef(h)) paths.add(normalizeAssetPath(h));
+  });
+  clonedDoc.querySelectorAll('script[src]').forEach(el => {
+    const s = el.getAttribute('src');
+    if (isLocalAssetRef(s)) paths.add(normalizeAssetPath(s));
+  });
+  clonedDoc.querySelectorAll('img[src]').forEach(el => {
+    const s = el.getAttribute('src');
+    if (isLocalAssetRef(s)) paths.add(normalizeAssetPath(s));
+  });
+  clonedDoc.querySelectorAll('[style]').forEach(el => {
+    extractCssUrls(el.getAttribute('style') || '').forEach(u => { if (isLocalAssetRef(u)) paths.add(normalizeAssetPath(u)); });
+  });
+  return paths;
+}
+
+/* Rutas que solo existen como texto dentro del propio código (fetch(),
+   registro del Service Worker, etc.) - "rutas generadas por JS". */
+function collectLocalAssetPathsFromJs(jsText) {
+  const paths = new Set();
+  const patterns = [
+    /serviceWorker\.register\(\s*['"]([^'"]+)['"]/g,
+    /fetch\(\s*['"]([^'"]+)['"]/g
+  ];
+  patterns.forEach(re => {
+    for (const m of jsText.matchAll(re)) {
+      if (isLocalAssetRef(m[1])) paths.add(normalizeAssetPath(m[1]));
+    }
+  });
+  return paths;
+}
+
+/* Imágenes que viven en la BD/JSON en memoria (naves, adjuntos de cada
+   cambio, fichas técnicas) - estas nunca aparecen en el HTML/CSS/JS
+   porque se insertan dinámicamente; hay que resolverlas aparte. */
+function collectLocalAssetPathsFromData() {
+  const paths = new Set();
+  (data.naves || []).forEach(n => {
+    (n.images || []).forEach(img => { if (isLocalAssetRef(img)) paths.add(normalizeAssetPath(img)); });
+    (n.items || []).forEach(item => {
+      (item.adjuntos || []).forEach(a => { if (isLocalAssetRef(a)) paths.add(normalizeAssetPath(a)); });
+    });
+  });
+  (data.fichasTecnicas || []).forEach(f => { if (f && isLocalAssetRef(f.content)) paths.add(normalizeAssetPath(f.content)); });
+  return paths;
+}
+
+/* Descarga un recurso local del propio sitio y lo mete al zip. Si falla
+   (archivo faltante / ruta rota), se anota en el reporte en vez de
+   cortar todo el proceso. */
+async function fetchAssetIntoZip(path, zip, report) {
+  try {
+    const res = await fetch(path, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    zip.file(path, blob);
+    report.incluidos.push(path);
+    return true;
+  } catch (err) {
+    report.faltantes.push(`${path} (${err.message})`);
+    return false;
+  }
+}
+
+/* Recursos externos (CDNs) que se pueden convertir a locales: se
+   intenta descargar cada <script src="http...">/<link href="http...">
+   y se reescribe la referencia en el propio HTML exportado hacia el
+   archivo local. Si el navegador bloquea la descarga (CORS) o no hay
+   internet, se deja el enlace externo intacto (no rompe el ZIP) y se
+   anota como dependencia externa no resuelta. */
+async function localizeExternalResourcesForZip(clonedDoc, zip, report) {
+  const els = [
+    ...clonedDoc.querySelectorAll('script[src]'),
+    ...clonedDoc.querySelectorAll('link[rel="stylesheet"][href]')
+  ].filter(el => /^https?:\/\//i.test(el.getAttribute('src') || el.getAttribute('href') || ''));
+
+  for (const el of els) {
+    const attr = el.tagName === 'SCRIPT' ? 'src' : 'href';
+    const url = el.getAttribute(attr);
+    try {
+      const res = await fetch(url, { mode: 'cors' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const isCss = attr === 'href';
+      const u = new URL(url);
+      const vendorDir = 'vendor/' + u.hostname.replace(/[^a-z0-9.]/gi, '_');
+      const fileName = (u.pathname.split('/').pop() || 'recurso') || (isCss ? 'style.css' : 'script.js');
+      let content = isCss ? await res.text() : await res.blob();
+
+      // Si es CSS externo (ej. Google Fonts), sus propias fuentes también
+      // son externas -> se intentan traer y se reescribe el CSS para que
+      // apunten al archivo local ya dentro del mismo vendor/.
+      if (isCss) {
+        for (const fontUrl of extractCssUrls(content)) {
+          if (!/^https?:\/\//i.test(fontUrl)) continue;
+          try {
+            const fRes = await fetch(fontUrl, { mode: 'cors' });
+            if (!fRes.ok) throw new Error('HTTP ' + fRes.status);
+            const fBlob = await fRes.blob();
+            const fu = new URL(fontUrl);
+            const fName = (fu.pathname.split('/').pop() || 'recurso').split('?')[0];
+            zip.file(`${vendorDir}/${fName}`, fBlob);
+            content = content.split(fontUrl).join('./' + fName);
+            report.incluidos.push(`${vendorDir}/${fName} (recurso de ${url})`);
+          } catch (fErr) {
+            report.externosNoResueltos.push(`${fontUrl} (referenciado dentro de ${url}): ${fErr.message}`);
+          }
+        }
+      }
+
+      zip.file(`${vendorDir}/${fileName}`, content);
+      el.setAttribute(attr, `${vendorDir}/${fileName}`);
+      report.incluidos.push(`${vendorDir}/${fileName} (antes: ${url})`);
+    } catch (err) {
+      report.externosNoResueltos.push(`${url}: ${err.message} — se deja como enlace externo, requerirá internet la primera vez que se abra.`);
+    }
+  }
+}
+
+function buildProjectHTMLString(clonedDoc) {
+  const clone = clonedDoc || document.documentElement.cloneNode(true);
   clone.querySelector('body').classList.add('is-locked');
   const lockBtn = clone.querySelector('#btn-lock-toggle');
   if(lockBtn) {
@@ -2777,50 +2945,102 @@ function downloadBlob(content, fileName, mime){
 async function exportProjectZip(name) {
   const btn = document.getElementById('export-btn');
   const originalText = btn.textContent;
-  btn.textContent = 'Empaquetando ZIP...';
-  
+  const report = { incluidos: [], faltantes: [], externosNoResueltos: [] };
+
   try {
       if (typeof JSZip === 'undefined') {
           alert('La librería JSZip no está cargada. Por favor revisa tu conexión a internet.');
           return;
       }
       const zip = new JSZip();
-      
-      // 1. Archivo HTML actual (limpio)
-      const htmlString = buildProjectHTMLString();
-      zip.file("index.html", htmlString);
-      
-      // 2. Bases de datos JSON
-      zip.folder("data").file("cambios.json", JSON.stringify(data, null, 2));
-      zip.folder("data").file("modelos.json", JSON.stringify(modelosDB, null, 2));
-      
-      // 3. Intentar descargar archivos estáticos vitales
-      const filesToFetch = [
-          'js/app.js',
-          'css/styles.css',
-          'firebase-messaging-sw.js'
-      ];
-      
-      for (const filePath of filesToFetch) {
-          try {
-              const res = await fetch(filePath);
-              if (res.ok) {
-                  const content = await res.blob();
-                  zip.file(filePath, content);
-              }
-          } catch (e) {
-              console.warn('No se pudo empaquetar: ' + filePath, e);
-          }
+      const clone = document.documentElement.cloneNode(true);
+
+      // 1) Auditoría automática: se juntan rutas locales desde el DOM,
+      //    desde el propio código y desde la BD en memoria - sin ninguna
+      //    lista escrita a mano.
+      btn.textContent = 'Auditando recursos...';
+      const localPaths = new Set([
+        ...collectLocalAssetPathsFromDom(clone),
+        ...collectLocalAssetPathsFromData()
+      ]);
+
+      // El CSS y el JS propios también se auditan por su contenido real
+      // (url() en el CSS; fetch()/serviceWorker.register() en el JS),
+      // así se detectan solas rutas como data/cambios.json o el Service Worker.
+      let cssText = '', jsText = '';
+      try { cssText = await (await fetch('css/styles.css', { cache: 'no-store' })).text(); } catch (e) { report.faltantes.push('css/styles.css: ' + e.message); }
+      try { jsText = await (await fetch('js/app.js', { cache: 'no-store' })).text(); } catch (e) { report.faltantes.push('js/app.js: ' + e.message); }
+      extractCssUrls(cssText).forEach(u => { if (isLocalAssetRef(u)) localPaths.add(normalizeAssetPath(u)); });
+      collectLocalAssetPathsFromJs(jsText).forEach(p => localPaths.add(p));
+
+      // data/cambios.json y data/modelos.json se detectan solos (vía los
+      // fetch() del propio código), pero el ZIP debe llevar el estado
+      // ACTUAL en memoria, no re-descargar la copia del servidor -> se
+      // excluyen aquí para que el paso 5 (más abajo) sea la única fuente,
+      // sin duplicar la descarga ni el reporte.
+      localPaths.delete('data/cambios.json');
+      localPaths.delete('data/modelos.json');
+
+      // manifest.json declara sus propios íconos - se leen y se agregan igual.
+      try {
+        const manifestText = await (await fetch('manifest.json', { cache: 'no-store' })).text();
+        const manifestJson = JSON.parse(manifestText);
+        (manifestJson.icons || []).forEach(ic => { if (isLocalAssetRef(ic.src)) localPaths.add(normalizeAssetPath(ic.src)); });
+      } catch (e) { report.faltantes.push('manifest.json: ' + e.message); }
+
+      // 2) Descargar cada recurso local detectado.
+      btn.textContent = `Empaquetando (0/${localPaths.size})...`;
+      let i = 0;
+      for (const path of localPaths) {
+        i++;
+        btn.textContent = `Empaquetando (${i}/${localPaths.size})...`;
+        await fetchAssetIntoZip(path, zip, report);
       }
-      
-      // 4. Generar y descargar ZIP
-      const content = await zip.generateAsync({ type: "blob" });
+
+      // 3) Recursos externos (CDNs) -> se intentan volver locales dentro del ZIP.
+      btn.textContent = 'Resolviendo dependencias externas...';
+      await localizeExternalResourcesForZip(clone, zip, report);
+
+      // 4) HTML final (ya con las referencias externas reescritas a locales
+      //    cuando se pudo resolverlas).
+      const htmlString = buildProjectHTMLString(clone);
+      zip.file('index.html', htmlString);
+
+      // 5) Bases de datos JSON: se escribe el estado ACTUAL en memoria
+      //    (más al día que re-descargar la copia vieja del servidor), al
+      //    final para que gane sobre cualquier auto-detección redundante.
+      zip.folder('data').file('cambios.json', JSON.stringify(data, null, 2));
+      zip.folder('data').file('modelos.json', JSON.stringify(modelosDB, null, 2));
+      report.incluidos.push('data/cambios.json (estado actual)', 'data/modelos.json (estado actual)');
+
+      // 6) Reporte de auditoría dentro del propio ZIP (trazabilidad).
+      const reportTxt = [
+        `Snapshot offline generado: ${new Date().toLocaleString('es-MX')}`,
+        '',
+        `ARCHIVOS INCLUIDOS (${report.incluidos.length}):`,
+        ...report.incluidos.map(x => '  ✔ ' + x),
+        '',
+        `ARCHIVOS FALTANTES / RUTAS ROTAS (${report.faltantes.length}):`,
+        ...(report.faltantes.length ? report.faltantes.map(x => '  ✘ ' + x) : ['  (ninguno)']),
+        '',
+        `DEPENDENCIAS EXTERNAS NO RESUELTAS (${report.externosNoResueltos.length}):`,
+        ...(report.externosNoResueltos.length ? report.externosNoResueltos.map(x => '  ⚠ ' + x) : ['  (ninguna - todo quedó local)'])
+      ].join('\n');
+      zip.file('_reporte_offline.txt', reportTxt);
+
+      // 7) Generar y descargar ZIP
+      btn.textContent = 'Generando ZIP...';
+      const content = await zip.generateAsync({ type: 'blob' });
       downloadBlob(content, name + '.zip', 'application/zip');
-      alert('✅ ¡Proyecto descargado exitosamente! El archivo .zip contiene todo tu código, estilos, y bases de datos.');
-      
+
+      const resumen = `✅ Snapshot descargado: ${report.incluidos.length} archivo(s) incluidos.` +
+        (report.faltantes.length ? `\n⚠️ ${report.faltantes.length} archivo(s) no se pudieron incluir (revisa _reporte_offline.txt dentro del ZIP).` : '') +
+        (report.externosNoResueltos.length ? `\n⚠️ ${report.externosNoResueltos.length} dependencia(s) externa(s) no se pudieron volver locales (necesitarán internet la primera vez).` : '\n✔ Todas las dependencias quedaron locales, sin necesitar internet.');
+      alert(resumen);
+
   } catch(err) {
       console.error(err);
-      alert('Error al generar el archivo ZIP.');
+      alert('Error al generar el archivo ZIP: ' + (err.message || err));
   } finally {
       btn.textContent = originalText;
   }

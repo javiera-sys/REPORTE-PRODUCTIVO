@@ -2942,6 +2942,72 @@ function downloadBlob(content, fileName, mime){
   URL.revokeObjectURL(url);
 }
 
+/* ---- Modo "espejo real del repositorio" (preferido) ----
+   En vez de adivinar qué archivos hacen falta a partir de referencias
+   en el HTML/CSS/JS/BD, se le pregunta directamente a GitHub qué
+   archivos existen (API de árboles de Git, recursiva) y se descargan
+   TODOS - así ninguna imagen queda fuera, esté o no referenciada en
+   el estado cargado actualmente en el navegador. Reutiliza el mismo
+   token/config guardado que ya usa "Guardar en GitHub" (sin lógica de
+   autenticación propia). */
+async function listRepoFilesRecursive(repo, branch, headers) {
+  const url = `https://api.github.com/repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`;
+  const res = await fetch(url, { headers, cache: 'no-store' });
+  if (!res.ok) throw new Error(`No se pudo listar el repositorio (HTTP ${res.status})`);
+  const json = await res.json();
+  return {
+    files: (json.tree || []).filter(e => e.type === 'blob').map(e => e.path),
+    truncated: !!json.truncated
+  };
+}
+
+async function fetchRepoFileBlob(repo, branch, path, headers) {
+  // Intento 1: raw.githubusercontent.com - directo y sin consumir el
+  // límite de peticiones de la API (funciona en repos públicos, que es
+  // el caso normal de un sitio publicado con GitHub Pages).
+  try {
+    const rawUrl = `https://raw.githubusercontent.com/${repo}/${branch}/${path.split('/').map(encodeURIComponent).join('/')}`;
+    const res = await fetch(rawUrl, { cache: 'no-store' });
+    if (res.ok) return await res.blob();
+  } catch (e) { /* sigue al plan B */ }
+
+  // Intento 2: API de contenidos de GitHub (funciona también si el repo
+  // es privado, usando el mismo token guardado).
+  const apiUrl = githubApiUrl(repo, path) + `?ref=${encodeURIComponent(branch)}`;
+  const res2 = await fetch(apiUrl, { headers, cache: 'no-store' });
+  if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
+  const json = await res2.json();
+  if (!json.content) throw new Error('Sin contenido en la respuesta de GitHub');
+  const binary = atob(json.content.replace(/\n/g, ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes]);
+}
+
+async function exportProjectZipFromRepo(zip, cfg, btn, report) {
+  const branch = cfg.branch || 'main';
+  const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
+
+  btn.textContent = 'Listando archivos del repositorio...';
+  const { files, truncated } = await listRepoFilesRecursive(cfg.repo, branch, headers);
+  if (truncated) {
+    report.externosNoResueltos.push('GitHub marcó el listado del repositorio como "truncado" (repositorio muy grande) - es posible que falten archivos poco comunes; revisa este reporte contra tu repositorio.');
+  }
+
+  let i = 0;
+  for (const path of files) {
+    i++;
+    btn.textContent = `Descargando repositorio (${i}/${files.length})...`;
+    try {
+      const blob = await fetchRepoFileBlob(cfg.repo, branch, path, headers);
+      zip.file(path, blob);
+      report.incluidos.push(path);
+    } catch (err) {
+      report.faltantes.push(`${path} (${err.message})`);
+    }
+  }
+}
+
 async function exportProjectZip(name) {
   const btn = document.getElementById('export-btn');
   const originalText = btn.textContent;
@@ -2954,68 +3020,75 @@ async function exportProjectZip(name) {
       }
       const zip = new JSZip();
       const clone = document.documentElement.cloneNode(true);
+      const cfg = loadGithubConfig();
+      let usedRepoMirror = false;
 
-      // 1) Auditoría automática: se juntan rutas locales desde el DOM,
-      //    desde el propio código y desde la BD en memoria - sin ninguna
-      //    lista escrita a mano.
-      btn.textContent = 'Auditando recursos...';
-      const localPaths = new Set([
-        ...collectLocalAssetPathsFromDom(clone),
-        ...collectLocalAssetPathsFromData()
-      ]);
-
-      // El CSS y el JS propios también se auditan por su contenido real
-      // (url() en el CSS; fetch()/serviceWorker.register() en el JS),
-      // así se detectan solas rutas como data/cambios.json o el Service Worker.
-      let cssText = '', jsText = '';
-      try { cssText = await (await fetch('css/styles.css', { cache: 'no-store' })).text(); } catch (e) { report.faltantes.push('css/styles.css: ' + e.message); }
-      try { jsText = await (await fetch('js/app.js', { cache: 'no-store' })).text(); } catch (e) { report.faltantes.push('js/app.js: ' + e.message); }
-      extractCssUrls(cssText).forEach(u => { if (isLocalAssetRef(u)) localPaths.add(normalizeAssetPath(u)); });
-      collectLocalAssetPathsFromJs(jsText).forEach(p => localPaths.add(p));
-
-      // data/cambios.json y data/modelos.json se detectan solos (vía los
-      // fetch() del propio código), pero el ZIP debe llevar el estado
-      // ACTUAL en memoria, no re-descargar la copia del servidor -> se
-      // excluyen aquí para que el paso 5 (más abajo) sea la única fuente,
-      // sin duplicar la descarga ni el reporte.
-      localPaths.delete('data/cambios.json');
-      localPaths.delete('data/modelos.json');
-
-      // manifest.json declara sus propios íconos - se leen y se agregan igual.
-      try {
-        const manifestText = await (await fetch('manifest.json', { cache: 'no-store' })).text();
-        const manifestJson = JSON.parse(manifestText);
-        (manifestJson.icons || []).forEach(ic => { if (isLocalAssetRef(ic.src)) localPaths.add(normalizeAssetPath(ic.src)); });
-      } catch (e) { report.faltantes.push('manifest.json: ' + e.message); }
-
-      // 2) Descargar cada recurso local detectado.
-      btn.textContent = `Empaquetando (0/${localPaths.size})...`;
-      let i = 0;
-      for (const path of localPaths) {
-        i++;
-        btn.textContent = `Empaquetando (${i}/${localPaths.size})...`;
-        await fetchAssetIntoZip(path, zip, report);
+      if (cfg && cfg.repo && cfg.token) {
+        // Modo preferido: espejo real y completo del repositorio (incluye
+        // TODO lo que exista ahí, como data/images/, sin depender de si
+        // el navegador tiene esas referencias cargadas en este momento).
+        try {
+          await exportProjectZipFromRepo(zip, cfg, btn, report);
+          usedRepoMirror = true;
+        } catch (err) {
+          console.error('No se pudo espejar el repositorio, se usa el respaldo por auditoría local:', err);
+          report.externosNoResueltos.push(`No se pudo listar el repositorio completo desde GitHub (${err.message}). Se usó como respaldo la detección automática desde lo que está cargado en este navegador, que puede no incluir archivos no referenciados.`);
+        }
       }
 
-      // 3) Recursos externos (CDNs) -> se intentan volver locales dentro del ZIP.
+      if (!usedRepoMirror) {
+        // Respaldo (sin GitHub configurado, o falló el listado): auditoría
+        // automática por referencias en el DOM/CSS/JS/BD, igual que antes.
+        btn.textContent = 'Auditando recursos...';
+        const localPaths = new Set([
+          ...collectLocalAssetPathsFromDom(clone),
+          ...collectLocalAssetPathsFromData()
+        ]);
+
+        let cssText = '', jsText = '';
+        try { cssText = await (await fetch('css/styles.css', { cache: 'no-store' })).text(); } catch (e) { report.faltantes.push('css/styles.css: ' + e.message); }
+        try { jsText = await (await fetch('js/app.js', { cache: 'no-store' })).text(); } catch (e) { report.faltantes.push('js/app.js: ' + e.message); }
+        extractCssUrls(cssText).forEach(u => { if (isLocalAssetRef(u)) localPaths.add(normalizeAssetPath(u)); });
+        collectLocalAssetPathsFromJs(jsText).forEach(p => localPaths.add(p));
+
+        localPaths.delete('data/cambios.json');
+        localPaths.delete('data/modelos.json');
+
+        try {
+          const manifestText = await (await fetch('manifest.json', { cache: 'no-store' })).text();
+          const manifestJson = JSON.parse(manifestText);
+          (manifestJson.icons || []).forEach(ic => { if (isLocalAssetRef(ic.src)) localPaths.add(normalizeAssetPath(ic.src)); });
+        } catch (e) { report.faltantes.push('manifest.json: ' + e.message); }
+
+        let i = 0;
+        for (const path of localPaths) {
+          i++;
+          btn.textContent = `Empaquetando (${i}/${localPaths.size})...`;
+          await fetchAssetIntoZip(path, zip, report);
+        }
+      }
+
+      // Recursos externos (CDNs) -> se intentan volver locales dentro del ZIP,
+      // en ambos modos.
       btn.textContent = 'Resolviendo dependencias externas...';
       await localizeExternalResourcesForZip(clone, zip, report);
 
-      // 4) HTML final (ya con las referencias externas reescritas a locales
-      //    cuando se pudo resolverlas).
+      // HTML final (ya con las referencias externas reescritas a locales
+      // cuando se pudo resolverlas).
       const htmlString = buildProjectHTMLString(clone);
       zip.file('index.html', htmlString);
 
-      // 5) Bases de datos JSON: se escribe el estado ACTUAL en memoria
-      //    (más al día que re-descargar la copia vieja del servidor), al
-      //    final para que gane sobre cualquier auto-detección redundante.
+      // Bases de datos JSON: se escribe el estado ACTUAL en memoria (más al
+      // día que la última copia del repositorio, por si hay cambios sin
+      // subir), al final para que gane sobre cualquier copia ya descargada.
       zip.folder('data').file('cambios.json', JSON.stringify(data, null, 2));
       zip.folder('data').file('modelos.json', JSON.stringify(modelosDB, null, 2));
       report.incluidos.push('data/cambios.json (estado actual)', 'data/modelos.json (estado actual)');
 
-      // 6) Reporte de auditoría dentro del propio ZIP (trazabilidad).
+      // Reporte de auditoría dentro del propio ZIP (trazabilidad).
       const reportTxt = [
         `Snapshot offline generado: ${new Date().toLocaleString('es-MX')}`,
+        `Modo: ${usedRepoMirror ? 'Espejo completo del repositorio de GitHub' : 'Detección automática por referencias (sin GitHub configurado)'}`,
         '',
         `ARCHIVOS INCLUIDOS (${report.incluidos.length}):`,
         ...report.incluidos.map(x => '  ✔ ' + x),

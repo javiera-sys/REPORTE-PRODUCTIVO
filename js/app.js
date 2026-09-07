@@ -3443,10 +3443,11 @@ function handleFichaUpload(e) {
   e.target.value = '';
 }
 
-// IDs (no índices) de fichas que se están borrando en este momento -> evita
-// doble ejecución y permite mostrar el estado de carga en la fila correcta
-// aunque el arreglo cambie de tamaño mientras tanto.
+// IDs (no índices) de fichas que se están borrando/reemplazando en este
+// momento -> evita doble ejecución y permite mostrar el estado de carga en
+// la fila correcta aunque el arreglo cambie de tamaño mientras tanto.
 const fichaDeleteInProgress = new Set();
+const fichaReplaceInProgress = new Set();
 
 function getFichaById(id) {
   return (data.fichasTecnicas || []).find(f => f.id === id);
@@ -3461,16 +3462,19 @@ function renderFichas() {
   }
   list.innerHTML = data.fichasTecnicas.map((f) => {
     const deleting = fichaDeleteInProgress.has(f.id);
+    const replacing = fichaReplaceInProgress.has(f.id);
+    const busy = deleting || replacing;
     return `
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--color-border-tertiary); transition: background 0.2s; ${deleting ? 'opacity:0.55;' : ''}" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor='transparent'">
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--color-border-tertiary); transition: background 0.2s; ${busy ? 'opacity:0.55;' : ''}" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor='transparent'">
       <div style="display: flex; align-items: flex-start; flex: 1; min-width: 0; padding-right: 8px;">
         <i class="ti ti-file" style="margin-top: 2px; margin-right: 6px; color: #6366F1; font-size: 14px; flex-shrink: 0;"></i>
         <span style="font-size: 12px; font-weight: 500; color: var(--color-text-primary); word-break: break-word; line-height: 1.4;">${escHtml(f.name)}</span>
       </div>
       <div style="display: flex; gap: 6px; flex-shrink: 0;">
-        <button class="btn btn-xs btn-navy" onclick="viewFicha('${f.id}')" title="Ver" ${deleting ? 'disabled' : ''} style="padding: 4px 8px;"><i class="ti ti-eye"></i></button>
-        <button class="btn btn-xs btn-green" onclick="downloadFicha('${f.id}')" title="Descargar" ${deleting ? 'disabled' : ''} style="padding: 4px 8px;"><i class="ti ti-download"></i></button>
-        <button class="btn btn-xs btn-danger-ghost only-editable" onclick="deleteFicha('${f.id}')" ${deleting ? 'disabled' : ''} style="${isEditableMode ? '' : 'display:none;'}; padding: 4px 8px;" title="Eliminar">${deleting ? '<i class="ti ti-loader"></i>' : '<i class="ti ti-trash"></i>'}</button>
+        <button class="btn btn-xs btn-navy" onclick="viewFicha('${f.id}')" title="Ver" ${busy ? 'disabled' : ''} style="padding: 4px 8px;"><i class="ti ti-eye"></i></button>
+        <button class="btn btn-xs btn-green" onclick="downloadFicha('${f.id}')" title="Descargar" ${busy ? 'disabled' : ''} style="padding: 4px 8px;"><i class="ti ti-download"></i></button>
+        <button class="btn btn-xs btn-amber only-editable" onclick="triggerFichaReplace('${f.id}')" ${busy ? 'disabled' : ''} style="${isEditableMode ? '' : 'display:none;'}; padding: 4px 8px;" title="Reemplazar (subiste el archivo equivocado)">${replacing ? '<i class="ti ti-loader"></i>' : '<i class="ti ti-replace"></i>'}</button>
+        <button class="btn btn-xs btn-danger-ghost only-editable" onclick="deleteFicha('${f.id}')" ${busy ? 'disabled' : ''} style="${isEditableMode ? '' : 'display:none;'}; padding: 4px 8px;" title="Eliminar">${deleting ? '<i class="ti ti-loader"></i>' : '<i class="ti ti-trash"></i>'}</button>
       </div>
     </div>
   `;
@@ -3586,6 +3590,93 @@ async function deleteFicha(id) {
     alert('⚠️ El archivo se eliminó correctamente, pero no se pudo actualizar el listado guardado en GitHub. Usa "Guardar en GitHub" para terminar de sincronizarlo.');
   } finally {
     fichaDeleteInProgress.delete(id);
+    renderFichas();
+  }
+}
+
+/* REEMPLAZAR: para cuando se subió el archivo equivocado. Corrige la
+   ficha en el mismo lugar (mismo id, misma posición en la lista) en vez
+   de tener que borrarla y subir una nueva por separado.
+   - Si la ficha vieja ya estaba guardada en GitHub (ruta remota), se
+     borra ese archivo viejo primero (mismo helper que usa "Eliminar")
+     para no dejarlo huérfano.
+   - Se guarda de inmediato con quickSaveGithub() -el mismo guardado de
+     siempre- para que el archivo nuevo quede subido y la referencia
+     actualizada en un solo paso. */
+let pendingReplaceFichaId = null;
+
+function triggerFichaReplace(id) {
+  if (!isEditableMode) return;
+  if (fichaDeleteInProgress.has(id) || fichaReplaceInProgress.has(id)) return;
+  pendingReplaceFichaId = id;
+  document.getElementById('ficha-replace-input').click();
+}
+
+function handleFichaReplace(e) {
+  const id = pendingReplaceFichaId;
+  pendingReplaceFichaId = null;
+  const file = e.target.files[0];
+  if (!file || !id) { e.target.value = ''; return; }
+  const f = getFichaById(id);
+  if (!f) { e.target.value = ''; return; }
+
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    await replaceFichaContent(id, file.name, ev.target.result);
+    e.target.value = '';
+  };
+  reader.onerror = () => {
+    alert('❌ No se pudo leer el nuevo archivo.');
+    e.target.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function replaceFichaContent(id, newName, newContentBase64) {
+  if (fichaReplaceInProgress.has(id)) return;
+  const f = getFichaById(id);
+  if (!f) return;
+
+  fichaReplaceInProgress.add(id);
+  renderFichas();
+
+  const cfg = loadGithubConfig();
+  const oldRemotePath = (typeof f.content === 'string' && !f.content.startsWith('data:')) ? f.content : null;
+
+  try {
+    if (oldRemotePath) {
+      if (!cfg || !cfg.repo || !cfg.token) {
+        throw new Error('No hay una conexión de GitHub configurada; no se puede reemplazar el archivo del repositorio desde aquí.');
+      }
+      const branch = cfg.branch || 'main';
+      const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
+      // Se borra el archivo viejo antes de dejar el nuevo en su lugar, para
+      // no dejarlo huérfano en el repositorio.
+      await deleteFileFromGithub(cfg.repo, oldRemotePath, branch, headers, `Reemplazar ficha técnica "${f.name}"`);
+    }
+  } catch (err) {
+    console.error('No se pudo borrar el archivo viejo antes de reemplazarlo:', err);
+    alert('❌ No se pudo reemplazar la ficha: ' + (err.message || err) + '\n\nSe conservó el archivo original sin cambios.');
+    fichaReplaceInProgress.delete(id);
+    renderFichas();
+    return;
+  }
+
+  // Archivo viejo fuera (si existía) -> ahora sí se actualiza con el nuevo.
+  f.name = newName;
+  f.content = newContentBase64;
+
+  try {
+    if (cfg && cfg.repo && cfg.token) {
+      // Mismo guardado de siempre: al detectar que el content es un
+      // data-URI nuevo, lo sube como archivo y actualiza la referencia.
+      await quickSaveGithub();
+    }
+  } catch (err) {
+    console.error('El archivo se reemplazó localmente pero no se pudo guardar en GitHub:', err);
+    alert('⚠️ El archivo nuevo quedó cargado, pero no se pudo guardar en GitHub todavía. Usa "Guardar en GitHub" para terminar de subirlo.');
+  } finally {
+    fichaReplaceInProgress.delete(id);
     renderFichas();
   }
 }

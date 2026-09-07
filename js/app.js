@@ -3443,6 +3443,15 @@ function handleFichaUpload(e) {
   e.target.value = '';
 }
 
+// IDs (no índices) de fichas que se están borrando en este momento -> evita
+// doble ejecución y permite mostrar el estado de carga en la fila correcta
+// aunque el arreglo cambie de tamaño mientras tanto.
+const fichaDeleteInProgress = new Set();
+
+function getFichaById(id) {
+  return (data.fichasTecnicas || []).find(f => f.id === id);
+}
+
 function renderFichas() {
   const list = document.getElementById('fichas-list');
   if (!list) return;
@@ -3450,25 +3459,39 @@ function renderFichas() {
     list.innerHTML = '<div style="padding: 12px; font-size: 12px; color: var(--color-text-secondary); text-align: center;">No hay fichas técnicas disponibles.</div>';
     return;
   }
-  list.innerHTML = data.fichasTecnicas.map((f, idx) => `
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--color-border-tertiary); transition: background 0.2s;" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor='transparent'">
+  list.innerHTML = data.fichasTecnicas.map((f) => {
+    const deleting = fichaDeleteInProgress.has(f.id);
+    return `
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--color-border-tertiary); transition: background 0.2s; ${deleting ? 'opacity:0.55;' : ''}" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor='transparent'">
       <div style="display: flex; align-items: flex-start; flex: 1; min-width: 0; padding-right: 8px;">
         <i class="ti ti-file" style="margin-top: 2px; margin-right: 6px; color: #6366F1; font-size: 14px; flex-shrink: 0;"></i>
         <span style="font-size: 12px; font-weight: 500; color: var(--color-text-primary); word-break: break-word; line-height: 1.4;">${escHtml(f.name)}</span>
       </div>
       <div style="display: flex; gap: 6px; flex-shrink: 0;">
-        <button class="btn btn-xs btn-green" onclick="downloadFicha(${idx})" title="Descargar" style="padding: 4px 8px;"><i class="ti ti-download"></i></button>
-        <button class="btn btn-xs btn-danger-ghost only-editable" onclick="deleteFicha(${idx})" style="${isEditableMode ? '' : 'display:none;'}; padding: 4px 8px;" title="Eliminar"><i class="ti ti-trash"></i></button>
+        <button class="btn btn-xs btn-navy" onclick="viewFicha('${f.id}')" title="Ver" ${deleting ? 'disabled' : ''} style="padding: 4px 8px;"><i class="ti ti-eye"></i></button>
+        <button class="btn btn-xs btn-green" onclick="downloadFicha('${f.id}')" title="Descargar" ${deleting ? 'disabled' : ''} style="padding: 4px 8px;"><i class="ti ti-download"></i></button>
+        <button class="btn btn-xs btn-danger-ghost only-editable" onclick="deleteFicha('${f.id}')" ${deleting ? 'disabled' : ''} style="${isEditableMode ? '' : 'display:none;'}; padding: 4px 8px;" title="Eliminar">${deleting ? '<i class="ti ti-loader"></i>' : '<i class="ti ti-trash"></i>'}</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
-function downloadFicha(idx) {
-  if(!data.fichasTecnicas) return;
-  const f = data.fichasTecnicas[idx];
+/* VER: abre el PDF/imagen en una pestaña nueva usando la misma URL/ruta ya
+   guardada (relativa del repositorio, o el data-URI si todavía no se ha
+   guardado en GitHub) - no descarga ni genera ninguna copia. */
+function viewFicha(id) {
+  const f = getFichaById(id);
+  if (!f) return;
+  window.open(f.content, '_blank');
+}
+
+/* DESCARGAR: exactamente la misma función que ya existía, solo que ahora
+   busca por id (estable) en vez de por índice del arreglo. */
+function downloadFicha(id) {
+  const f = getFichaById(id);
   if(!f) return;
-  
+
   const a = document.createElement('a');
   a.href = f.content;
   a.download = f.name;
@@ -3478,11 +3501,93 @@ function downloadFicha(idx) {
   document.body.removeChild(a);
 }
 
-function deleteFicha(idx) {
+/* Borra un archivo ya subido al repositorio (API de contenidos de GitHub).
+   Reutiliza el mismo patrón que ya usa el guardado de imágenes/adjuntos
+   (consultar el sha actual antes de escribir) - misma arquitectura, solo
+   que con el verbo DELETE en vez de PUT. */
+async function deleteFileFromGithub(repo, repoPath, branch, headers, message) {
+  const apiUrl = githubApiUrl(repo, repoPath);
+  const getResp = await fetch(`${apiUrl}?ref=${encodeURIComponent(branch)}`, { headers, cache: 'no-store' });
+  if (getResp.status === 404) {
+    return { alreadyGone: true }; // no existía en el repositorio (o nunca se guardó) - no es un error real
+  }
+  if (!getResp.ok) {
+    const errBody = await getResp.json().catch(() => ({}));
+    throw new Error(`No se pudo verificar el archivo antes de borrarlo (${getResp.status}): ${errBody.message || 'error desconocido'}`);
+  }
+  const info = await getResp.json();
+  const delResp = await fetch(apiUrl, {
+    method: 'DELETE',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, sha: info.sha, branch })
+  });
+  if (!delResp.ok) {
+    const errBody = await delResp.json().catch(() => ({}));
+    throw new Error(`GitHub respondió ${delResp.status} al borrar ${repoPath}: ${errBody.message || 'error desconocido'}`);
+  }
+  return delResp.json().catch(() => null);
+}
+
+/* ELIMINAR → CONFIRMACIÓN → ELIMINAR ARCHIVO → ELIMINAR REFERENCIA → ACTUALIZAR UI
+   - Si el archivo todavía no se había guardado en GitHub (sigue como
+     data-URI en memoria), no hay archivo remoto que borrar: solo se quita
+     la referencia local.
+   - Si el paso de borrar el ARCHIVO falla, no se toca nada más: se
+     conserva la ficha tal cual estaba y se muestra el error.
+   - Si el archivo sí se logra borrar pero después falla el guardado de
+     la referencia (data/cambios.json), no se revive la ficha -el archivo
+     ya no existe de verdad- pero se avisa claramente que hace falta volver
+     a guardar para que el listado remoto quede sincronizado. */
+async function deleteFicha(id) {
   if (!isEditableMode) return;
-  if (!confirm('¿Eliminar esta ficha técnica?')) return;
-  data.fichasTecnicas.splice(idx, 1);
-  renderFichas();
+  if (fichaDeleteInProgress.has(id)) return; // evita doble ejecución
+  const f = getFichaById(id);
+  if (!f) return;
+
+  if (!confirm('¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTA FICHA TÉCNICA?')) return;
+
+  fichaDeleteInProgress.add(id);
+  renderFichas(); // muestra el estado de "eliminando..." de inmediato
+
+  const cfg = loadGithubConfig();
+  const isRemoteFile = typeof f.content === 'string' && !f.content.startsWith('data:');
+
+  try {
+    if (isRemoteFile) {
+      if (!cfg || !cfg.repo || !cfg.token) {
+        throw new Error('No hay una conexión de GitHub configurada; no se puede borrar el archivo del repositorio desde aquí.');
+      }
+      const branch = cfg.branch || 'main';
+      const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
+      await deleteFileFromGithub(cfg.repo, f.content, branch, headers, `Eliminar ficha técnica "${f.name}"`);
+    }
+  } catch (err) {
+    console.error('Error al borrar el archivo de la ficha técnica:', err);
+    alert('❌ No se pudo eliminar la ficha: ' + (err.message || err) + '\n\nLa ficha se conservó sin cambios.');
+    fichaDeleteInProgress.delete(id);
+    renderFichas();
+    return;
+  }
+
+  // El archivo (si existía) ya se borró del repositorio -> ahora sí se
+  // quita la referencia local, pase lo que pase después.
+  const idx = data.fichasTecnicas.findIndex(x => x.id === id);
+  if (idx !== -1) data.fichasTecnicas.splice(idx, 1);
+
+  try {
+    if (cfg && cfg.repo && cfg.token) {
+      // Reutiliza EXACTAMENTE el mismo guardado que "Guardar en GitHub"
+      // (mismo token, mismo handler) para que data/cambios.json quede
+      // sin la referencia borrada. No se crea ningún guardado propio.
+      await quickSaveGithub();
+    }
+  } catch (err) {
+    console.error('El archivo se borró pero no se pudo actualizar el listado guardado:', err);
+    alert('⚠️ El archivo se eliminó correctamente, pero no se pudo actualizar el listado guardado en GitHub. Usa "Guardar en GitHub" para terminar de sincronizarlo.');
+  } finally {
+    fichaDeleteInProgress.delete(id);
+    renderFichas();
+  }
 }
 
 /* ---- RECORDATORIO DE PENDIENTES (CADA 2 HORAS) ---- */

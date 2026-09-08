@@ -1366,58 +1366,170 @@ function closeProcesosDiseno() {
   pdEditMode = false;
 }
 
-/* ---- Navegación entre la lista de submódulos y la tabla de uno de ellos ---- */
+/* ---- Navegación entre la lista de submódulos y la tabla de uno de ellos ----
+   El modo de edición se comparte en toda la sesión del módulo (una vez
+   autorizado, sirve tanto para administrar apartados como para editar
+   cualquier tabla) - no se vuelve a pedir la contraseña solo por navegar
+   entre la lista y un apartado; solo se resetea al cerrar el módulo. */
 function renderPdView() {
   ensureProcesosDiseno();
   const listView = document.getElementById('pd-list-view');
   const tableView = document.getElementById('pd-table-view');
   const toolbar = document.getElementById('pd-toolbar');
   const titleEl = document.getElementById('pd-current-title');
-  const modeBadge = document.getElementById('pd-mode-badge');
   if (!listView || !tableView) return;
+
+  updatePdModeBadge();
 
   if (!pdCurrentSubmoduleId) {
     listView.style.display = 'block';
     tableView.style.display = 'none';
     if (toolbar) toolbar.style.display = 'none';
-    if (modeBadge) modeBadge.style.display = 'none';
     renderPdSubmoduleList();
   } else {
     listView.style.display = 'none';
     tableView.style.display = 'block';
     if (toolbar) toolbar.style.display = 'flex';
-    if (modeBadge) modeBadge.style.display = 'flex';
     const sm = getPdSubmodule(pdCurrentSubmoduleId);
     if (titleEl) titleEl.textContent = sm ? sm.label : '';
-    updatePdModeBadge();
     renderPdTable();
   }
 }
 
+// IDs de apartados con una operación de administración en curso (crear
+// usa 'new' como marcador temporal) -> evita doble ejecución.
+const pdSubmoduleOpInProgress = new Set();
+
 function renderPdSubmoduleList() {
   const cont = document.getElementById('pd-submodule-list');
+  const addBtn = document.getElementById('pd-add-submodule-btn');
   if (!cont) return;
-  cont.innerHTML = data.procesosDiseno.submodules.map(sm => `
-    <button class="btn" style="justify-content:flex-start; width:100%; min-height:56px; text-align:left;" onclick="openPdSubmodule('${sm.id}')">
-      <i class="ti ti-table" style="font-size:18px; margin-right:6px;"></i>
-      <span style="display:flex; flex-direction:column; align-items:flex-start;">
-        <span style="font-weight:700;">${escHtml(sm.label)}</span>
-        <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">${sm.rows.length} registro(s) · ${sm.headers.length} columna(s)</span>
-      </span>
-    </button>
-  `).join('');
+  if (addBtn) addBtn.style.display = pdEditMode ? 'inline-flex' : 'none';
+
+  cont.innerHTML = data.procesosDiseno.submodules.map(sm => {
+    const busy = pdSubmoduleOpInProgress.has(sm.id);
+    return `
+    <div style="display:flex; align-items:stretch; gap:6px; ${busy ? 'opacity:0.55;' : ''}">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('${sm.id}')" ${busy ? 'disabled' : ''}>
+        <i class="ti ti-table" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">${escHtml(sm.label)}</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">${sm.rows.length} registro(s) · ${sm.headers.length} columna(s)</span>
+        </span>
+      </button>
+      ${pdEditMode ? `
+        <button class="btn btn-ghost" title="Editar nombre" onclick="renamePdSubmodule('${sm.id}')" ${busy ? 'disabled' : ''}><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-danger-ghost" title="Eliminar apartado" onclick="deletePdSubmodule('${sm.id}')" ${busy ? 'disabled' : ''}>${busy ? '<i class="ti ti-loader"></i>' : '<i class="ti ti-trash"></i>'}</button>
+      ` : ''}
+    </div>`;
+  }).join('');
+}
+
+/* Todas las acciones de administrar apartados (crear/renombrar/eliminar)
+   se guardan de inmediato con quickSaveGithub() - el mismo guardado de
+   siempre, sin token propio - igual que ya se hace con las fichas técnicas. */
+async function addPdSubmodule() {
+  if (!pdEditMode) return;
+  if (pdSubmoduleOpInProgress.has('new')) return;
+  const name = prompt('Nombre del nuevo apartado:');
+  if (!name || !name.trim()) return;
+  const finalName = name.trim();
+
+  ensureProcesosDiseno();
+  if (data.procesosDiseno.submodules.some(s => s.label.toLowerCase() === finalName.toLowerCase())) {
+    setPdStatus('Ya existe un apartado con ese nombre.', 'error');
+    return;
+  }
+
+  pdSubmoduleOpInProgress.add('new');
+  renderPdSubmoduleList();
+
+  const newSm = { id: 'sm_' + uid(), label: finalName, headers: [], rows: [] };
+  data.procesosDiseno.submodules.push(newSm);
+
+  try {
+    const cfg = loadGithubConfig();
+    if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
+    setPdStatus(`✅ Apartado "${finalName}" creado y guardado.`, 'ok');
+  } catch (err) {
+    console.error('No se pudo guardar el nuevo apartado:', err);
+    setPdStatus('⚠️ El apartado se creó, pero no se pudo guardar en GitHub todavía. Vuelve a intentar guardar.', 'error');
+  } finally {
+    pdSubmoduleOpInProgress.delete('new');
+    renderPdSubmoduleList();
+  }
+}
+
+async function renamePdSubmodule(id) {
+  if (!pdEditMode) return;
+  if (pdSubmoduleOpInProgress.has(id)) return;
+  const sm = getPdSubmodule(id);
+  if (!sm) return;
+  const name = prompt('Nuevo nombre del apartado:', sm.label);
+  if (!name || !name.trim() || name.trim() === sm.label) return;
+  const finalName = name.trim();
+  if (data.procesosDiseno.submodules.some(s => s.id !== id && s.label.toLowerCase() === finalName.toLowerCase())) {
+    setPdStatus('Ya existe un apartado con ese nombre.', 'error');
+    return;
+  }
+
+  const oldName = sm.label;
+  pdSubmoduleOpInProgress.add(id);
+  renderPdSubmoduleList();
+  sm.label = finalName;
+
+  try {
+    const cfg = loadGithubConfig();
+    if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
+    setPdStatus(`✅ Apartado renombrado a "${finalName}".`, 'ok');
+  } catch (err) {
+    console.error('No se pudo guardar el nuevo nombre del apartado:', err);
+    sm.label = oldName; // se revierte: no se pudo confirmar el guardado
+    setPdStatus('❌ No se pudo guardar el nuevo nombre. Se conservó el nombre original.', 'error');
+  } finally {
+    pdSubmoduleOpInProgress.delete(id);
+    renderPdSubmoduleList();
+  }
+}
+
+async function deletePdSubmodule(id) {
+  if (!pdEditMode) return;
+  if (pdSubmoduleOpInProgress.has(id)) return;
+  const sm = getPdSubmodule(id);
+  if (!sm) return;
+  if (!confirm(`¿ELIMINAR EL APARTADO "${sm.label.toUpperCase()}"? Se perderán sus ${sm.rows.length} registro(s).`)) return;
+
+  pdSubmoduleOpInProgress.add(id);
+  renderPdSubmoduleList();
+
+  const idx = data.procesosDiseno.submodules.findIndex(s => s.id === id);
+  const removed = data.procesosDiseno.submodules.splice(idx, 1)[0];
+
+  try {
+    const cfg = loadGithubConfig();
+    if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
+    setPdStatus(`✅ Apartado "${removed.label}" eliminado.`, 'ok');
+  } catch (err) {
+    console.error('No se pudo guardar la eliminación del apartado:', err);
+    data.procesosDiseno.submodules.splice(idx, 0, removed); // se revierte
+    setPdStatus('❌ No se pudo guardar la eliminación. Se conservó el apartado.', 'error');
+  } finally {
+    pdSubmoduleOpInProgress.delete(id);
+    renderPdSubmoduleList();
+  }
 }
 
 function openPdSubmodule(id) {
   pdCurrentSubmoduleId = id;
-  pdEditMode = false;
+  // El modo de edición ya no se resetea al entrar a un apartado: se
+  // comparte en toda la sesión del módulo (se autoriza una vez, con
+  // contraseña, y sirve para administrar apartados y editar tablas).
   setPdStatus('');
   renderPdView();
 }
 
 function backToPdList() {
   pdCurrentSubmoduleId = null;
-  pdEditMode = false;
   setPdStatus('');
   renderPdView();
 }
@@ -1427,6 +1539,8 @@ function updatePdModeBadge() {
   const label = document.getElementById('pd-mode-label');
   const editBtn = document.getElementById('pd-edit-btn');
   const saveBtn = document.getElementById('pd-save-btn');
+  const editListBtn = document.getElementById('pd-edit-list-btn');
+  const addBtn = document.getElementById('pd-add-submodule-btn');
   if (!badge || !label) return;
   const icon = badge.querySelector('i');
   if (pdEditMode) {
@@ -1435,12 +1549,16 @@ function updatePdModeBadge() {
     if (icon) icon.className = 'ti ti-lock-open';
     if (editBtn) editBtn.style.display = 'none';
     if (saveBtn) saveBtn.style.display = 'inline-flex';
+    if (editListBtn) editListBtn.style.display = 'none';
+    if (addBtn) addBtn.style.display = 'inline-flex';
   } else {
     badge.style.background = '#f1f5f6'; badge.style.color = 'var(--color-text-secondary)'; badge.style.borderColor = 'var(--color-border-secondary)';
     label.textContent = 'Solo lectura';
     if (icon) icon.className = 'ti ti-eye';
     if (editBtn) editBtn.style.display = 'inline-flex';
     if (saveBtn) saveBtn.style.display = 'none';
+    if (editListBtn) editListBtn.style.display = 'inline-flex';
+    if (addBtn) addBtn.style.display = 'none';
   }
 }
 
@@ -1456,9 +1574,10 @@ function validatePdPassword() {
   if (data.accessPasswords.includes(inputPass)) {
     pdEditMode = true;
     closeModal('modal-pd-auth');
-    updatePdModeBadge();
-    renderPdTable();
-    setPdStatus('🔓 Edición activada. Los cambios de la tabla no se guardan de forma permanente hasta que presiones "Guardar cambios del Excel".', 'ok');
+    renderPdView();
+    setPdStatus(pdCurrentSubmoduleId
+      ? '🔓 Edición activada. Los cambios de la tabla no se guardan de forma permanente hasta que presiones "Guardar cambios del Excel".'
+      : '🔓 Edición activada. Ya puedes crear, renombrar o eliminar apartados, y editar cualquier tabla.', 'ok');
   } else {
     const modal = document.querySelector('#modal-pd-auth .modal');
     modal.classList.remove('auth-shake');

@@ -3473,8 +3473,8 @@ function renderFichas() {
       <div style="display: flex; gap: 6px; flex-shrink: 0;">
         <button class="btn btn-xs btn-navy" onclick="viewFicha('${f.id}')" title="Ver" ${busy ? 'disabled' : ''} style="padding: 4px 8px;"><i class="ti ti-eye"></i></button>
         <button class="btn btn-xs btn-green" onclick="downloadFicha('${f.id}')" title="Descargar" ${busy ? 'disabled' : ''} style="padding: 4px 8px;"><i class="ti ti-download"></i></button>
-        <button class="btn btn-xs btn-amber only-editable" onclick="triggerFichaReplace('${f.id}')" ${busy ? 'disabled' : ''} style="${isEditableMode ? '' : 'display:none;'}; padding: 4px 8px;" title="Reemplazar (subiste el archivo equivocado)">${replacing ? '<i class="ti ti-loader"></i>' : '<i class="ti ti-replace"></i>'}</button>
-        <button class="btn btn-xs btn-danger-ghost only-editable" onclick="deleteFicha('${f.id}')" ${busy ? 'disabled' : ''} style="${isEditableMode ? '' : 'display:none;'}; padding: 4px 8px;" title="Eliminar">${deleting ? '<i class="ti ti-loader"></i>' : '<i class="ti ti-trash"></i>'}</button>
+        <button class="btn btn-xs btn-amber only-editable" onclick="triggerFichaReplace('${f.id}')" ${busy ? 'disabled' : ''} style="padding: 4px 8px;" title="Reemplazar (subiste el archivo equivocado)">${replacing ? '<i class="ti ti-loader"></i>' : '<i class="ti ti-replace"></i>'}</button>
+        <button class="btn btn-xs btn-danger-ghost only-editable" onclick="deleteFicha('${f.id}')" ${busy ? 'disabled' : ''} style="padding: 4px 8px;" title="Eliminar">${deleting ? '<i class="ti ti-loader"></i>' : '<i class="ti ti-trash"></i>'}</button>
       </div>
     </div>
   `;

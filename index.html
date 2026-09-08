@@ -522,7 +522,7 @@
     <div class="dash-header">
       <h2 style="margin:0; display:flex; align-items:center; gap:8px;"><i class="ti ti-clipboard-list" style="color:var(--accent)"></i> Procesos de Diseño</h2>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <span class="conn-status" id="pd-mode-badge" style="background:#f1f5f6;color:var(--color-text-secondary);border-color:var(--color-border-secondary); display:none;">
+        <span class="conn-status" id="pd-mode-badge" style="background:#f1f5f6;color:var(--color-text-secondary);border-color:var(--color-border-secondary);">
           <i class="ti ti-eye" aria-hidden="true"></i> <span id="pd-mode-label">Solo lectura</span>
         </span>
         <button class="btn-ghost btn" title="Cerrar" onclick="closeProcesosDiseno()"><i class="ti ti-x"></i></button>
@@ -531,10 +531,18 @@
 
     <div style="padding:16px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; flex:1;">
 
+      <!-- Estado compartido (se usa tanto en la lista de apartados como
+           dentro de la tabla de cualquiera de ellos). -->
+      <p id="pd-status" style="font-size:12px;margin:0;line-height:1.4;display:none"></p>
+
       <!-- Vista 1: lista de submódulos (Procesos de Diseño es un contenedor,
            "Ficha Técnica de Tolerancias" es el primero de varios futuros) -->
       <div id="pd-list-view">
-        <p style="font-size:12.5px; color:var(--color-text-secondary); margin-bottom:10px;">Elige un submódulo:</p>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+          <p style="font-size:12.5px; color:var(--color-text-secondary); margin:0; flex:1;">Elige un apartado:</p>
+          <button class="btn btn-amber" id="pd-edit-list-btn" onclick="togglePdEdit()"><i class="ti ti-lock"></i> Editar apartados</button>
+          <button class="btn btn-green" id="pd-add-submodule-btn" onclick="addPdSubmodule()" style="display:none;"><i class="ti ti-plus"></i> Agregar apartado</button>
+        </div>
         <div id="pd-submodule-list" style="display:flex; flex-direction:column; gap:8px;"></div>
       </div>
 
@@ -559,8 +567,6 @@
           <button class="btn btn-sm" onclick="addPdRow()" title="Agregar una fila vacía"><i class="ti ti-row-insert-bottom"></i> Insertar fila</button>
           <button class="btn btn-sm" onclick="addPdColumn()" title="Agregar una columna nueva"><i class="ti ti-column-insert-right"></i> Insertar columna</button>
         </div>
-
-        <p id="pd-status" style="font-size:12px;margin:0 0 10px;line-height:1.4;display:none"></p>
 
         <div id="pd-table-wrap" style="overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--color-border-tertiary); border-radius:12px;">
           <table class="pd-table" id="pd-table">

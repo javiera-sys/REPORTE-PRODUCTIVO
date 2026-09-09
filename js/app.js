@@ -1322,16 +1322,24 @@ let pdEditMode = false;
 let pdCurrentSubmoduleId = null; // null = viendo la lista de submódulos
 
 const PD_DEFAULT_SUBMODULES = [
-  { id: 'ficha_tolerancias', label: 'Ficha Técnica de Tolerancias', headers: [], rows: [] }
+  { id: 'ficha_tolerancias', label: 'Ficha Técnica de Tolerancias', type: 'excel', headers: [], rows: [] }
 ];
 
 function ensureProcesosDiseno() {
   if (!data.procesosDiseno || typeof data.procesosDiseno !== 'object' || !Array.isArray(data.procesosDiseno.submodules)) {
-    data.procesosDiseno = { submodules: PD_DEFAULT_SUBMODULES.map(s => ({ ...s, headers: [], rows: [] })) };
+    const now = Date.now();
+    data.procesosDiseno = { submodules: PD_DEFAULT_SUBMODULES.map(s => ({ ...s, headers: [], rows: [], createdAt: now, updatedAt: now })) };
   }
   data.procesosDiseno.submodules.forEach(sm => {
+    // Compatibilidad con apartados guardados antes de que existiera el
+    // campo "tipo": todo lo anterior era Excel.
+    if (sm.type !== 'excel' && sm.type !== 'pdf') sm.type = 'excel';
     if (!Array.isArray(sm.headers)) sm.headers = [];
     if (!Array.isArray(sm.rows)) sm.rows = [];
+    if (sm.pdfContent === undefined) sm.pdfContent = null;
+    if (sm.pdfName === undefined) sm.pdfName = null;
+    if (!sm.createdAt) sm.createdAt = Date.now();
+    if (!sm.updatedAt) sm.updatedAt = sm.createdAt;
   });
 }
 
@@ -1375,7 +1383,8 @@ function renderPdView() {
   ensureProcesosDiseno();
   const listView = document.getElementById('pd-list-view');
   const tableView = document.getElementById('pd-table-view');
-  const toolbar = document.getElementById('pd-toolbar');
+  const excelView = document.getElementById('pd-excel-view');
+  const pdfView = document.getElementById('pd-pdf-view');
   const titleEl = document.getElementById('pd-current-title');
   if (!listView || !tableView) return;
 
@@ -1384,15 +1393,22 @@ function renderPdView() {
   if (!pdCurrentSubmoduleId) {
     listView.style.display = 'block';
     tableView.style.display = 'none';
-    if (toolbar) toolbar.style.display = 'none';
     renderPdSubmoduleList();
   } else {
     listView.style.display = 'none';
     tableView.style.display = 'block';
-    if (toolbar) toolbar.style.display = 'flex';
     const sm = getPdSubmodule(pdCurrentSubmoduleId);
     if (titleEl) titleEl.textContent = sm ? sm.label : '';
-    renderPdTable();
+
+    const isPdf = sm && sm.type === 'pdf';
+    if (excelView) excelView.style.display = isPdf ? 'none' : 'block';
+    if (pdfView) pdfView.style.display = isPdf ? 'block' : 'none';
+
+    if (isPdf) {
+      renderPdPdfView();
+    } else {
+      renderPdTable();
+    }
   }
 }
 
@@ -1408,17 +1424,22 @@ function renderPdSubmoduleList() {
 
   cont.innerHTML = data.procesosDiseno.submodules.map(sm => {
     const busy = pdSubmoduleOpInProgress.has(sm.id);
+    const isExcel = sm.type === 'excel';
+    const icon = isExcel ? 'ti-file-spreadsheet' : 'ti-file-type-pdf';
+    const subtitle = isExcel
+      ? `Excel · ${sm.rows.length} registro(s) · ${sm.headers.length} columna(s)`
+      : `PDF · ${sm.pdfContent ? (sm.pdfName || 'archivo cargado') : 'sin archivo todavía'}`;
     return `
     <div style="display:flex; align-items:stretch; gap:6px; ${busy ? 'opacity:0.55;' : ''}">
       <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('${sm.id}')" ${busy ? 'disabled' : ''}>
-        <i class="ti ti-table" style="font-size:18px; margin-right:6px;"></i>
+        <i class="ti ${icon}" style="font-size:18px; margin-right:6px;"></i>
         <span style="display:flex; flex-direction:column; align-items:flex-start;">
           <span style="font-weight:700;">${escHtml(sm.label)}</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">${sm.rows.length} registro(s) · ${sm.headers.length} columna(s)</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">${escHtml(subtitle)}</span>
         </span>
       </button>
       ${pdEditMode ? `
-        <button class="btn btn-ghost" title="Editar nombre" onclick="renamePdSubmodule('${sm.id}')" ${busy ? 'disabled' : ''}><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-ghost" title="Editar nombre/tipo" onclick="renamePdSubmodule('${sm.id}')" ${busy ? 'disabled' : ''}><i class="ti ti-pencil"></i></button>
         <button class="btn btn-danger-ghost" title="Eliminar apartado" onclick="deletePdSubmodule('${sm.id}')" ${busy ? 'disabled' : ''}>${busy ? '<i class="ti ti-loader"></i>' : '<i class="ti ti-trash"></i>'}</button>
       ` : ''}
     </div>`;
@@ -1428,29 +1449,89 @@ function renderPdSubmoduleList() {
 /* Todas las acciones de administrar apartados (crear/renombrar/eliminar)
    se guardan de inmediato con quickSaveGithub() - el mismo guardado de
    siempre, sin token propio - igual que ya se hace con las fichas técnicas. */
-async function addPdSubmodule() {
+/* ---- Modal de crear/editar apartado (nombre + tipo Excel/PDF) ---- */
+let pdSubmoduleModalMode = 'create'; // 'create' | 'edit'
+let pdSubmoduleModalEditId = null;
+let pdSubmoduleModalSelectedType = 'excel';
+
+function selectPdSubmoduleType(type) {
+  const excelOpt = document.getElementById('pd-submodule-type-excel-opt');
+  const pdfOpt = document.getElementById('pd-submodule-type-pdf-opt');
+  if (excelOpt.classList.contains('locked') || pdfOpt.classList.contains('locked')) return; // tipo bloqueado, ya tiene datos
+  pdSubmoduleModalSelectedType = type;
+  excelOpt.classList.toggle('selected', type === 'excel');
+  pdfOpt.classList.toggle('selected', type === 'pdf');
+  excelOpt.querySelector('input').checked = type === 'excel';
+  pdfOpt.querySelector('input').checked = type === 'pdf';
+}
+
+function addPdSubmodule() {
   if (!pdEditMode) return;
-  if (pdSubmoduleOpInProgress.has('new')) return;
-  const name = prompt('Nombre del nuevo apartado:');
-  if (!name || !name.trim()) return;
-  const finalName = name.trim();
+  pdSubmoduleModalMode = 'create';
+  pdSubmoduleModalEditId = null;
+  document.getElementById('pd-submodule-modal-title').textContent = 'Nuevo apartado';
+  document.getElementById('pd-submodule-save-btn').textContent = 'Crear apartado';
+  document.getElementById('pd-submodule-name').value = '';
+  document.getElementById('pd-submodule-type-locked-note').style.display = 'none';
+  document.getElementById('pd-submodule-type-excel-opt').classList.remove('locked');
+  document.getElementById('pd-submodule-type-pdf-opt').classList.remove('locked');
+  selectPdSubmoduleType('excel');
+  document.getElementById('modal-pd-submodule').classList.add('open');
+}
+
+function renamePdSubmodule(id) {
+  if (!pdEditMode) return;
+  if (pdSubmoduleOpInProgress.has(id)) return;
+  const sm = getPdSubmodule(id);
+  if (!sm) return;
+  const hasData = sm.type === 'excel' ? (sm.rows.length > 0 || sm.headers.length > 0) : !!sm.pdfContent;
+
+  pdSubmoduleModalMode = 'edit';
+  pdSubmoduleModalEditId = id;
+  document.getElementById('pd-submodule-modal-title').textContent = 'Editar apartado';
+  document.getElementById('pd-submodule-save-btn').textContent = 'Guardar cambios';
+  document.getElementById('pd-submodule-name').value = sm.label;
+  const excelOpt = document.getElementById('pd-submodule-type-excel-opt');
+  const pdfOpt = document.getElementById('pd-submodule-type-pdf-opt');
+  const lockedNote = document.getElementById('pd-submodule-type-locked-note');
+  excelOpt.classList.toggle('locked', hasData);
+  pdfOpt.classList.toggle('locked', hasData);
+  lockedNote.style.display = hasData ? 'block' : 'none';
+  selectPdSubmoduleType(sm.type);
+  document.getElementById('modal-pd-submodule').classList.add('open');
+}
+
+async function confirmPdSubmoduleModal() {
+  const name = document.getElementById('pd-submodule-name').value.trim();
+  if (!name) { alert('Escribe un nombre para el apartado.'); return; }
+  const type = pdSubmoduleModalSelectedType;
 
   ensureProcesosDiseno();
-  if (data.procesosDiseno.submodules.some(s => s.label.toLowerCase() === finalName.toLowerCase())) {
-    setPdStatus('Ya existe un apartado con ese nombre.', 'error');
-    return;
-  }
+  const dup = data.procesosDiseno.submodules.some(s => s.label.toLowerCase() === name.toLowerCase() && s.id !== pdSubmoduleModalEditId);
+  if (dup) { alert('Ya existe un apartado con ese nombre.'); return; }
 
+  if (pdSubmoduleModalMode === 'create') {
+    closeModal('modal-pd-submodule');
+    await createPdSubmodule(name, type);
+  } else {
+    closeModal('modal-pd-submodule');
+    await updatePdSubmodule(pdSubmoduleModalEditId, name, type);
+  }
+}
+
+async function createPdSubmodule(name, type) {
+  if (pdSubmoduleOpInProgress.has('new')) return;
   pdSubmoduleOpInProgress.add('new');
   renderPdSubmoduleList();
 
-  const newSm = { id: 'sm_' + uid(), label: finalName, headers: [], rows: [] };
+  const now = Date.now();
+  const newSm = { id: 'sm_' + uid(), label: name, type, headers: [], rows: [], pdfContent: null, pdfName: null, createdAt: now, updatedAt: now };
   data.procesosDiseno.submodules.push(newSm);
 
   try {
     const cfg = loadGithubConfig();
     if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
-    setPdStatus(`✅ Apartado "${finalName}" creado y guardado.`, 'ok');
+    setPdStatus(`✅ Apartado "${name}" (${type === 'pdf' ? 'PDF' : 'Excel'}) creado y guardado.`, 'ok');
   } catch (err) {
     console.error('No se pudo guardar el nuevo apartado:', err);
     setPdStatus('⚠️ El apartado se creó, pero no se pudo guardar en GitHub todavía. Vuelve a intentar guardar.', 'error');
@@ -1460,35 +1541,34 @@ async function addPdSubmodule() {
   }
 }
 
-async function renamePdSubmodule(id) {
-  if (!pdEditMode) return;
+async function updatePdSubmodule(id, name, type) {
   if (pdSubmoduleOpInProgress.has(id)) return;
   const sm = getPdSubmodule(id);
   if (!sm) return;
-  const name = prompt('Nuevo nombre del apartado:', sm.label);
-  if (!name || !name.trim() || name.trim() === sm.label) return;
-  const finalName = name.trim();
-  if (data.procesosDiseno.submodules.some(s => s.id !== id && s.label.toLowerCase() === finalName.toLowerCase())) {
-    setPdStatus('Ya existe un apartado con ese nombre.', 'error');
-    return;
-  }
-
+  const hasData = sm.type === 'excel' ? (sm.rows.length > 0 || sm.headers.length > 0) : !!sm.pdfContent;
   const oldName = sm.label;
+  const oldType = sm.type;
+  if (name === oldName && type === oldType) return; // nada que guardar
+
   pdSubmoduleOpInProgress.add(id);
   renderPdSubmoduleList();
-  sm.label = finalName;
+
+  sm.label = name;
+  if (!hasData) sm.type = type; // el tipo solo se puede cambiar si el apartado sigue vacío
+  sm.updatedAt = Date.now();
 
   try {
     const cfg = loadGithubConfig();
     if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
-    setPdStatus(`✅ Apartado renombrado a "${finalName}".`, 'ok');
+    setPdStatus(`✅ Apartado actualizado.`, 'ok');
   } catch (err) {
-    console.error('No se pudo guardar el nuevo nombre del apartado:', err);
-    sm.label = oldName; // se revierte: no se pudo confirmar el guardado
-    setPdStatus('❌ No se pudo guardar el nuevo nombre. Se conservó el nombre original.', 'error');
+    console.error('No se pudo guardar el cambio del apartado:', err);
+    sm.label = oldName; sm.type = oldType; // se revierte: no se pudo confirmar el guardado
+    setPdStatus('❌ No se pudo guardar el cambio. Se conservó el apartado original.', 'error');
   } finally {
     pdSubmoduleOpInProgress.delete(id);
     renderPdSubmoduleList();
+    if (pdCurrentSubmoduleId === id) renderPdView();
   }
 }
 
@@ -1497,16 +1577,35 @@ async function deletePdSubmodule(id) {
   if (pdSubmoduleOpInProgress.has(id)) return;
   const sm = getPdSubmodule(id);
   if (!sm) return;
-  if (!confirm(`¿ELIMINAR EL APARTADO "${sm.label.toUpperCase()}"? Se perderán sus ${sm.rows.length} registro(s).`)) return;
+  const contentDesc = sm.type === 'pdf' ? (sm.pdfContent ? 'su archivo PDF' : 'ningún archivo todavía') : `sus ${sm.rows.length} registro(s)`;
+  if (!confirm(`¿ELIMINAR EL APARTADO "${sm.label.toUpperCase()}"? Se perderá ${contentDesc}.`)) return;
 
   pdSubmoduleOpInProgress.add(id);
   renderPdSubmoduleList();
+
+  const cfg = loadGithubConfig();
+  // Si es un apartado tipo PDF con archivo ya guardado en el repositorio,
+  // se borra ese archivo primero (mismo helper que usan las fichas técnicas)
+  // para no dejarlo huérfano.
+  if (sm.type === 'pdf' && sm.pdfContent && !sm.pdfContent.startsWith('data:')) {
+    try {
+      if (!cfg || !cfg.repo || !cfg.token) throw new Error('No hay una conexión de GitHub configurada; no se puede borrar el archivo del repositorio desde aquí.');
+      const branch = cfg.branch || 'main';
+      const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
+      await deleteFileFromGithub(cfg.repo, sm.pdfContent, branch, headers, `Eliminar apartado "${sm.label}"`);
+    } catch (err) {
+      console.error('No se pudo borrar el PDF del apartado:', err);
+      alert('❌ No se pudo eliminar el apartado: ' + (err.message || err) + '\n\nSe conservó sin cambios.');
+      pdSubmoduleOpInProgress.delete(id);
+      renderPdSubmoduleList();
+      return;
+    }
+  }
 
   const idx = data.procesosDiseno.submodules.findIndex(s => s.id === id);
   const removed = data.procesosDiseno.submodules.splice(idx, 1)[0];
 
   try {
-    const cfg = loadGithubConfig();
     if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
     setPdStatus(`✅ Apartado "${removed.label}" eliminado.`, 'ok');
   } catch (err) {
@@ -1541,6 +1640,7 @@ function updatePdModeBadge() {
   const saveBtn = document.getElementById('pd-save-btn');
   const editListBtn = document.getElementById('pd-edit-list-btn');
   const addBtn = document.getElementById('pd-add-submodule-btn');
+  const editBtnPdf = document.getElementById('pd-edit-btn-pdf');
   if (!badge || !label) return;
   const icon = badge.querySelector('i');
   if (pdEditMode) {
@@ -1551,6 +1651,7 @@ function updatePdModeBadge() {
     if (saveBtn) saveBtn.style.display = 'inline-flex';
     if (editListBtn) editListBtn.style.display = 'none';
     if (addBtn) addBtn.style.display = 'inline-flex';
+    if (editBtnPdf) editBtnPdf.style.display = 'none';
   } else {
     badge.style.background = '#f1f5f6'; badge.style.color = 'var(--color-text-secondary)'; badge.style.borderColor = 'var(--color-border-secondary)';
     label.textContent = 'Solo lectura';
@@ -1559,6 +1660,7 @@ function updatePdModeBadge() {
     if (saveBtn) saveBtn.style.display = 'none';
     if (editListBtn) editListBtn.style.display = 'inline-flex';
     if (addBtn) addBtn.style.display = 'none';
+    if (editBtnPdf) editBtnPdf.style.display = 'inline-flex';
   }
 }
 
@@ -1690,6 +1792,142 @@ function renderPdTable() {
     const delCell = pdEditMode ? `<td><button class="btn-ghost btn" title="Eliminar fila" style="padding:4px;min-height:auto;" onclick="deletePdRow(${rIdx})"><i class="ti ti-trash" style="font-size:13px;color:var(--red)"></i></button></td>` : '';
     return '<tr>' + cells + delCell + '</tr>';
   }).join('');
+}
+
+/* ---- Apartados tipo PDF: gestión independiente (no se convierte a tabla).
+   Reutiliza EXACTAMENTE la misma infraestructura que fichas técnicas:
+   se guarda como data-URI en memoria hasta el siguiente guardado general
+   (que lo sube como archivo aparte), y se borra con el mismo helper de
+   GitHub ya usado en "Eliminar ficha". ---- */
+function renderPdPdfView() {
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  const viewerWrap = document.getElementById('pd-pdf-viewer-wrap');
+  const viewer = document.getElementById('pd-pdf-viewer');
+  const emptyState = document.getElementById('pd-pdf-empty-state');
+  const uploadBtn = document.getElementById('pd-pdf-upload-btn');
+  const downloadBtn = document.getElementById('pd-pdf-download-btn');
+  const replaceBtn = document.getElementById('pd-pdf-replace-btn');
+  const deleteBtn = document.getElementById('pd-pdf-delete-btn');
+  if (!sm) return;
+
+  const hasFile = !!sm.pdfContent;
+  if (viewerWrap) viewerWrap.style.display = hasFile ? 'block' : 'none';
+  if (emptyState) emptyState.style.display = hasFile ? 'none' : 'block';
+  if (viewer) viewer.src = hasFile ? sm.pdfContent : 'about:blank';
+
+  if (uploadBtn) uploadBtn.style.display = (!hasFile && pdEditMode) ? 'inline-flex' : 'none';
+  if (downloadBtn) downloadBtn.style.display = hasFile ? 'inline-flex' : 'none';
+  if (replaceBtn) replaceBtn.style.display = (hasFile && pdEditMode) ? 'inline-flex' : 'none';
+  if (deleteBtn) deleteBtn.style.display = (hasFile && pdEditMode) ? 'inline-flex' : 'none';
+}
+
+function triggerPdPdfUpload() {
+  if (!pdEditMode) return;
+  document.getElementById('pd-pdf-input').click();
+}
+
+function handlePdPdfUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!sm) { e.target.value = ''; return; }
+  const oldRemotePath = (typeof sm.pdfContent === 'string' && !sm.pdfContent.startsWith('data:')) ? sm.pdfContent : null;
+
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    setPdStatus('Subiendo PDF...', 'info');
+    // Si ya había un PDF guardado en el repositorio, se borra primero para
+    // no dejarlo huérfano (mismo helper que usa "Eliminar ficha técnica").
+    if (oldRemotePath) {
+      try {
+        const cfg = loadGithubConfig();
+        if (cfg && cfg.repo && cfg.token) {
+          const branch = cfg.branch || 'main';
+          const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
+          await deleteFileFromGithub(cfg.repo, oldRemotePath, branch, headers, `Sustituir PDF del apartado "${sm.label}"`);
+        }
+      } catch (err) {
+        console.error('No se pudo borrar el PDF anterior antes de sustituirlo:', err);
+        setPdStatus('❌ No se pudo sustituir el PDF: ' + (err.message || err), 'error');
+        e.target.value = '';
+        return;
+      }
+    }
+
+    sm.pdfName = file.name;
+    sm.pdfContent = ev.target.result;
+    sm.updatedAt = Date.now();
+    renderPdPdfView();
+    renderPdSubmoduleList();
+
+    try {
+      const cfg = loadGithubConfig();
+      if (cfg && cfg.repo && cfg.token) {
+        await quickSaveGithub();
+        setPdStatus('✅ PDF guardado correctamente.', 'ok');
+      } else {
+        setPdStatus('✅ PDF cargado. Configura GitHub y guarda para dejarlo permanente.', 'ok');
+      }
+    } catch (err) {
+      console.error('El PDF se cargó pero no se pudo guardar en GitHub:', err);
+      setPdStatus('⚠️ El PDF se cargó, pero no se pudo guardar en GitHub todavía.', 'error');
+    }
+    e.target.value = '';
+  };
+  reader.onerror = () => { setPdStatus('❌ No se pudo leer el archivo.', 'error'); e.target.value = ''; };
+  reader.readAsDataURL(file);
+}
+
+function downloadPdPdf() {
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!sm || !sm.pdfContent) return;
+  const a = document.createElement('a');
+  a.href = sm.pdfContent;
+  a.download = sm.pdfName || (sm.label + '.pdf');
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+async function deletePdPdf() {
+  if (!pdEditMode) return;
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!sm || !sm.pdfContent) return;
+  if (!confirm('¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTE PDF?')) return;
+
+  const isRemoteFile = !sm.pdfContent.startsWith('data:');
+
+  try {
+    if (isRemoteFile) {
+      const cfg = loadGithubConfig();
+      if (!cfg || !cfg.repo || !cfg.token) throw new Error('No hay una conexión de GitHub configurada; no se puede borrar el archivo del repositorio desde aquí.');
+      const branch = cfg.branch || 'main';
+      const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
+      await deleteFileFromGithub(cfg.repo, sm.pdfContent, branch, headers, `Eliminar PDF del apartado "${sm.label}"`);
+    }
+  } catch (err) {
+    console.error('No se pudo borrar el PDF:', err);
+    alert('❌ No se pudo eliminar el PDF: ' + (err.message || err) + '\n\nSe conservó sin cambios.');
+    return;
+  }
+
+  sm.pdfContent = null;
+  sm.pdfName = null;
+  sm.updatedAt = Date.now();
+  renderPdPdfView();
+  renderPdSubmoduleList();
+
+  try {
+    const cfg = loadGithubConfig();
+    if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
+    setPdStatus('✅ PDF eliminado.', 'ok');
+  } catch (err) {
+    // El archivo remoto ya se borró de verdad -> no se revive la referencia
+    // local (eso sería mostrar como disponible algo que ya no existe).
+    // Solo se avisa que falta re-sincronizar el listado guardado.
+    console.error('El PDF se borró pero no se pudo actualizar el guardado:', err);
+    alert('⚠️ El archivo se eliminó, pero no se pudo actualizar el guardado en GitHub. Usa "Guardar en GitHub" para terminar de sincronizarlo.');
+  }
 }
 
 function editPdCell(rowIdx, header, value) {
@@ -2612,6 +2850,25 @@ async function pushToGithub() {
               `Nueva ficha técnica (${f.name})`
             ),
             apply: () => { f.content = 'data/images/' + fileName; }
+          });
+        }
+      }
+    }
+    if (data.procesosDiseno && Array.isArray(data.procesosDiseno.submodules)) {
+      for (const sm of data.procesosDiseno.submodules) {
+        if (sm.type === 'pdf' && sm.pdfContent && sm.pdfContent.startsWith('data:')) {
+          let ext = 'pdf';
+          if (sm.pdfContent.includes('image/jpeg')) ext = 'jpg';
+          else if (sm.pdfContent.includes('image/png')) ext = 'png';
+          const fileName = `procesos_${sm.id}_${uid()}.${ext}`;
+          const b64 = sm.pdfContent.split(',', 2)[1];
+          uploadTasks.push({
+            label: `Apartado "${sm.label}" (PDF)`,
+            run: () => createNewFileOnGithub(
+              repo, imagesRepoPrefix + fileName, branch, headers, b64,
+              `Actualizar PDF del apartado "${sm.label}"`
+            ),
+            apply: () => { sm.pdfContent = 'data/images/' + fileName; }
           });
         }
       }

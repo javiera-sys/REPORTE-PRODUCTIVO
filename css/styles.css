@@ -283,6 +283,7 @@ textarea.form-input { resize: vertical; min-height: 80px; line-height: 1.5; }
 .radio-opt:hover { background: var(--color-background-secondary); }
 .radio-opt.selected { border-color: var(--accent); background: #ccfbf1; color: var(--accent); font-weight: 700; box-shadow:0 0 0 3px rgba(13,148,136,0.12) }
 .radio-opt input { display: none; }
+.radio-opt.locked { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 .select-group { display: flex; gap: 8px; }
 .select-opt { flex: 1; padding: 10px; border: 1px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; font-size: 13px; font-weight:600; text-align: center; transition: all 0.15s; user-select: none; }
 .select-opt:hover { background: var(--color-background-secondary); }

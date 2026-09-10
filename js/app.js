@@ -1418,9 +1418,7 @@ const pdSubmoduleOpInProgress = new Set();
 
 function renderPdSubmoduleList() {
   const cont = document.getElementById('pd-submodule-list');
-  const addBtn = document.getElementById('pd-add-submodule-btn');
   if (!cont) return;
-  if (addBtn) addBtn.style.display = pdEditMode ? 'inline-flex' : 'none';
 
   cont.innerHTML = data.procesosDiseno.submodules.map(sm => {
     const busy = pdSubmoduleOpInProgress.has(sm.id);
@@ -1465,8 +1463,22 @@ function selectPdSubmoduleType(type) {
   pdfOpt.querySelector('input').checked = type === 'pdf';
 }
 
+// Si el usuario toca "Agregar apartado" sin haber desbloqueado la edición
+// todavía, se le pide la contraseña primero y, si es correcta, se abre el
+// modal de creación automáticamente (en vez de esconder el botón y que
+// parezca que no hace nada).
+let pdPendingActionAfterAuth = null;
+
 function addPdSubmodule() {
-  if (!pdEditMode) return;
+  if (!pdEditMode) {
+    pdPendingActionAfterAuth = 'addSubmodule';
+    togglePdEdit();
+    return;
+  }
+  openPdSubmoduleCreateModal();
+}
+
+function openPdSubmoduleCreateModal() {
   pdSubmoduleModalMode = 'create';
   pdSubmoduleModalEditId = null;
   document.getElementById('pd-submodule-modal-title').textContent = 'Nuevo apartado';
@@ -1639,7 +1651,6 @@ function updatePdModeBadge() {
   const editBtn = document.getElementById('pd-edit-btn');
   const saveBtn = document.getElementById('pd-save-btn');
   const editListBtn = document.getElementById('pd-edit-list-btn');
-  const addBtn = document.getElementById('pd-add-submodule-btn');
   const editBtnPdf = document.getElementById('pd-edit-btn-pdf');
   if (!badge || !label) return;
   const icon = badge.querySelector('i');
@@ -1650,7 +1661,6 @@ function updatePdModeBadge() {
     if (editBtn) editBtn.style.display = 'none';
     if (saveBtn) saveBtn.style.display = 'inline-flex';
     if (editListBtn) editListBtn.style.display = 'none';
-    if (addBtn) addBtn.style.display = 'inline-flex';
     if (editBtnPdf) editBtnPdf.style.display = 'none';
   } else {
     badge.style.background = '#f1f5f6'; badge.style.color = 'var(--color-text-secondary)'; badge.style.borderColor = 'var(--color-border-secondary)';
@@ -1659,7 +1669,6 @@ function updatePdModeBadge() {
     if (editBtn) editBtn.style.display = 'inline-flex';
     if (saveBtn) saveBtn.style.display = 'none';
     if (editListBtn) editListBtn.style.display = 'inline-flex';
-    if (addBtn) addBtn.style.display = 'none';
     if (editBtnPdf) editBtnPdf.style.display = 'inline-flex';
   }
 }
@@ -1677,10 +1686,16 @@ function validatePdPassword() {
     pdEditMode = true;
     closeModal('modal-pd-auth');
     renderPdView();
-    setPdStatus(pdCurrentSubmoduleId
-      ? '🔓 Edición activada. Los cambios de la tabla no se guardan de forma permanente hasta que presiones "Guardar cambios del Excel".'
-      : '🔓 Edición activada. Ya puedes crear, renombrar o eliminar apartados, y editar cualquier tabla.', 'ok');
+    if (pdPendingActionAfterAuth === 'addSubmodule') {
+      pdPendingActionAfterAuth = null;
+      openPdSubmoduleCreateModal();
+    } else {
+      setPdStatus(pdCurrentSubmoduleId
+        ? '🔓 Edición activada. Los cambios de la tabla no se guardan de forma permanente hasta que presiones "Guardar cambios del Excel".'
+        : '🔓 Edición activada. Ya puedes crear, renombrar o eliminar apartados, y editar cualquier tabla.', 'ok');
+    }
   } else {
+    pdPendingActionAfterAuth = null;
     const modal = document.querySelector('#modal-pd-auth .modal');
     modal.classList.remove('auth-shake');
     void modal.offsetWidth;

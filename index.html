@@ -541,7 +541,7 @@
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
           <p style="font-size:12.5px; color:var(--color-text-secondary); margin:0; flex:1;">Elige un apartado:</p>
           <button class="btn btn-amber" id="pd-edit-list-btn" onclick="togglePdEdit()"><i class="ti ti-lock"></i> Editar apartados</button>
-          <button class="btn btn-green" id="pd-add-submodule-btn" onclick="addPdSubmodule()" style="display:none;"><i class="ti ti-plus"></i> Agregar apartado</button>
+          <button class="btn btn-green" id="pd-add-submodule-btn" onclick="addPdSubmodule()"><i class="ti ti-plus"></i> Agregar apartado</button>
         </div>
         <div id="pd-submodule-list" style="display:flex; flex-direction:column; gap:8px;"></div>
       </div>
@@ -615,7 +615,7 @@
   <div class="modal">
     <div class="modal-header">
       <h2>Permiso de Edición</h2>
-      <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-pd-auth')"><i class="ti ti-x"></i></button>
+      <button class="btn-ghost btn" title="Cerrar" onclick="pdPendingActionAfterAuth=null; closeModal('modal-pd-auth')"><i class="ti ti-x"></i></button>
     </div>
     <div class="auth-icon-wrap"><i class="ti ti-shield-lock"></i></div>
     <div class="auth-title">Editar Procesos de Diseño</div>
@@ -624,7 +624,7 @@
       <input class="form-input" type="password" id="pd-auth-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')validatePdPassword()">
     </div>
     <div class="form-footer" style="justify-content: center; padding-top: 1rem; border-top: none; margin-top: 0.5rem;">
-      <button class="btn" onclick="closeModal('modal-pd-auth')">Cancelar</button>
+      <button class="btn" onclick="pdPendingActionAfterAuth=null; closeModal('modal-pd-auth')">Cancelar</button>
       <button class="btn btn-navy" onclick="validatePdPassword()">Desbloquear</button>
     </div>
   </div>

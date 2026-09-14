@@ -258,6 +258,25 @@
   .pg-title { display: flex; align-items: center; gap: 8px; font-size: 13px; }
   .pg-counter { background: #b91c1c; color: white; border-radius: 8px; padding: 2px 8px; font-size: 11px; }
   .pg-panel { background: var(--color-background-primary); border: 1px solid var(--color-border-secondary); border-radius: 12px; padding: 14px; margin-top: 8px; max-height: 350px; overflow-y: auto; box-shadow: var(--shadow-md); }
+
+  /* MARCADOR (estado actual de todos los registros, independiente del
+     Reporte Semanal Histórico - mismas clases .week-stat-* visuales) */
+  .marcador-wrapper { margin-top: 12px; border-top: 1px solid var(--color-border-tertiary); padding-top: 12px; }
+  .marcador-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--color-text-primary); margin-bottom: 10px; }
+  .marcador-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .marcador-grid .week-stat-card { cursor: default; min-width: 0; }
+  .marcador-grid .week-stat-card:hover { transform: none; box-shadow: none; }
+  .marcador-grid .week-stat-count { font-size: 22px; }
+  .marcador-grid .week-stat-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 480px) {
+    /* Android/celulares angostos: 3 columnas fijas se apretaban demasiado
+       -> se pasa a 2 columnas (la tercera baja) para que nada se corte
+       ni se encime, y el texto de cada etiqueta siempre quepa. */
+    .marcador-grid { grid-template-columns: repeat(2, 1fr); }
+    .marcador-grid .week-stat-card { padding: 10px; }
+    .marcador-grid .week-stat-count { font-size: 20px; }
+    .marcador-grid .week-stat-label { font-size: 11px; white-space: normal; }
+  }
   .pg-item { border: 1px solid var(--color-border-tertiary); border-left: 4px solid #e24b4a; border-radius: 8px; padding: 12px; margin-bottom: 8px; background: var(--color-background-primary); transition: all 0.2s; }
   .pg-item:hover { box-shadow: var(--shadow-sm); }
   .pg-item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; gap: 10px; }
@@ -355,7 +374,28 @@
         <div id="pg-list"><div class="empty-section">No hay pendientes generales activos.</div></div>
       </div>
     </div>
-    
+
+    <!-- MARCADOR: estado actual de TODOS los registros (sin filtro de fecha,
+         independiente del Reporte Semanal Histórico). Mismo estilo visual
+         que las tarjetas del reporte semanal (.week-stat-card). -->
+    <div class="marcador-wrapper">
+      <div class="marcador-title"><i class="ti ti-chart-donut-2"></i> Marcador</div>
+      <div class="marcador-grid">
+        <div class="week-stat-card week-stat-pending">
+          <div class="week-stat-count" id="marcador-count-pendiente">0</div>
+          <div class="week-stat-label"><i class="ti ti-hourglass"></i> Pendientes</div>
+        </div>
+        <div class="week-stat-card week-stat-done">
+          <div class="week-stat-count" id="marcador-count-terminado">0</div>
+          <div class="week-stat-label"><i class="ti ti-circle-check"></i> Terminados</div>
+        </div>
+        <div class="week-stat-card week-stat-cancelled">
+          <div class="week-stat-count" id="marcador-count-cancelado">0</div>
+          <div class="week-stat-label"><i class="ti ti-ban"></i> Cancelados</div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <div id="naves-container"></div>

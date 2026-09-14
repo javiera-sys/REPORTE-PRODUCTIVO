@@ -456,7 +456,33 @@ function render(){
   
   renderPG(); 
   renderFichas(); 
+  renderMarcador();
   filterItems(); 
+}
+
+/* MARCADOR: estado actual de TODOS los registros almacenados, sin filtro
+   de fecha ni semana (independiente del Reporte Semanal Histórico, que
+   vive aparte en app.js y no se toca aquí). Se llama desde el mismo
+   render() central que ya se ejecuta tras crear/editar/eliminar/cambiar
+   el estado de cualquier cambio, así que siempre queda al día solo. */
+function renderMarcador() {
+  const pendienteEl = document.getElementById('marcador-count-pendiente');
+  const terminadoEl = document.getElementById('marcador-count-terminado');
+  const canceladoEl = document.getElementById('marcador-count-cancelado');
+  if (!pendienteEl || !terminadoEl || !canceladoEl) return;
+
+  let pendientes = 0, terminados = 0, cancelados = 0;
+  (data.naves || []).forEach(nave => {
+    (nave.items || []).forEach(item => {
+      if (item.cancelado) cancelados++;
+      else if (item.proceso && item.proceso.planoTerminado) terminados++;
+      else pendientes++;
+    });
+  });
+
+  pendienteEl.textContent = pendientes;
+  terminadoEl.textContent = terminados;
+  canceladoEl.textContent = cancelados;
 }
 
 function dotClass(t){return t==='error'?'dot-error':t==='ajuste'?'dot-ajuste':'dot-mejora'}

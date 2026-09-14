@@ -4179,8 +4179,226 @@ window.addEventListener('resize', () => {
 });
 let dashFilters = { tipo: null, clasificacion: null, impacto: null };
 
+/* ============================================================
+   REPORTE SEMANAL HISTÓRICO (Dashboard)
+   No se duplica ni modifica ningún registro original: todo se calcula
+   "al vuelo" cada vez que se genera un reporte, leyendo directamente
+   item.fecha de los cambios ya existentes en `data.naves[].items[]`.
+   Semanas ISO-8601 (lunes a domingo), año dividido automáticamente en
+   52 o 53 semanas según corresponda.
+   ============================================================ */
+function parseItemFecha(str) {
+  if (!str) return null;
+  // item.fecha viene de <input type="date"> como "YYYY-MM-DD"; se agrega
+  // la hora para que se interprete en horario local (evita que se corra
+  // un día por el desfase UTC).
+  const d = new Date(str + 'T00:00:00');
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function getISOWeeksInYear(isoYear) {
+  const p = (y) => {
+    const d = new Date(Date.UTC(y, 0, 1));
+    const dow = d.getUTCDay() || 7;
+    const isLeap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    return dow === 4 || (dow === 3 && isLeap);
+  };
+  return p(isoYear) ? 53 : 52;
+}
+
+function getISOWeekDateRange(isoYear, week) {
+  // Lunes de la semana ISO `week` del año `isoYear`.
+  const simple = new Date(Date.UTC(isoYear, 0, 1 + (week - 1) * 7));
+  const dow = simple.getUTCDay();
+  const diff = (dow <= 4 ? dow - 1 : dow - 8);
+  const start = new Date(simple);
+  start.setUTCDate(simple.getUTCDate() - diff);
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 6);
+  end.setUTCHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function fmtFechaCorta(d) {
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
+}
+function fmtFechaLarga(d) {
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+}
+
+function populateWeekYearSelector() {
+  const sel = document.getElementById('week-report-year');
+  if (!sel) return;
+  const years = new Set([new Date().getFullYear()]);
+  (data.naves || []).forEach(n => (n.items || []).forEach(it => {
+    const d = parseItemFecha(it.fecha);
+    if (d) years.add(d.getFullYear());
+  }));
+  const sorted = Array.from(years).sort((a, b) => b - a);
+  sel.innerHTML = sorted.map(y => `<option value="${y}">${y}</option>`).join('');
+  populateWeekSelector();
+}
+
+function populateWeekSelector() {
+  const yearSel = document.getElementById('week-report-year');
+  const weekSel = document.getElementById('week-report-week');
+  if (!yearSel || !weekSel) return;
+  const isoYear = parseInt(yearSel.value, 10) || new Date().getFullYear();
+  const totalWeeks = getISOWeeksInYear(isoYear);
+  const today = new Date();
+  const { week: currentWeek } = getISOWeekInfoSafe(today);
+
+  let opts = '';
+  for (let w = 1; w <= totalWeeks; w++) {
+    const { start, end } = getISOWeekDateRange(isoYear, w);
+    opts += `<option value="${w}">Semana ${w} (${fmtFechaCorta(start)} - ${fmtFechaCorta(end)})</option>`;
+  }
+  weekSel.innerHTML = opts;
+  if (isoYear === today.getFullYear() && currentWeek >= 1 && currentWeek <= totalWeeks) {
+    weekSel.value = String(currentWeek);
+  }
+
+  document.getElementById('week-report-results').style.display = 'none';
+  document.getElementById('week-report-empty').style.display = 'none';
+  document.getElementById('week-report-pdf-btn').style.display = 'none';
+}
+
+function getISOWeekInfoSafe(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - dayNum + 3);
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
+  const week = 1 + Math.round((d - firstThursday) / (7 * 24 * 3600 * 1000));
+  return { week, isoYear: d.getUTCFullYear() };
+}
+
+let weekReportData = null; // { start, end, terminado:[], pendiente:[], cancelado:[] }
+let weekReportOpenCategory = null;
+
+function generateWeeklyReport() {
+  const isoYear = parseInt(document.getElementById('week-report-year').value, 10);
+  const week = parseInt(document.getElementById('week-report-week').value, 10);
+  const { start, end } = getISOWeekDateRange(isoYear, week);
+
+  const buckets = { terminado: [], pendiente: [], cancelado: [] };
+
+  (data.naves || []).forEach(nave => {
+    (nave.items || []).forEach(item => {
+      const d = parseItemFecha(item.fecha);
+      if (!d) return;
+      if (d < start || d > end) return;
+
+      const entry = { title: item.title, nave: nave.nave || nave.consola || '', fecha: item.fecha, tipo: item.type };
+      if (item.cancelado) buckets.cancelado.push(entry);
+      else if (item.proceso && item.proceso.planoTerminado) buckets.terminado.push(entry);
+      else buckets.pendiente.push(entry);
+    });
+  });
+
+  weekReportData = { isoYear, week, start, end, ...buckets };
+  weekReportOpenCategory = null;
+
+  document.getElementById('week-count-terminado').textContent = buckets.terminado.length;
+  document.getElementById('week-count-pendiente').textContent = buckets.pendiente.length;
+  document.getElementById('week-count-cancelado').textContent = buckets.cancelado.length;
+  document.getElementById('week-report-range').textContent = `Semana ${week} · ${fmtFechaLarga(start)} — ${fmtFechaLarga(end)}`;
+  document.getElementById('week-report-detail').style.display = 'none';
+  document.querySelectorAll('.week-stat-card').forEach(c => c.classList.remove('active'));
+
+  const total = buckets.terminado.length + buckets.pendiente.length + buckets.cancelado.length;
+  document.getElementById('week-report-results').style.display = total ? 'block' : 'none';
+  document.getElementById('week-report-empty').style.display = total ? 'none' : 'block';
+  document.getElementById('week-report-pdf-btn').style.display = total ? 'inline-flex' : 'none';
+}
+
+const WEEK_CAT_LABELS = { terminado: 'Cambios finalizados', pendiente: 'Cambios pendientes', cancelado: 'Cambios cancelados' };
+
+function toggleWeekReportDetail(cat) {
+  if (!weekReportData) return;
+  const detailWrap = document.getElementById('week-report-detail');
+  const list = document.getElementById('week-report-detail-list');
+  const title = document.getElementById('week-report-detail-title');
+
+  if (weekReportOpenCategory === cat) {
+    weekReportOpenCategory = null;
+    detailWrap.style.display = 'none';
+    document.querySelectorAll('.week-stat-card').forEach(c => c.classList.remove('active'));
+    return;
+  }
+  weekReportOpenCategory = cat;
+  document.querySelectorAll('.week-stat-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('week-card-' + cat).classList.add('active');
+
+  const items = weekReportData[cat] || [];
+  title.textContent = `${WEEK_CAT_LABELS[cat]} (${items.length})`;
+  list.innerHTML = items.length
+    ? items.map(it => `<div class="week-report-detail-item"><b>${escHtml(it.title)}</b><span>${escHtml(it.nave)} · ${it.fecha ? fmtFechaLarga(parseItemFecha(it.fecha)) : ''}</span></div>`).join('')
+    : '<div class="week-report-detail-item">Sin registros en esta categoría.</div>';
+  detailWrap.style.display = 'block';
+}
+
+async function generateWeeklyReportPDF() {
+  if (!weekReportData) return;
+  const btn = document.getElementById('week-report-pdf-btn');
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader"></i> Generando...';
+
+  try {
+    const { start, end, week, terminado, pendiente, cancelado } = weekReportData;
+    const section = (label, colorBg, colorText, items) => `
+      <div style="margin-bottom:22px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; background:${colorBg}; color:${colorText}; padding:10px 14px; border-radius:10px; font-weight:800; font-size:14px;">
+          <span>${label}</span><span>${items.length}</span>
+        </div>
+        <table style="width:100%; border-collapse:collapse; margin-top:8px; font-size:12px;">
+          <thead><tr style="background:#f1f5f9;"><th style="text-align:left;padding:6px 8px;">Título</th><th style="text-align:left;padding:6px 8px;">Mueble</th><th style="text-align:left;padding:6px 8px;">Fecha</th></tr></thead>
+          <tbody>
+            ${items.length ? items.map(it => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escHtml(it.title)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escHtml(it.nave)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${it.fecha ? fmtFechaLarga(parseItemFecha(it.fecha)) : ''}</td></tr>`).join('') : '<tr><td colspan="3" style="padding:8px;color:#64748b;">Sin registros.</td></tr>'}
+          </tbody>
+        </table>
+      </div>`;
+
+    const container = document.createElement('div');
+    container.style.cssText = 'padding:40px; font-family:Inter,sans-serif; color:#1e293b; background:#fff; width:800px;';
+    container.innerHTML = `
+      <h1 style="font-size:22px; margin-bottom:4px;">Reporte Semanal Histórico</h1>
+      <p style="color:#64748b; margin-bottom:20px;">Semana ${week} · ${fmtFechaLarga(start)} — ${fmtFechaLarga(end)} · Generado el ${new Date().toLocaleString('es-MX')}</p>
+      ${section('✅ Cambios finalizados', '#dcfce7', '#15803d', terminado)}
+      ${section('⏳ Cambios pendientes', '#fef3c7', '#b45309', pendiente)}
+      ${section('🚫 Cambios cancelados', '#fee2e2', '#b91c1c', cancelado)}
+    `;
+    document.body.appendChild(container);
+
+    const opt = {
+      margin: [10, 10, 10, 10],
+      filename: `reporte_semanal_${weekReportData.isoYear}_S${week}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    const blob = await html2pdf().set(opt).from(container).output('blob');
+    document.body.removeChild(container);
+
+    // Vista previa primero (visor nativo del navegador), y desde ahí el
+    // usuario puede descargarlo con el botón del propio visor.
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  } catch (err) {
+    console.error('Error al generar el PDF del reporte semanal:', err);
+    alert('❌ No se pudo generar el PDF: ' + (err.message || err));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+}
+
 function openDashboard() {
   document.getElementById('modal-dashboard').classList.add('open');
+  populateWeekYearSelector();
   setTimeout(renderDashboard, 200);
 }
 

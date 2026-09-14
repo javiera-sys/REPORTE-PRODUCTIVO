@@ -151,6 +151,19 @@
   .dashboard-modal { width: 95%; max-width: 1200px; height: 90vh; display: flex; flex-direction: column; background: #f8fafc;}
   .dash-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; border-bottom: 1px solid var(--color-border-secondary); margin-bottom: 15px; }
   .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; flex: 1; overflow-y: auto; padding-right: 5px; }
+
+  /* Reporte Semanal Histórico (Dashboard) */
+  .week-stat-card { border-radius: 12px; padding: 14px; cursor: pointer; border: 1px solid transparent; transition: transform 0.15s, box-shadow 0.15s; user-select: none; }
+  .week-stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .week-stat-card.active { border-color: currentColor; }
+  .week-stat-count { font-size: 26px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+  .week-stat-label { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 5px; }
+  .week-stat-done { background: #dcfce7; color: #15803d; }
+  .week-stat-pending { background: #fef3c7; color: #b45309; }
+  .week-stat-cancelled { background: #fee2e2; color: #b91c1c; }
+  .week-report-detail-item { padding: 8px 10px; border-radius: 8px; background: var(--color-background-secondary); font-size: 12px; }
+  .week-report-detail-item b { display:block; font-size:12.5px; margin-bottom:2px; }
+  .week-report-detail-item span { color: var(--color-text-secondary); font-size: 11px; }
   .chart-container { background: #fff; border: 1px solid var(--color-border-tertiary); border-radius: 12px; padding: 15px; box-shadow: var(--shadow-sm); display:flex; flex-direction:column; min-height: 320px; }
   .chart-box { flex: 1; width: 100%; min-height: 250px; }
   .dash-list { flex: 1; overflow-y: auto; margin-top: 10px; display: grid; grid-template-columns: 1fr; gap: 8px; align-content: start;}
@@ -477,6 +490,49 @@
       </div>
     </div>
     <div class="dash-grid">
+      <div class="chart-container" style="grid-column: 1 / -1; height: auto;">
+        <h3 style="margin-top:0; font-size:14px; color:var(--color-text-secondary); display:flex; align-items:center; gap:8px;">
+          <i class="ti ti-calendar-stats"></i> Reporte Semanal Histórico
+        </h3>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px;">
+          <div>
+            <label class="form-label" style="margin-bottom:4px;">Año</label>
+            <select id="week-report-year" class="form-input" style="min-width:110px;" onchange="populateWeekSelector()"></select>
+          </div>
+          <div>
+            <label class="form-label" style="margin-bottom:4px;">Semana</label>
+            <select id="week-report-week" class="form-input" style="min-width:240px;"></select>
+          </div>
+          <button class="btn btn-navy" onclick="generateWeeklyReport()"><i class="ti ti-report-analytics"></i> Generar reporte semanal</button>
+          <button class="btn btn-green" id="week-report-pdf-btn" onclick="generateWeeklyReportPDF()" style="display:none;"><i class="ti ti-file-type-pdf"></i> Generar PDF</button>
+        </div>
+
+        <div id="week-report-results" style="display:none;">
+          <p id="week-report-range" style="font-size:12px; color:var(--color-text-secondary); margin-bottom:10px;"></p>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-bottom:12px;">
+            <div class="week-stat-card week-stat-done" id="week-card-terminado" onclick="toggleWeekReportDetail('terminado')">
+              <div class="week-stat-count" id="week-count-terminado">0</div>
+              <div class="week-stat-label"><i class="ti ti-circle-check"></i> Finalizados</div>
+            </div>
+            <div class="week-stat-card week-stat-pending" id="week-card-pendiente" onclick="toggleWeekReportDetail('pendiente')">
+              <div class="week-stat-count" id="week-count-pendiente">0</div>
+              <div class="week-stat-label"><i class="ti ti-hourglass"></i> Pendientes</div>
+            </div>
+            <div class="week-stat-card week-stat-cancelled" id="week-card-cancelado" onclick="toggleWeekReportDetail('cancelado')">
+              <div class="week-stat-count" id="week-count-cancelado">0</div>
+              <div class="week-stat-label"><i class="ti ti-ban"></i> Cancelados</div>
+            </div>
+          </div>
+          <div id="week-report-detail" style="display:none;">
+            <p id="week-report-detail-title" style="font-size:12.5px; font-weight:700; margin-bottom:6px;"></p>
+            <div id="week-report-detail-list" style="display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto;"></div>
+          </div>
+        </div>
+        <div id="week-report-empty" style="display:none; text-align:center; padding:1.5rem; color:var(--color-text-secondary); font-size:13px;">
+          No se encontraron cambios registrados en esta semana.
+        </div>
+      </div>
+
       <div class="chart-container">
         <h3 style="margin-top:0; font-size:14px; color:var(--color-text-secondary);">1. Tipo de Reporte</h3>
         <div id="chart-tipo" class="chart-box"></div>

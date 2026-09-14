@@ -4196,6 +4196,22 @@ function parseItemFecha(str) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/* Fecha efectiva de un cambio para el reporte semanal: se usa la fecha
+   manual (item.fecha) si existe, y si no, la fecha real de creación/
+   registro del cambio (item.createdAt) - que prácticamente todos los
+   cambios sí tienen, aunque nunca se les haya puesto una "Fecha" manual
+   a mano. Así se capturan los datos históricos existentes en vez de
+   quedar vacíos solo porque ese campo opcional no se llenó. */
+function getItemEffectiveDate(item) {
+  const fromFecha = parseItemFecha(item.fecha);
+  if (fromFecha) return fromFecha;
+  if (item.createdAt) {
+    const d = new Date(item.createdAt);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
 function getISOWeeksInYear(isoYear) {
   const p = (y) => {
     const d = new Date(Date.UTC(y, 0, 1));
@@ -4231,7 +4247,7 @@ function populateWeekYearSelector() {
   if (!sel) return;
   const years = new Set([new Date().getFullYear()]);
   (data.naves || []).forEach(n => (n.items || []).forEach(it => {
-    const d = parseItemFecha(it.fecha);
+    const d = getItemEffectiveDate(it);
     if (d) years.add(d.getFullYear());
   }));
   const sorted = Array.from(years).sort((a, b) => b - a);
@@ -4286,11 +4302,11 @@ function generateWeeklyReport() {
 
   (data.naves || []).forEach(nave => {
     (nave.items || []).forEach(item => {
-      const d = parseItemFecha(item.fecha);
+      const d = getItemEffectiveDate(item);
       if (!d) return;
       if (d < start || d > end) return;
 
-      const entry = { title: item.title, nave: nave.nave || nave.consola || '', fecha: item.fecha, tipo: item.type };
+      const entry = { title: item.title, nave: nave.nave || nave.consola || '', fechaDate: d, tipo: item.type };
       if (item.cancelado) buckets.cancelado.push(entry);
       else if (item.proceso && item.proceso.planoTerminado) buckets.terminado.push(entry);
       else buckets.pendiente.push(entry);
@@ -4334,7 +4350,7 @@ function toggleWeekReportDetail(cat) {
   const items = weekReportData[cat] || [];
   title.textContent = `${WEEK_CAT_LABELS[cat]} (${items.length})`;
   list.innerHTML = items.length
-    ? items.map(it => `<div class="week-report-detail-item"><b>${escHtml(it.title)}</b><span>${escHtml(it.nave)} · ${it.fecha ? fmtFechaLarga(parseItemFecha(it.fecha)) : ''}</span></div>`).join('')
+    ? items.map(it => `<div class="week-report-detail-item"><b>${escHtml(it.title)}</b><span>${escHtml(it.nave)} · ${it.fechaDate ? fmtFechaLarga(it.fechaDate) : ''}</span></div>`).join('')
     : '<div class="week-report-detail-item">Sin registros en esta categoría.</div>';
   detailWrap.style.display = 'block';
 }
@@ -4356,7 +4372,7 @@ async function generateWeeklyReportPDF() {
         <table style="width:100%; border-collapse:collapse; margin-top:8px; font-size:12px;">
           <thead><tr style="background:#f1f5f9;"><th style="text-align:left;padding:6px 8px;">Título</th><th style="text-align:left;padding:6px 8px;">Mueble</th><th style="text-align:left;padding:6px 8px;">Fecha</th></tr></thead>
           <tbody>
-            ${items.length ? items.map(it => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escHtml(it.title)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escHtml(it.nave)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${it.fecha ? fmtFechaLarga(parseItemFecha(it.fecha)) : ''}</td></tr>`).join('') : '<tr><td colspan="3" style="padding:8px;color:#64748b;">Sin registros.</td></tr>'}
+            ${items.length ? items.map(it => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escHtml(it.title)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escHtml(it.nave)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${it.fechaDate ? fmtFechaLarga(it.fechaDate) : ''}</td></tr>`).join('') : '<tr><td colspan="3" style="padding:8px;color:#64748b;">Sin registros.</td></tr>'}
           </tbody>
         </table>
       </div>`;

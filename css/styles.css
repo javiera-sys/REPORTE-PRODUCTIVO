@@ -186,7 +186,6 @@ body.is-locked .plano-terminado-badge{cursor:not-allowed;pointer-events:none;opa
 
 .nave-body{display:grid;grid-template-columns:230px 1fr}
 .nave-left{padding:16px;border-right:1px solid var(--color-border-tertiary);display:flex;flex-direction:column;gap:14px;background:linear-gradient(180deg,#fafdfd,#ffffff)}
-.nave-right{padding:18px}
 
 /* Left panel */
 .panel-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:var(--color-text-secondary);margin-bottom:7px}
@@ -353,49 +352,10 @@ textarea.form-input { resize: vertical; min-height: 80px; line-height: 1.5; }
   margin-left: 8px;
   vertical-align: middle;
 }
-.espacio-imagen {
-  position: relative;
-  width: 40px;
-  height: 32px;
-  background-color: #e6f6f4;
-  border: 1px dashed #5eead4;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.espacio-imagen:hover {
-  background-color: #ccfbf1;
-}
-.input-oculto {
-  display: none;
-}
-.label-adjuntar {
-  cursor: pointer;
-  color: #0d9488;
-  font-size: 1.2rem;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-.espacio-imagen img {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 6px;
-  display: none;
-}
-.espacio-imagen img.visible {
-  display: block;
-}
+/* NOTA: .espacio-imagen, .input-oculto, .label-adjuntar y sus variantes
+   están definidas en el <style> de index.html, que carga DESPUÉS de este
+   archivo y por tanto siempre ganaba. La copia de aquí nunca llegaba a
+   aplicarse, así que se eliminó (sin efecto visual alguno). */
 
 /* NUEVO: Botón X para eliminar imagen del recuadro */
 .btn-eliminar-adjunto {
@@ -416,9 +376,6 @@ textarea.form-input { resize: vertical; min-height: 80px; line-height: 1.5; }
   z-index: 10;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
   transition: transform 0.2s;
-}
-.btn-eliminar-adjunto:hover {
-  transform: scale(1.1);
 }
 
 @media(max-width:580px){

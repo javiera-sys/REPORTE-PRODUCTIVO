@@ -1364,6 +1364,8 @@ function ensureProcesosDiseno() {
     if (!Array.isArray(sm.rows)) sm.rows = [];
     if (sm.pdfContent === undefined) sm.pdfContent = null;
     if (sm.pdfName === undefined) sm.pdfName = null;
+    if (sm.excelOriginal === undefined) sm.excelOriginal = null;
+    if (sm.excelOriginalName === undefined) sm.excelOriginalName = null;
     if (!sm.createdAt) sm.createdAt = Date.now();
     if (!sm.updatedAt) sm.updatedAt = sm.createdAt;
   });
@@ -1419,6 +1421,8 @@ function renderPdView() {
   if (!pdCurrentSubmoduleId) {
     listView.style.display = 'block';
     tableView.style.display = 'none';
+    const modalBox = document.querySelector('#modal-procesos-diseno .modal');
+    if (modalBox) modalBox.classList.remove('pd-modal-wide');
     renderPdSubmoduleList();
   } else {
     listView.style.display = 'none';
@@ -1429,6 +1433,11 @@ function renderPdView() {
     const isPdf = sm && sm.type === 'pdf';
     if (excelView) excelView.style.display = isPdf ? 'none' : 'block';
     if (pdfView) pdfView.style.display = isPdf ? 'block' : 'none';
+
+    // El visor de PDF usa casi toda la pantalla; la vista de tabla mantiene
+    // el ancho normal del modal (no se toca ningún otro visor de la app).
+    const modalBox = document.querySelector('#modal-procesos-diseno .modal');
+    if (modalBox) modalBox.classList.toggle('pd-modal-wide', !!isPdf);
 
     if (isPdf) {
       renderPdPdfView();
@@ -1747,6 +1756,9 @@ function handlePdImport(e) {
   const wrap = document.getElementById('pd-table-wrap');
   if (wrap) wrap.classList.add('pd-loading');
   setPdStatus('Leyendo archivo...', 'info');
+  // Si ya había un Excel original guardado en el repositorio, se borra al
+  // sustituirlo para no dejarlo huérfano (mismo helper que usan las fichas).
+  const oldExcelPath = (typeof sm.excelOriginal === 'string' && !sm.excelOriginal.startsWith('data:')) ? sm.excelOriginal : null;
   const reader = new FileReader();
   reader.onload = (ev) => {
     try {
@@ -1772,6 +1784,41 @@ function handlePdImport(e) {
 
       sm.headers = headers;
       sm.rows = dataRows;
+      // Se conserva el archivo ORIGINAL tal cual (bytes intactos) para que
+      // "Descargar Excel original" entregue exactamente el mismo libro que
+      // se subió: colores, anchos, bordes, celdas combinadas, fórmulas,
+      // imágenes, hojas y nombres. La tabla editable de abajo es solo una
+      // lectura de los datos, no reemplaza al archivo.
+      const bytes = new Uint8Array(ev.target.result);
+      let binary = '';
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+      }
+      const mime = file.name.toLowerCase().endsWith('.xls')
+        ? 'application/vnd.ms-excel'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      sm.excelOriginal = `data:${mime};base64,${btoa(binary)}`;
+      sm.excelOriginalName = file.name;
+      sm.updatedAt = Date.now();
+
+      if (oldExcelPath) {
+        // No bloquea la importación: si falla el borrado del viejo, se avisa
+        // en consola y el archivo nuevo igual queda cargado.
+        (async () => {
+          try {
+            const cfg = loadGithubConfig();
+            if (cfg && cfg.repo && cfg.token) {
+              const branch = cfg.branch || 'main';
+              const hdrs = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
+              await deleteFileFromGithub(cfg.repo, oldExcelPath, branch, hdrs, `Sustituir Excel del apartado "${sm.label}"`);
+            }
+          } catch (delErr) {
+            console.warn('No se pudo borrar el Excel original anterior:', delErr);
+          }
+        })();
+      }
+
       renderPdTable();
       setPdStatus(`✅ Se importaron ${dataRows.length} registro(s) con ${headers.length} columna(s) en "${sm.label}". Para dejarlo guardado de forma permanente, activa "Editar datos" y luego "Guardar cambios del Excel".`, 'ok');
     } catch (err) {
@@ -2067,7 +2114,32 @@ async function savePdChanges() {
   }
 }
 
+/* DESCARGA: entrega el archivo ORIGINAL subido, byte por byte, para que
+   conserve colores, anchos, bordes, fuentes, celdas combinadas, formatos
+   numéricos, fórmulas, imágenes y todas las hojas del libro. Solo si el
+   apartado nunca tuvo un archivo original (tabla creada a mano, o datos
+   de antes de esta mejora) se reconstruye desde la tabla como respaldo. */
 function exportPdExcel() {
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!sm) return;
+
+  if (sm.excelOriginal) {
+    const a = document.createElement('a');
+    a.href = sm.excelOriginal;
+    a.download = sm.excelOriginalName || `${sm.label}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
+  }
+
+  exportPdExcelRebuilt();
+}
+
+/* Exporta la tabla tal como está AHORA (con las filas/columnas/celdas que
+   se hayan editado aquí). Se reconstruye el archivo, así que no conserva
+   el formato del original - por eso vive en un botón aparte. */
+function exportPdExcelRebuilt() {
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
   if (!sm) return;
   if (typeof XLSX === 'undefined') {
@@ -2910,6 +2982,19 @@ async function pushToGithub() {
               `Actualizar PDF del apartado "${sm.label}"`
             ),
             apply: () => { sm.pdfContent = 'data/images/' + fileName; }
+          });
+        }
+        if (sm.excelOriginal && sm.excelOriginal.startsWith('data:')) {
+          const ext = sm.excelOriginal.includes('vnd.ms-excel') ? 'xls' : 'xlsx';
+          const fileName = `procesos_${sm.id}_${uid()}.${ext}`;
+          const b64 = sm.excelOriginal.split(',', 2)[1];
+          uploadTasks.push({
+            label: `Apartado "${sm.label}" (Excel original)`,
+            run: () => createNewFileOnGithub(
+              repo, imagesRepoPrefix + fileName, branch, headers, b64,
+              `Actualizar Excel original del apartado "${sm.label}"`
+            ),
+            apply: () => { sm.excelOriginal = 'data/images/' + fileName; }
           });
         }
       }

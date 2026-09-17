@@ -251,6 +251,16 @@
       border: 1px solid rgba(124,58,237,0.2);
   }
 
+  /* VISOR PDF AMPLIADO (solo apartados tipo PDF de Procesos de Diseño).
+     En PC aprovecha casi toda la pantalla dejando un margen pequeño; en
+     móvil se respeta el comportamiento responsive que ya existía. */
+  .dashboard-modal.pd-modal-wide { width: 97vw; max-width: 97vw; height: 95vh; }
+  .pd-modal-wide #pd-pdf-viewer-wrap { height: calc(95vh - 210px); min-height: 320px; }
+  @media (max-width: 640px) {
+    .dashboard-modal.pd-modal-wide { width: 100%; max-width: 100%; height: 94vh; }
+    .pd-modal-wide #pd-pdf-viewer-wrap { height: calc(94vh - 250px); min-height: 260px; }
+  }
+
   /* PENDIENTES GENERALES */
   .pg-wrapper { margin-top: 12px; border-top: 1px solid var(--color-border-tertiary); padding-top: 12px; }
   .pg-header { background: #fee2e2; border: 1.5px solid #fca5a5; border-radius: 10px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; color: #b91c1c; font-weight: 700; transition: all 0.2s; box-shadow: 0 2px 4px rgba(220,38,38,0.05); }
@@ -654,7 +664,8 @@
           <div id="pd-toolbar" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
             <button class="btn btn-green" onclick="triggerPdImport()" title="Leer un archivo .xlsx/.xls y mostrarlo en la tabla"><i class="ti ti-upload"></i> Importar Excel</button>
             <input type="file" id="pd-import-input" accept=".xlsx,.xls" style="display:none" onchange="handlePdImport(event)">
-            <button class="btn btn-excel" onclick="exportPdExcel()" title="Exporta la tabla actual a .xlsx"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+            <button class="btn btn-excel" onclick="exportPdExcel()" title="Descarga el archivo original tal como se subió, con todo su formato"><i class="ti ti-file-spreadsheet"></i> Descargar Excel original</button>
+            <button class="btn btn-sm" onclick="exportPdExcelRebuilt()" title="Exporta la tabla tal como está aquí, con los cambios editados (sin el formato del archivo original)"><i class="ti ti-table-export"></i> Exportar con mis cambios</button>
             <span style="flex:1"></span>
             <button class="btn btn-amber" id="pd-edit-btn" onclick="togglePdEdit()"><i class="ti ti-lock"></i> Editar datos</button>
             <button class="btn btn-green" id="pd-save-btn" onclick="savePdChanges()" style="display:none;"><i class="ti ti-device-floppy"></i> Guardar cambios del Excel</button>

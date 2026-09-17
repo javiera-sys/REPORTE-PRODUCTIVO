@@ -1426,13 +1426,16 @@ function renderPdView() {
     renderPdSubmoduleList();
   } else {
     listView.style.display = 'none';
-    tableView.style.display = 'block';
     const sm = getPdSubmodule(pdCurrentSubmoduleId);
     if (titleEl) titleEl.textContent = sm ? sm.label : '';
 
     const isPdf = sm && sm.type === 'pdf';
+    // En modo PDF se usa flex para que el visor se estire y ocupe todo el
+    // alto libre del modal (sin franja en blanco abajo); en modo Excel se
+    // mantiene el flujo normal de bloque.
+    tableView.style.display = isPdf ? 'flex' : 'block';
     if (excelView) excelView.style.display = isPdf ? 'none' : 'block';
-    if (pdfView) pdfView.style.display = isPdf ? 'block' : 'none';
+    if (pdfView) pdfView.style.display = isPdf ? 'flex' : 'none';
 
     // El visor de PDF usa casi toda la pantalla; la vista de tabla mantiene
     // el ancho normal del modal (no se toca ningún otro visor de la app).

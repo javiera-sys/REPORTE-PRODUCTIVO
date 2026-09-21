@@ -617,6 +617,10 @@ function renderItemCard(item, naveId){
   let safeOdt = item.odt && item.odt !== 'undefined' ? item.odt : '';
   
   if(editing && isEditableMode){
+    // Solo se bloquea (pide autorización) si el cambio YA tenía una fecha
+    // puesta. Si nunca se le puso una, se deja libre para completarla la
+    // primera vez, sin pedir contraseña (no es "modificar una existente").
+    const fechaBloqueada = !!safeFecha;
     if(!safeFecha) {
         const today = new Date();
         const yyyy = today.getFullYear();
@@ -628,7 +632,7 @@ function renderItemCard(item, naveId){
     return `<div class="item-card" id="ic-${item.id}">
       <div class="item-dot ${dotClass(item.type)}" style="margin-top:8px"></div>
       <div class="item-content">
-        <div style="display:flex; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
+        <div style="display:flex; gap:8px; margin-bottom:6px; flex-wrap:wrap; align-items:center;">
           <select class="edit-title-input" id="ec-${item.id}" onchange="updateSubCatDropdown(this.value, 'esc-${item.id}')" style="width:auto; margin-bottom:0; padding-top:4px; padding-bottom:4px; cursor:pointer;" title="Categoría">
             <option value="error" ${item.type==='error'?'selected':''}>🚨 Error</option>
             <option value="ajuste" ${item.type==='ajuste'?'selected':''}>🔧 Ajuste</option>
@@ -637,7 +641,8 @@ function renderItemCard(item, naveId){
           <select class="edit-title-input" id="esc-${item.id}" style="width:auto; margin-bottom:0; padding-top:4px; padding-bottom:4px; cursor:pointer; max-width: 150px;" title="Clasificación">
             <option value="${escHtml(item.subType||'')}">${escHtml(item.subType||'Seleccionar...')}</option>
           </select>
-          <input class="edit-title-input" type="date" id="ef-${item.id}" value="${safeFecha}" style="width:130px; margin-bottom:0;" title="Fecha" />
+          <input class="edit-title-input" type="date" id="ef-${item.id}" value="${safeFecha}" style="width:130px; margin-bottom:0;" title="Fecha" ${fechaBloqueada ? 'disabled' : ''} />
+          ${fechaBloqueada ? `<button type="button" class="btn-ghost btn" title="Editar fecha (requiere autorización)" onclick="unlockFechaEdit('${item.id}')" style="padding:4px 6px;min-height:auto;vertical-align:middle;"><i class="ti ti-lock" style="font-size:13px"></i></button>` : ''}
           <input class="edit-title-input" type="text" id="eo-${item.id}" placeholder="Código ODT" value="${escHtml(safeOdt)}" style="width:150px; margin-bottom:0;" title="Código ODT" />
         </div>
         <input class="edit-title-input" id="et-${item.id}" value="${escHtml(item.title)}" />
@@ -2282,7 +2287,55 @@ function startEdit(itemId){
 }
 function cancelEdit(){
   editingItemId=null;
+  pendingFechaUnlockItemId=null;
   render();
+}
+
+/* ---- Autorización para editar una fecha YA existente ----
+   Reutiliza exactamente la misma lista de contraseñas que ya usa el resto
+   de la app (data.accessPasswords) - no se crea ni almacena ninguna
+   contraseña nueva. Este paso solo DESBLOQUEA el campo de fecha para que
+   se pueda escribir; el guardado real sigue pasando por saveEdit(), que
+   no se modifica en absoluto. Si la contraseña es incorrecta, no se toca
+   el campo ni item.fecha -> la fecha original queda intacta sin más. */
+let pendingFechaUnlockItemId = null;
+
+function unlockFechaEdit(itemId) {
+  if (!isEditableMode) return;
+  pendingFechaUnlockItemId = itemId;
+  const pass = document.getElementById('fecha-auth-password');
+  const err = document.getElementById('fecha-auth-error');
+  if (pass) pass.value = '';
+  if (err) err.style.display = 'none';
+  document.getElementById('modal-fecha-auth').classList.add('open');
+  setTimeout(() => pass && pass.focus(), 100);
+}
+
+function validateFechaAuth() {
+  ensureAccessPasswords();
+  const itemId = pendingFechaUnlockItemId;
+  const inputPass = document.getElementById('fecha-auth-password').value;
+
+  if (itemId && data.accessPasswords.includes(inputPass)) {
+    closeModal('modal-fecha-auth');
+    const input = document.getElementById('ef-' + itemId);
+    if (input) {
+      input.disabled = false;
+      input.focus();
+      // El botón de candado ya no aplica una vez desbloqueado en esta sesión de edición.
+      const lockBtn = input.nextElementSibling;
+      if (lockBtn && lockBtn.tagName === 'BUTTON') lockBtn.style.display = 'none';
+    }
+    pendingFechaUnlockItemId = null;
+  } else {
+    const modal = document.querySelector('#modal-fecha-auth .modal');
+    modal.classList.remove('auth-shake');
+    void modal.offsetWidth;
+    modal.classList.add('auth-shake');
+    const err = document.getElementById('fecha-auth-error');
+    if (err) err.style.display = 'block';
+    // Contraseña incorrecta: no se toca el input ni item.fecha; queda tal cual estaba.
+  }
 }
 function saveEdit(naveId,itemId){
   if (!isEditableMode) return;

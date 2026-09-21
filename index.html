@@ -469,6 +469,29 @@
   </div>
 </div>
 
+<!-- Autorización específica para editar una fecha ya existente en un cambio
+     (independiente del candado general de edición; usa la misma lista de
+     contraseñas). -->
+<div class="modal-bg" id="modal-fecha-auth">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Editar Fecha</h2>
+      <button class="btn-ghost btn" title="Cerrar" onclick="pendingFechaUnlockItemId=null; closeModal('modal-fecha-auth')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="auth-icon-wrap"><i class="ti ti-calendar-cog"></i></div>
+    <div class="auth-title">Modificar fecha existente</div>
+    <div class="auth-subtitle">Esta fecha ya está registrada. Ingresa la contraseña de producción para poder cambiarla.</div>
+    <div class="form-group">
+      <input class="form-input" type="password" id="fecha-auth-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')validateFechaAuth()">
+      <p id="fecha-auth-error" style="display:none; color:var(--red); font-size:12px; margin-top:6px;">❌ Contraseña incorrecta. La fecha original se conserva sin cambios.</p>
+    </div>
+    <div class="form-footer" style="justify-content: center; padding-top: 1rem; border-top: none; margin-top: 0.5rem;">
+      <button class="btn" onclick="pendingFechaUnlockItemId=null; closeModal('modal-fecha-auth')">Cancelar</button>
+      <button class="btn btn-navy" onclick="validateFechaAuth()">Desbloquear</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Oculto: Gestión de Accesos -->
 <div class="modal-bg" id="modal-manage-access">
   <div class="modal">

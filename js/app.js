@@ -1346,10 +1346,12 @@ function handleImportModelos(e){
      ese paso -> por eso fallaba si no se había abierto la configuración
      de GitHub en la sesión. Corregido: se usa el mismo flujo, sin
      ninguna lógica de token propia.
-   Su propio estado de edición (`pdEditMode`) es independiente del modo
-   de edición general de la app (candado de arriba).
+   Los permisos de edición de este módulo son EXACTAMENTE los del candado
+   general "MODO EDICIÓN" de arriba (isEditableMode) - no existe ningún
+   estado ni contraseña propios. Se consulta isEditableMode directamente
+   en cada acción; al activar/desactivar el candado general, este módulo
+   queda habilitado/bloqueado de inmediato, sin volver a pedir nada aquí.
    ============================================================ */
-let pdEditMode = false;
 let pdCurrentSubmoduleId = null; // null = viendo la lista de submódulos
 
 const PD_DEFAULT_SUBMODULES = [
@@ -1396,15 +1398,11 @@ function openProcesosDiseno() {
   document.getElementById('modal-procesos-diseno').classList.add('open');
   setPdStatus('');
   pdCurrentSubmoduleId = null;
-  pdEditMode = false;
   renderPdView();
 }
 
 function closeProcesosDiseno() {
   closeModal('modal-procesos-diseno');
-  // Al salir del módulo siempre vuelve a modo lectura, sin importar cómo
-  // haya quedado la sesión anterior.
-  pdEditMode = false;
 }
 
 /* ---- Navegación entre la lista de submódulos y la tabla de uno de ellos ----
@@ -1479,7 +1477,7 @@ function renderPdSubmoduleList() {
           <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">${escHtml(subtitle)}</span>
         </span>
       </button>
-      ${pdEditMode ? `
+      ${isEditableMode ? `
         <button class="btn btn-ghost" title="Editar nombre/tipo" onclick="renamePdSubmodule('${sm.id}')" ${busy ? 'disabled' : ''}><i class="ti ti-pencil"></i></button>
         <button class="btn btn-danger-ghost" title="Eliminar apartado" onclick="deletePdSubmodule('${sm.id}')" ${busy ? 'disabled' : ''}>${busy ? '<i class="ti ti-loader"></i>' : '<i class="ti ti-trash"></i>'}</button>
       ` : ''}
@@ -1506,18 +1504,11 @@ function selectPdSubmoduleType(type) {
   pdfOpt.querySelector('input').checked = type === 'pdf';
 }
 
-// Si el usuario toca "Agregar apartado" sin haber desbloqueado la edición
-// todavía, se le pide la contraseña primero y, si es correcta, se abre el
-// modal de creación automáticamente (en vez de esconder el botón y que
-// parezca que no hace nada).
-let pdPendingActionAfterAuth = null;
-
+// El botón "Agregar apartado" ahora siempre visible solo con .only-editable
+// (igual que el resto de la app) -> si se llega a invocar sin permisos, no
+// hace nada; no existe ya ninguna contraseña propia de este módulo.
 function addPdSubmodule() {
-  if (!pdEditMode) {
-    pdPendingActionAfterAuth = 'addSubmodule';
-    togglePdEdit();
-    return;
-  }
+  if (!isEditableMode) return;
   openPdSubmoduleCreateModal();
 }
 
@@ -1535,7 +1526,7 @@ function openPdSubmoduleCreateModal() {
 }
 
 function renamePdSubmodule(id) {
-  if (!pdEditMode) return;
+  if (!isEditableMode) return;
   if (pdSubmoduleOpInProgress.has(id)) return;
   const sm = getPdSubmodule(id);
   if (!sm) return;
@@ -1628,7 +1619,7 @@ async function updatePdSubmodule(id, name, type) {
 }
 
 async function deletePdSubmodule(id) {
-  if (!pdEditMode) return;
+  if (!isEditableMode) return;
   if (pdSubmoduleOpInProgress.has(id)) return;
   const sm = getPdSubmodule(id);
   if (!sm) return;
@@ -1691,67 +1682,30 @@ function backToPdList() {
 function updatePdModeBadge() {
   const badge = document.getElementById('pd-mode-badge');
   const label = document.getElementById('pd-mode-label');
-  const editBtn = document.getElementById('pd-edit-btn');
-  const saveBtn = document.getElementById('pd-save-btn');
-  const editListBtn = document.getElementById('pd-edit-list-btn');
-  const editBtnPdf = document.getElementById('pd-edit-btn-pdf');
   if (!badge || !label) return;
   const icon = badge.querySelector('i');
-  if (pdEditMode) {
+  // Indicador informativo únicamente: refleja el candado general "MODO
+  // EDICIÓN" (isEditableMode). Los controles de edición del módulo ya no
+  // se muestran/ocultan desde aquí -> usan la misma clase .only-editable
+  // que el resto de la app, reactiva automáticamente al candado general.
+  if (isEditableMode) {
     badge.style.background = '#dcfce7'; badge.style.color = '#15803d'; badge.style.borderColor = '#bbf7d0';
     label.textContent = 'Edición activa';
     if (icon) icon.className = 'ti ti-lock-open';
-    if (editBtn) editBtn.style.display = 'none';
-    if (saveBtn) saveBtn.style.display = 'inline-flex';
-    if (editListBtn) editListBtn.style.display = 'none';
-    if (editBtnPdf) editBtnPdf.style.display = 'none';
   } else {
     badge.style.background = '#f1f5f6'; badge.style.color = 'var(--color-text-secondary)'; badge.style.borderColor = 'var(--color-border-secondary)';
     label.textContent = 'Solo lectura';
     if (icon) icon.className = 'ti ti-eye';
-    if (editBtn) editBtn.style.display = 'inline-flex';
-    if (saveBtn) saveBtn.style.display = 'none';
-    if (editListBtn) editListBtn.style.display = 'inline-flex';
-    if (editBtnPdf) editBtnPdf.style.display = 'inline-flex';
-  }
-}
-
-function togglePdEdit() {
-  document.getElementById('pd-auth-password').value = '';
-  document.getElementById('modal-pd-auth').classList.add('open');
-  setTimeout(() => document.getElementById('pd-auth-password').focus(), 100);
-}
-
-function validatePdPassword() {
-  ensureAccessPasswords();
-  const inputPass = document.getElementById('pd-auth-password').value;
-  if (data.accessPasswords.includes(inputPass)) {
-    pdEditMode = true;
-    closeModal('modal-pd-auth');
-    renderPdView();
-    if (pdPendingActionAfterAuth === 'addSubmodule') {
-      pdPendingActionAfterAuth = null;
-      openPdSubmoduleCreateModal();
-    } else {
-      setPdStatus(pdCurrentSubmoduleId
-        ? '🔓 Edición activada. Los cambios de la tabla no se guardan de forma permanente hasta que presiones "Guardar cambios del Excel".'
-        : '🔓 Edición activada. Ya puedes crear, renombrar o eliminar apartados, y editar cualquier tabla.', 'ok');
-    }
-  } else {
-    pdPendingActionAfterAuth = null;
-    const modal = document.querySelector('#modal-pd-auth .modal');
-    modal.classList.remove('auth-shake');
-    void modal.offsetWidth;
-    modal.classList.add('auth-shake');
-    setPdStatus('❌ Contraseña incorrecta.', 'error');
   }
 }
 
 function triggerPdImport() {
+  if (!isEditableMode) return;
   document.getElementById('pd-import-input').click();
 }
 
 function handlePdImport(e) {
+  if (!isEditableMode) { e.target.value = ''; return; }
   const file = e.target.files[0];
   if (!file) return;
   const submoduleId = pdCurrentSubmoduleId;
@@ -1854,7 +1808,7 @@ function renderPdTable() {
   const editorBar = document.getElementById('pd-editor-bar');
   if (!sm || !thead || !tbody || !wrap || !empty) return;
 
-  if (editorBar) editorBar.style.display = pdEditMode ? 'flex' : 'none';
+  if (editorBar) editorBar.style.display = isEditableMode ? 'flex' : 'none';
 
   const { headers, rows } = sm;
 
@@ -1872,20 +1826,20 @@ function renderPdTable() {
     <th>
       <span style="display:flex; align-items:center; gap:6px;">
         ${escHtml(h)}
-        ${pdEditMode ? `<button class="btn-ghost btn" title="Eliminar columna" style="padding:2px 4px;min-height:auto;" onclick="deletePdColumn(${cIdx})"><i class="ti ti-trash" style="font-size:12px;color:var(--red)"></i></button>` : ''}
+        ${isEditableMode ? `<button class="btn-ghost btn" title="Eliminar columna" style="padding:2px 4px;min-height:auto;" onclick="deletePdColumn(${cIdx})"><i class="ti ti-trash" style="font-size:12px;color:var(--red)"></i></button>` : ''}
       </span>
     </th>`).join('') +
-    (pdEditMode ? '<th style="width:36px"></th>' : '') + '</tr>';
+    (isEditableMode ? '<th style="width:36px"></th>' : '') + '</tr>';
 
   tbody.innerHTML = rows.map((row, rIdx) => {
     const cells = headers.map(h => {
       const val = row[h] !== undefined ? row[h] : '';
-      if (pdEditMode) {
+      if (isEditableMode) {
         return `<td><input class="pd-cell-input" value="${escHtml(val).replace(/"/g, '&quot;')}" onchange="editPdCell(${rIdx}, '${h.replace(/'/g, "\\'")}', this.value)"></td>`;
       }
       return `<td><span class="pd-cell-static">${escHtml(val)}</span></td>`;
     }).join('');
-    const delCell = pdEditMode ? `<td><button class="btn-ghost btn" title="Eliminar fila" style="padding:4px;min-height:auto;" onclick="deletePdRow(${rIdx})"><i class="ti ti-trash" style="font-size:13px;color:var(--red)"></i></button></td>` : '';
+    const delCell = isEditableMode ? `<td><button class="btn-ghost btn" title="Eliminar fila" style="padding:4px;min-height:auto;" onclick="deletePdRow(${rIdx})"><i class="ti ti-trash" style="font-size:13px;color:var(--red)"></i></button></td>` : '';
     return '<tr>' + cells + delCell + '</tr>';
   }).join('');
 }
@@ -1911,14 +1865,14 @@ function renderPdPdfView() {
   if (emptyState) emptyState.style.display = hasFile ? 'none' : 'block';
   if (viewer) viewer.src = hasFile ? sm.pdfContent : 'about:blank';
 
-  if (uploadBtn) uploadBtn.style.display = (!hasFile && pdEditMode) ? 'inline-flex' : 'none';
+  if (uploadBtn) uploadBtn.style.display = (!hasFile && isEditableMode) ? 'inline-flex' : 'none';
   if (downloadBtn) downloadBtn.style.display = hasFile ? 'inline-flex' : 'none';
-  if (replaceBtn) replaceBtn.style.display = (hasFile && pdEditMode) ? 'inline-flex' : 'none';
-  if (deleteBtn) deleteBtn.style.display = (hasFile && pdEditMode) ? 'inline-flex' : 'none';
+  if (replaceBtn) replaceBtn.style.display = (hasFile && isEditableMode) ? 'inline-flex' : 'none';
+  if (deleteBtn) deleteBtn.style.display = (hasFile && isEditableMode) ? 'inline-flex' : 'none';
 }
 
 function triggerPdPdfUpload() {
-  if (!pdEditMode) return;
+  if (!isEditableMode) return;
   document.getElementById('pd-pdf-input').click();
 }
 
@@ -1986,7 +1940,7 @@ function downloadPdPdf() {
 }
 
 async function deletePdPdf() {
-  if (!pdEditMode) return;
+  if (!isEditableMode) return;
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
   if (!sm || !sm.pdfContent) return;
   if (!confirm('¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTE PDF?')) return;
@@ -2037,7 +1991,7 @@ function editPdCell(rowIdx, header, value) {
    antes de guardar - "Guardar cambios del Excel" solo sube lo que ya
    está en el estado en ese momento. */
 function addPdRow() {
-  if (!pdEditMode) return;
+  if (!isEditableMode) return;
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
   if (!sm) return;
   if (!sm.headers.length) { setPdStatus('Agrega al menos una columna antes de insertar filas.', 'error'); return; }
@@ -2048,7 +2002,7 @@ function addPdRow() {
 }
 
 function deletePdRow(rowIdx) {
-  if (!pdEditMode) return;
+  if (!isEditableMode) return;
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
   if (!sm || !sm.rows[rowIdx]) return;
   if (!confirm('¿Eliminar esta fila? Se quitará del Excel al guardar.')) return;
@@ -2057,7 +2011,7 @@ function deletePdRow(rowIdx) {
 }
 
 function addPdColumn() {
-  if (!pdEditMode) return;
+  if (!isEditableMode) return;
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
   if (!sm) return;
   const name = prompt('Nombre de la nueva columna:', `Columna ${sm.headers.length + 1}`);
@@ -2070,7 +2024,7 @@ function addPdColumn() {
 }
 
 function deletePdColumn(colIdx) {
-  if (!pdEditMode) return;
+  if (!isEditableMode) return;
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
   if (!sm || !sm.headers[colIdx]) return;
   const colName = sm.headers[colIdx];
@@ -2081,7 +2035,7 @@ function deletePdColumn(colIdx) {
 }
 
 async function savePdChanges() {
-  if (!pdEditMode) return;
+  if (!isEditableMode) return;
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
   if (!sm) return;
   const saveBtn = document.getElementById('pd-save-btn');

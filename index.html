@@ -674,8 +674,7 @@
       <div id="pd-list-view">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
           <p style="font-size:12.5px; color:var(--color-text-secondary); margin:0; flex:1;">Elige un apartado:</p>
-          <button class="btn btn-amber" id="pd-edit-list-btn" onclick="togglePdEdit()"><i class="ti ti-lock"></i> Editar apartados</button>
-          <button class="btn btn-green" id="pd-add-submodule-btn" onclick="addPdSubmodule()"><i class="ti ti-plus"></i> Agregar apartado</button>
+          <button class="btn btn-green only-editable" id="pd-add-submodule-btn" onclick="addPdSubmodule()"><i class="ti ti-plus"></i> Agregar apartado</button>
         </div>
         <div id="pd-submodule-list" style="display:flex; flex-direction:column; gap:8px;"></div>
       </div>
@@ -690,13 +689,12 @@
         <!-- Contenido tipo EXCEL -->
         <div id="pd-excel-view">
           <div id="pd-toolbar" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
-            <button class="btn btn-green" onclick="triggerPdImport()" title="Leer un archivo .xlsx/.xls y mostrarlo en la tabla"><i class="ti ti-upload"></i> Importar Excel</button>
+            <button class="btn btn-green only-editable" onclick="triggerPdImport()" title="Leer un archivo .xlsx/.xls y mostrarlo en la tabla"><i class="ti ti-upload"></i> Importar Excel</button>
             <input type="file" id="pd-import-input" accept=".xlsx,.xls" style="display:none" onchange="handlePdImport(event)">
             <button class="btn btn-excel" onclick="exportPdExcel()" title="Descarga el archivo original tal como se subió, con todo su formato"><i class="ti ti-file-spreadsheet"></i> Descargar Excel original</button>
             <button class="btn btn-sm" onclick="exportPdExcelRebuilt()" title="Exporta la tabla tal como está aquí, con los cambios editados (sin el formato del archivo original)"><i class="ti ti-table-export"></i> Exportar con mis cambios</button>
             <span style="flex:1"></span>
-            <button class="btn btn-amber" id="pd-edit-btn" onclick="togglePdEdit()"><i class="ti ti-lock"></i> Editar datos</button>
-            <button class="btn btn-green" id="pd-save-btn" onclick="savePdChanges()" style="display:none;"><i class="ti ti-device-floppy"></i> Guardar cambios del Excel</button>
+            <button class="btn btn-green only-editable" id="pd-save-btn" onclick="savePdChanges()"><i class="ti ti-device-floppy"></i> Guardar cambios del Excel</button>
           </div>
 
           <!-- Barra del editor tipo spreadsheet: solo visible en modo edición -->
@@ -724,7 +722,6 @@
             <input type="file" id="pd-pdf-input" accept=".pdf,application/pdf" style="display:none" onchange="handlePdPdfUpload(event)">
             <button class="btn btn-navy" id="pd-pdf-download-btn" onclick="downloadPdPdf()" style="display:none;" title="Descarga el archivo original"><i class="ti ti-download"></i> Descargar PDF</button>
             <span style="flex:1"></span>
-            <button class="btn btn-amber" id="pd-edit-btn-pdf" onclick="togglePdEdit()"><i class="ti ti-lock"></i> Editar datos</button>
             <button class="btn btn-amber only-editable-pd" id="pd-pdf-replace-btn" onclick="triggerPdPdfUpload()" style="display:none;" title="Cargar una nueva versión del PDF"><i class="ti ti-replace"></i> Sustituir PDF</button>
             <button class="btn btn-danger-ghost only-editable-pd" id="pd-pdf-delete-btn" onclick="deletePdPdf()" style="display:none;" title="Eliminar el PDF de este apartado"><i class="ti ti-trash"></i> Eliminar PDF</button>
           </div>
@@ -740,27 +737,6 @@
 
       </div>
 
-    </div>
-  </div>
-</div>
-
-<!-- Contraseña para editar Procesos de Diseño (reutiliza las mismas
-     contraseñas de autorización que el resto de la app) -->
-<div class="modal-bg" id="modal-pd-auth">
-  <div class="modal">
-    <div class="modal-header">
-      <h2>Permiso de Edición</h2>
-      <button class="btn-ghost btn" title="Cerrar" onclick="pdPendingActionAfterAuth=null; closeModal('modal-pd-auth')"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="auth-icon-wrap"><i class="ti ti-shield-lock"></i></div>
-    <div class="auth-title">Editar Procesos de Diseño</div>
-    <div class="auth-subtitle">Ingresa la contraseña de producción para desbloquear</div>
-    <div class="form-group">
-      <input class="form-input" type="password" id="pd-auth-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')validatePdPassword()">
-    </div>
-    <div class="form-footer" style="justify-content: center; padding-top: 1rem; border-top: none; margin-top: 0.5rem;">
-      <button class="btn" onclick="pdPendingActionAfterAuth=null; closeModal('modal-pd-auth')">Cancelar</button>
-      <button class="btn btn-navy" onclick="validatePdPassword()">Desbloquear</button>
     </div>
   </div>
 </div>

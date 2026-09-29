@@ -4,7 +4,7 @@
       "id": "u_admin_javier",
       "nombre": "JAVIER C",
       "username": "javier.c",
-      "passwordHash": "Inge10306",
+      "passwordHash": "8cd78c128eb5c7da6d09514c8f93d0f573a08817e4ecc7d5274316d36f4576b8",
       "rol": "admin",
       "activo": true,
       "createdAt": 1790000000000,

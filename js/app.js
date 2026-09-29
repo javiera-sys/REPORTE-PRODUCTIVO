@@ -3,11 +3,10 @@
    ============================================================
    ADVERTENCIA DE SEGURIDAD (GitHub Pages = frontend estático):
    - Las contraseñas se guardan como HASH SHA-256 + salt, nunca en texto plano.
-   - Aun así, un atacante con DevTools puede:
-       * Ver el hash y hacer fuerza bruta offline.
-       * Ejecutar funciones restringidas desde la consola.
-   - La ÚNICA barrera realmente fuerte es el token de GitHub que ya usas:
-     sin él, nadie puede escribir en el repositorio.
+   - Aun así, un atacante con DevTools puede ver el hash y hacer fuerza bruta
+     offline, o ejecutar funciones restringidas desde la consola.
+   - La ÚNICA barrera realmente fuerte es el token de GitHub: sin él, nadie
+     puede escribir en el repositorio.
    - Este módulo es una barrera de DISUASIÓN y ORGANIZACIÓN, no seguridad
      criptográfica real.
    ============================================================ */
@@ -16,8 +15,8 @@ const USUARIOS_FILE = 'data/usuarios.json';
 const SESSION_KEY = 'rpi_session_user';
 const SALT = 'rpi_prod_2026_salt_v1'; // Salt fijo del proyecto (público, no secreto)
 
-let usuariosDB = [];        // [{ id, nombre, username, passwordHash, rol, activo, createdAt, createdBy }]
-let currentUser = null;    // { username, nombre, rol } | null
+let usuariosDB = [];
+let currentUser = null;
 
 /* ---------- Utilidades de hash ---------- */
 async function sha256Hex(texto) {
@@ -40,8 +39,8 @@ async function cargarUsuarios() {
     const json = await resp.json();
     usuariosDB = Array.isArray(json.usuarios) ? json.usuarios : [];
   } catch (err) {
-    console.warn('No se pudo cargar data/usuarios.json. Se usará un admin por defecto.', err);
-    // Admin por defecto: usuario "admin", contraseña "admin" (DEBE cambiarse)
+    console.warn('No se pudo cargar ' + USUARIOS_FILE + '. Se usará un admin por defecto (admin/admin).', err);
+    // Admin por defecto: usuario "admin", contraseña "admin" (CAMBIAR AL PRIMER USO)
     usuariosDB = [{
       id: 'u_admin_default',
       nombre: 'Administrador',
@@ -53,8 +52,8 @@ async function cargarUsuarios() {
       createdBy: 'sistema'
     }];
   }
-  // Restaurar sesión si existe
   restaurarSesion();
+  actualizarUISesion();
 }
 
 function restaurarSesion() {
@@ -65,7 +64,6 @@ function restaurarSesion() {
     const user = usuariosDB.find(u => u.username === sess.username && u.activo);
     if (user) {
       currentUser = { username: user.username, nombre: user.nombre, rol: user.rol };
-      actualizarUISesion();
     }
   } catch (e) { /* sesión corrupta, se ignora */ }
 }
@@ -131,7 +129,7 @@ function actualizarUISesion() {
     btn.classList.add('logged-in');
     btn.classList.toggle('is-admin', currentUser.rol === 'admin');
     label.textContent = (currentUser.rol === 'admin' ? '👑 ' : '👤 ') + (currentUser.nombre || currentUser.username);
-    btn.title = `Sesión: ${currentUser.nombre} (${currentUser.rol}) - Clic para cerrar sesión`;
+    btn.title = 'Sesión: ' + currentUser.nombre + ' (' + currentUser.rol + ') - Clic para cerrar sesión';
   } else {
     btn.classList.remove('logged-in', 'is-admin');
     label.textContent = 'Iniciar sesión';
@@ -141,36 +139,32 @@ function actualizarUISesion() {
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = isAdmin() ? '' : 'none';
   });
-  // Actualizar badge de modo edición si aplica
-  if (typeof updatePdModeBadge === 'function') updatePdModeBadge();
 }
 
 function openSessionModal() {
   if (currentUser) {
-    if (confirm(`¿Cerrar sesión de ${currentUser.nombre}?`)) {
+    if (confirm('¿Cerrar sesión de ' + currentUser.nombre + '?')) {
       logoutUsuario();
     }
     return;
   }
-  document.getElementById('session-username').value = '';
-  document.getElementById('session-password').value = '';
+  const uEl = document.getElementById('session-username');
+  const pEl = document.getElementById('session-password');
   const err = document.getElementById('session-error');
+  if (uEl) uEl.value = '';
+  if (pEl) pEl.value = '';
   if (err) err.style.display = 'none';
   document.getElementById('modal-session').classList.add('open');
-  setTimeout(() => document.getElementById('session-username').focus(), 100);
+  setTimeout(() => uEl && uEl.focus(), 100);
 }
 
 async function doLogin() {
-  const username = document.getElementById('session-username').value;
-  const password = document.getElementById('session-password').value;
+  const uEl = document.getElementById('session-username');
+  const pEl = document.getElementById('session-password');
   const err = document.getElementById('session-error');
-  const res = await loginUsuario(username, password);
+  const res = await loginUsuario(uEl.value, pEl.value);
   if (res.ok) {
     closeModal('modal-session');
-    // Si es admin, puede activar modo edición directamente
-    if (isAdmin() && typeof isEditableMode !== 'undefined' && !isEditableMode) {
-      // No forzamos modo edición; el usuario decide con el candado.
-    }
   } else {
     if (err) { err.textContent = '❌ ' + res.error; err.style.display = 'block'; }
   }
@@ -223,7 +217,6 @@ function editAdminUsuario(idx) {
   if (nuevoRol === null) return;
   if (!nuevoNombre.trim() || !nuevoUsername.trim()) { alert('Nombre y usuario son obligatorios.'); return; }
   if (nuevoRol !== 'admin' && nuevoRol !== 'user') { alert('Rol debe ser "admin" o "user".'); return; }
-  // Evitar duplicar username
   if (usuariosDB.some((x, i) => i !== idx && x.username.toLowerCase() === nuevoUsername.trim().toLowerCase())) {
     alert('Ya existe otro usuario con ese nombre de usuario.'); return;
   }
@@ -237,7 +230,7 @@ async function changeAdminPassword(idx) {
   if (!isAdmin()) return;
   const u = usuariosDB[idx];
   if (!u) return;
-  const nueva = prompt(`Nueva contraseña para "${u.nombre}":`, '');
+  const nueva = prompt('Nueva contraseña para "' + u.nombre + '":', '');
   if (nueva === null) return;
   if (!nueva || nueva.length < 4) { alert('La contraseña debe tener al menos 4 caracteres.'); return; }
   u.passwordHash = await hashPassword(nueva);
@@ -261,12 +254,11 @@ function deleteAdminUsuario(idx) {
     alert('No puedes eliminar tu propio usuario mientras tienes la sesión activa.');
     return;
   }
-  if (!confirm(`¿Eliminar al usuario "${u.nombre}"?`)) return;
+  if (!confirm('¿Eliminar al usuario "' + u.nombre + '"?')) return;
   usuariosDB.splice(idx, 1);
   renderAdminUsuarios();
 }
 
-/* ---------- Crear nuevo usuario ---------- */
 async function crearUsuarioAdmin() {
   if (!isAdmin()) return;
   const nombre = document.getElementById('nu-nombre').value.trim();
@@ -294,58 +286,6 @@ async function crearUsuarioAdmin() {
   alert('✅ Usuario creado. Recuerda guardar en GitHub para que sea permanente.');
 }
 
-/* ---------- Importar archivo de configuración admin ----------
-   Formato:
-     User:JAVIER C ADMIN x1
-     Password:Inge10306
-   Crea (o actualiza) un usuario admin con esos datos, hasheando la
-   contraseña. NUNCA guarda la contraseña en texto plano. */
-async function importAdminConfig() {
-  if (!isAdmin()) { alert('Solo un admin puede importar configuración.'); return; }
-  const texto = document.getElementById('admin-config-input').value.trim();
-  if (!texto) { alert('Pega el contenido del archivo de configuración.'); return; }
-  const userMatch = texto.match(/User:\s*([^\n\r]+)/i);
-  const passMatch = texto.match(/Password:\s*([^\n\r]+)/i);
-  if (!userMatch || !passMatch) {
-    alert('Formato inválido. Debe contener "User:..." y "Password:..."'); return;
-  }
-  // Parsear "JAVIER C ADMIN x1" -> nombre="JAVIER C", rol="admin"
-  const userLine = userMatch[1].trim();
-  const tokens = userLine.split(/\s+/);
-  let rol = 'user';
-  let nombre = userLine;
-  if (tokens.includes('ADMIN')) {
-    rol = 'admin';
-    // Quitar "ADMIN" y "x1" del nombre
-    nombre = tokens.filter(t => t.toUpperCase() !== 'ADMIN' && !/^x\d+$/i.test(t)).join(' ').trim();
-  }
-  const password = passMatch[1].trim();
-  const username = nombre.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '');
-  if (!nombre || !username) { alert('No se pudo interpretar el nombre del usuario.'); return; }
-
-  let user = usuariosDB.find(u => u.username.toLowerCase() === username);
-  const hash = await hashPassword(password);
-  if (user) {
-    user.nombre = nombre;
-    user.passwordHash = hash;
-    user.rol = rol;
-    user.activo = true;
-  } else {
-    usuariosDB.push({
-      id: 'u_' + Math.random().toString(36).slice(2, 9),
-      nombre, username,
-      passwordHash: hash,
-      rol, activo: true,
-      createdAt: Date.now(),
-      createdBy: currentUser.username
-    });
-  }
-  document.getElementById('admin-config-input').value = '';
-  renderAdminUsuarios();
-  alert(`✅ Usuario "${nombre}" (${rol}) importado. Usuario: ${username}\nRecuerda guardar en GitHub.`);
-}
-
-/* ---------- Exportar usuarios al JSON (para commit) ---------- */
 function getUsuariosParaGuardar() {
   return { usuarios: usuariosDB };
 }

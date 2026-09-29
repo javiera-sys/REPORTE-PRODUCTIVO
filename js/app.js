@@ -1,3 +1,7 @@
+function isAdminSafe() {
+      return (typeof isAdmin === 'function') && isAdmin();
+    }
+
 document.getElementById('current-date').textContent = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
 // Configuración de Firebase Cloud Messaging (FCM)
@@ -170,8 +174,9 @@ function validatePassword() {
 }
 
 function openManageAccess() {
-  ensureAccessPasswords();
-  renderAccessList();
+      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede administrar accesos.'); return; }
+      ensureAccessPasswords();
+      renderAccessList();
   document.getElementById('new-access-password').value = '';
   document.getElementById('modal-manage-access').classList.add('open');
 }
@@ -427,8 +432,9 @@ function editPG(id) {
 }
 
 function deletePG(id) {
-  if (!isEditableMode) return;
-  if (!confirm('¿Eliminar este pendiente general permanentemente?')) return;
+      if (!isEditableMode) return;
+      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar pendientes generales.'); return; }
+      if (!confirm('¿Eliminar este pendiente general permanentemente?')) return;
   data.pendientesGenerales = data.pendientesGenerales.filter(p => p.id !== id);
   renderPG();
 }
@@ -1619,10 +1625,11 @@ async function updatePdSubmodule(id, name, type) {
 }
 
 async function deletePdSubmodule(id) {
-  if (!isEditableMode) return;
-  if (pdSubmoduleOpInProgress.has(id)) return;
-  const sm = getPdSubmodule(id);
-  if (!sm) return;
+      if (!isEditableMode) return;
+      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar apartados.'); return; }
+      if (pdSubmoduleOpInProgress.has(id)) return;
+      const sm = getPdSubmodule(id);
+      if (!sm) return;
   const contentDesc = sm.type === 'pdf' ? (sm.pdfContent ? 'su archivo PDF' : 'ningún archivo todavía') : `sus ${sm.rows.length} registro(s)`;
   if (!confirm(`¿ELIMINAR EL APARTADO "${sm.label.toUpperCase()}"? Se perderá ${contentDesc}.`)) return;
 
@@ -1940,8 +1947,10 @@ function downloadPdPdf() {
 }
 
 async function deletePdPdf() {
-  if (!isEditableMode) return;
-  const sm = getPdSubmodule(pdCurrentSubmoduleId);
+      if (!isEditableMode) return;
+      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar PDFs.'); return; }
+      const sm = getPdSubmodule(pdCurrentSubmoduleId);
+
   if (!sm || !sm.pdfContent) return;
   if (!confirm('¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTE PDF?')) return;
 
@@ -2379,17 +2388,20 @@ function saveItem(){
   closeModal('modal-item');render();
 }
 
-function removeNave(id){
-  if (!isEditableMode) return;
-  if(!confirm('¿Eliminar este mueble?'))return;
-  data.naves=data.naves.filter(n=>n.id!==id);
-  render();
-}
-function removeItem(naveId,itemId){
-  if (!isEditableMode) return;
-  const nave=data.naves.find(n=>n.id===naveId);
-  if(nave){nave.items=nave.items.filter(i=>i.id!==itemId);render();}
-}
+ function removeNave(id){
+      if (!isEditableMode) return;
+      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar muebles.'); return; }
+      if(!confirm('¿Eliminar este mueble?'))return;
+      data.naves = data.naves.filter(n => n.id !== id);
+      render();
+    }
+
+    function removeItem(naveId, itemId){
+      if (!isEditableMode) return;
+      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar cambios.'); return; }
+      const nave = data.naves.find(n => n.id === naveId);
+      if(nave) { nave.items = nave.items.filter(i => i.id !== itemId); render(); }
+    }
 
 function openAddNave(){
   if (!isEditableMode) return;
@@ -3126,7 +3138,8 @@ function base64ToUtf8(b64) {
 }
 
 function quickRevertGithub() {
-  const cfg = loadGithubConfig();
+      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede restaurar versiones.'); return; }
+      const cfg = loadGithubConfig();
   if (cfg && cfg.repo && cfg.path && cfg.token) {
     document.getElementById('gh-repo').value = cfg.repo;
     document.getElementById('gh-path').value = cfg.path;
@@ -3141,7 +3154,8 @@ function quickRevertGithub() {
 }
 
 async function revertToLastCommit() {
-  const repo = normalizeRepoInput(document.getElementById('gh-repo').value);
+      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede restaurar versiones.'); return; }
+      const repo = normalizeRepoInput(document.getElementById('gh-repo').value);
   document.getElementById('gh-repo').value = repo;
   const path = document.getElementById('gh-path').value.trim().replace(/^\/+/, '');
   const branch = document.getElementById('gh-branch').value.trim() || 'main';
@@ -3521,7 +3535,8 @@ async function exportProjectZipFromRepo(zip, cfg, btn, report) {
 }
 
 async function exportProjectZip(name) {
-  const btn = document.getElementById('export-btn');
+      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede descargar el repositorio.'); return; }
+      const btn = document.getElementById('export-btn');
   const originalText = btn.textContent;
   const report = { incluidos: [], faltantes: [], externosNoResueltos: [] };
 
@@ -4055,9 +4070,10 @@ async function deleteFileFromGithub(repo, repoPath, branch, headers, message) {
      ya no existe de verdad- pero se avisa claramente que hace falta volver
      a guardar para que el listado remoto quede sincronizado. */
 async function deleteFicha(id) {
-  if (!isEditableMode) return;
-  if (fichaDeleteInProgress.has(id)) return; // evita doble ejecución
-  const f = getFichaById(id);
+      if (!isEditableMode) return;
+      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar fichas técnicas.'); return; }
+      if (fichaDeleteInProgress.has(id)) return; // evita doble ejecución
+      const f = getFichaById(id);
   if (!f) return;
 
   if (!confirm('¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTA FICHA TÉCNICA?')) return;

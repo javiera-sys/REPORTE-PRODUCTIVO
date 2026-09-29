@@ -1,0 +1,14 @@
+{
+  "usuarios": [
+    {
+      "id": "u_admin_javier",
+      "nombre": "JAVIER C",
+      "username": "javier.c",
+      "passwordHash": "REEMPLAZA_ESTO_CON_TU_HASH_REAL",
+      "rol": "admin",
+      "activo": true,
+      "createdAt": 1790000000000,
+      "createdBy": "sistema"
+    }
+  ]
+}

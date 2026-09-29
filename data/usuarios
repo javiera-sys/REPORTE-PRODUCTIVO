@@ -1,0 +1,14 @@
+{
+  "usuarios": [
+    {
+      "id": "u_admin_default",
+      "nombre": "Administrador",
+      "username": "admin",
+      "passwordHash": "PENDIENTE_GENERAR",
+      "rol": "admin",
+      "activo": true,
+      "createdAt": 1790000000000,
+      "createdBy": "sistema"
+    }
+  ]
+}

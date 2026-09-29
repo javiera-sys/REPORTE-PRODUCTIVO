@@ -1,5 +1,10 @@
 /* ============================================================
    MÓDULO DE USUARIOS Y ROLES
+   ============================================================
+   - El login activa el MODO EDICIÓN automáticamente (ya no hay que
+     desbloquear el candado por separado).
+   - Al recargar la página con sesión activa, también se reactiva.
+   - Al cerrar sesión, se vuelve a modo lectura.
    ============================================================ */
 
 const USUARIOS_FILE = 'data/usuarios.json';
@@ -9,6 +14,7 @@ const SALT = 'rpi_prod_2026_salt_v1';
 let usuariosDB = [];
 let currentUser = null;
 
+/* ---------- Utilidades de hash ---------- */
 async function sha256Hex(texto) {
   const enc = new TextEncoder().encode(texto);
   const buf = await crypto.subtle.digest('SHA-256', enc);
@@ -21,6 +27,21 @@ async function hashPassword(password) {
   return await sha256Hex(SALT + '::' + password);
 }
 
+/* ---------- Activar modo edición (helper reutilizable) ---------- */
+function activarModoEdicion() {
+  if (typeof isEditableMode !== 'undefined' && !isEditableMode) {
+    isEditableMode = true;
+    document.body.classList.remove('is-locked');
+    const lockBtn = document.getElementById('btn-lock-toggle');
+    if (lockBtn) {
+      lockBtn.className = 'btn btn-green';
+      lockBtn.innerHTML = '<i class="ti ti-lock-open"></i> MODO EDICIÓN 🔓';
+    }
+    if (typeof renderPG === 'function') renderPG();
+  }
+}
+
+/* ---------- Carga y guardado de usuarios ---------- */
 async function cargarUsuarios() {
   try {
     const resp = await fetch(USUARIOS_FILE, { cache: 'no-store' });
@@ -52,6 +73,8 @@ function restaurarSesion() {
     const user = usuariosDB.find(u => u.username === sess.username && u.activo);
     if (user) {
       currentUser = { username: user.username, nombre: user.nombre, rol: user.rol };
+      // Restaurar también el modo edición si ya había sesión
+      setTimeout(activarModoEdicion, 500);
     }
   } catch (e) { }
 }
@@ -64,6 +87,7 @@ function guardarSesion() {
   }
 }
 
+/* ---------- Login / Logout ---------- */
 async function loginUsuario(username, password) {
   const user = usuariosDB.find(u => u.username.toLowerCase() === String(username).toLowerCase().trim());
   if (!user) return { ok: false, error: 'Usuario no encontrado.' };
@@ -74,6 +98,10 @@ async function loginUsuario(username, password) {
   currentUser = { username: user.username, nombre: user.nombre, rol: user.rol };
   guardarSesion();
   actualizarUISesion();
+
+  // 🔓 ACTIVAR MODO EDICIÓN AUTOMÁTICAMENTE AL INICIAR SESIÓN
+  activarModoEdicion();
+
   return { ok: true, user: currentUser };
 }
 
@@ -81,6 +109,7 @@ function logoutUsuario() {
   currentUser = null;
   guardarSesion();
   actualizarUISesion();
+  // Al cerrar sesión, se vuelve a modo lectura por seguridad
   if (typeof isEditableMode !== 'undefined' && isEditableMode) {
     isEditableMode = false;
     document.body.classList.add('is-locked');
@@ -93,6 +122,7 @@ function logoutUsuario() {
   }
 }
 
+/* ---------- Helpers de rol ---------- */
 function isLoggedIn() { return !!currentUser; }
 function isAdmin() { return !!currentUser && currentUser.rol === 'admin'; }
 function getCurrentUser() { return currentUser; }
@@ -105,6 +135,7 @@ function getCurrentUserTag() {
   return '👤 ' + (currentUser.nombre || currentUser.username).toUpperCase();
 }
 
+/* ---------- UI de sesión ---------- */
 function actualizarUISesion() {
   const btn = document.getElementById('btn-session');
   const label = document.getElementById('session-label');
@@ -119,6 +150,7 @@ function actualizarUISesion() {
     label.textContent = 'Iniciar sesión';
     btn.title = 'Iniciar sesión';
   }
+  // Mostrar/ocultar elementos exclusivos de admin
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = isAdmin() ? '' : 'none';
   });
@@ -153,6 +185,7 @@ async function doLogin() {
   }
 }
 
+/* ---------- Administración de usuarios (solo admin) ---------- */
 function openAdminUsuarios() {
   if (!isAdmin()) {
     alert('Solo el administrador puede acceder a esta sección.');

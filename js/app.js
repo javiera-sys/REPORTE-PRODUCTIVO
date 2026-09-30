@@ -111,6 +111,7 @@ let isEditableMode = false;
 let filterStatus = 'all'; 
 let filterNave = 'all'; 
 let isPGPanelOpen = false; 
+let marcadorModo = 'cambios'; // 'cambios' (actual) o 'global' (nuevo)
 
 let fileHandle = null;
 let data = { naves: [], accessPasswords: [], pendientesGenerales: [], fichasTecnicas: [] };
@@ -471,6 +472,22 @@ function render(){
    vive aparte en app.js y no se toca aquí). Se llama desde el mismo
    render() central que ya se ejecuta tras crear/editar/eliminar/cambiar
    el estado de cualquier cambio, así que siempre queda al día solo. */
+/* MARCADOR: estado actual de TODOS los registros almacenados.
+   Dos modos de conteo:
+     - 'cambios' (actual): cada item de cada nave = 1 registro.
+     - 'global': cada item × cada modelo de la nave = 1 registro.
+   El modo se cambia con setMarcadorModo() y se refleja de inmediato. */
+function setMarcadorModo(modo) {
+  marcadorModo = (modo === 'global') ? 'global' : 'cambios';
+  // Actualizar estado visual del switch
+  const btnCambios = document.getElementById('marcador-mode-cambios');
+  const btnGlobal = document.getElementById('marcador-mode-global');
+  if (btnCambios) btnCambios.classList.toggle('active', marcadorModo === 'cambios');
+  if (btnGlobal) btnGlobal.classList.toggle('active', marcadorModo === 'global');
+  // Re-renderizar solo el marcador (sin recargar la página)
+  renderMarcador();
+}
+
 function renderMarcador() {
   const pendienteEl = document.getElementById('marcador-count-pendiente');
   const terminadoEl = document.getElementById('marcador-count-terminado');
@@ -478,11 +495,23 @@ function renderMarcador() {
   if (!pendienteEl || !terminadoEl || !canceladoEl) return;
 
   let pendientes = 0, terminados = 0, cancelados = 0;
+
   (data.naves || []).forEach(nave => {
+    // En modo GLOBAL, cada item pesa tantas veces como modelos tenga la nave.
+    // Si la nave no tiene modelos registrados, se cuenta 1 (para no perder el registro).
+    let peso = 1;
+    if (marcadorModo === 'global') {
+      peso = (Array.isArray(nave.models) && nave.models.length > 0) ? nave.models.length : 1;
+    }
+
     (nave.items || []).forEach(item => {
-      if (item.cancelado) cancelados++;
-      else if (item.proceso && item.proceso.planoTerminado) terminados++;
-      else pendientes++;
+      if (item.cancelado) {
+        cancelados += peso;
+      } else if (item.proceso && item.proceso.planoTerminado) {
+        terminados += peso;
+      } else {
+        pendientes += peso;
+      }
     });
   });
 

@@ -120,6 +120,7 @@
   .role-admin { background: #fef3c7; color: #92400e; }
   .role-user { background: #e0f2f1; color: #0f6e8c; }
   .role-inactive { background: #fee2e2; color: #b91c1c; }
+  .role-protected { background: #fde68a; color: #78350f; border: 1px solid #fcd34d; }
   #modal-admin-usuarios .modal { width: 560px; }
   #modal-admin-usuarios h3 { font-size: 14px; font-weight: 800; color: var(--color-text-primary); margin: 14px 0 8px; display: flex; align-items: center; gap: 6px; }
   #modal-admin-usuarios textarea { font-family: monospace; font-size: 12px; }
@@ -133,7 +134,7 @@
       <div class="top-bar-left">
         <div>
           <h1 style="display: flex; align-items: center;">Errores y Mejoras de Producción <span class="version-badge">ISO 1.5</span></h1>
-          <p>Fecha: <span id="current-date">29/09/2026</span></p>
+          <p>Fecha: <span id="current-date">30/09/2026</span></p>
           <p style="font-size: 11px; margin-top: 4px; color: var(--color-text-secondary);">
             ✔️ = Correcto (no requiere cambios). &nbsp;|&nbsp; ❌ = Cambiar el plano, habilitado o etiqueta.
           </p>
@@ -264,7 +265,7 @@
       <button class="btn btn-navy" onclick="closeSideMenu(); openExport('pdf')" title="Exporta un documento limpio listo para imprimir"><i class="ti ti-file-text" aria-hidden="true"></i> Exportar PDF Final</button>
       <button class="btn" id="btn-download-offline" onclick="closeSideMenu(); downloadOfflineVersion()" title="Guarda el cascarón de la app (HTML/CSS/JS) para poder abrirla sin conexión" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-cloud-download" aria-hidden="true"></i> Descargar versión offline</button>
       <button class="btn btn-navy" onclick="closeSideMenu(); openProcesosDiseno()" title="Módulo independiente de procesos de diseño (Excel)"><i class="ti ti-clipboard-list" aria-hidden="true"></i> Procesos de diseño</button>
-      <button class="btn btn-purple admin-only" onclick="closeSideMenu(); openAdminUsuarios()" title="Administración de usuarios (solo admin)" style="display:none;"><i class="ti ti-users" aria-hidden="true"></i> Administración → Usuarios</button>
+      <button class="btn btn-purple admin-principal-only" onclick="closeSideMenu(); openAdminUsuarios()" title="Administración de usuarios (solo cuenta principal)" style="display:none;"><i class="ti ti-users" aria-hidden="true"></i> Administración → Usuarios</button>
     </div>
 </div>
 
@@ -317,7 +318,7 @@
   </div>
 </div>
 
-<!-- Modal de Administración de Usuarios (solo admin) -->
+<!-- Modal de Administración de Usuarios (solo admin principal) -->
 <div class="modal-bg" id="modal-admin-usuarios">
   <div class="modal">
     <div class="modal-header">
@@ -354,6 +355,9 @@
 
     <p style="font-size:11px; color:var(--color-text-secondary); margin-top:16px; line-height:1.5;">
       ⚠️ <b>Nota</b>: GitHub Pages es un sitio estático. El sistema de usuarios es una barrera de organización y disuasión, no seguridad criptográfica. La verdadera protección del repositorio es el token de GitHub.
+    </p>
+    <p style="font-size:11px; color:var(--color-text-secondary); line-height:1.5;">
+      🔒 <b>Reglas del admin principal</b>: solo la cuenta principal puede crear, eliminar usuarios y cambiar contraseñas. La cuenta principal nunca puede ser eliminada.
     </p>
     <p style="font-size:11px; color:var(--color-text-secondary); line-height:1.5;">
       Los cambios de usuarios solo se guardan permanentemente al hacer <b>"Guardar en GitHub"</b>.

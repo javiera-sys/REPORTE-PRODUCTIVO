@@ -369,10 +369,11 @@ function renderPG() {
               ${dateStr ? `<div class="pg-item-date">${dateStr}</div>` : ''}
           </div>
           <div class="pg-item-desc">${escHtml(pg.desc)}</div>
-          <div class="pg-actions-row only-editable">
-              <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('${pg.id}')"><i class="ti ti-pencil"></i></button>
-              <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('${pg.id}')"><i class="ti ti-trash"></i></button>
-          </div>
+    ${renderAdjuntosPG(pg)}
+    <div class="pg-actions-row only-editable">
+        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('${pg.id}')"><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('${pg.id}')"><i class="ti ti-trash"></i></button>
+    </div>
       </div>
       `;
   });
@@ -387,6 +388,124 @@ function openAddPG() {
   document.getElementById('modal-pg-h').textContent = 'Agregar Pendiente General';
   document.getElementById('modal-pg').classList.add('open');
   setTimeout(() => document.getElementById('pg-title').focus(), 100);
+}
+/* ---- Adjuntos de Pendientes Generales (imágenes + PDFs) ----
+   Reutiliza el MISMO sistema de almacenamiento que las naves/fichas:
+   - En memoria: data-URI base64.
+   - Al guardar en GitHub: se suben a data/images/ y el JSON queda con la ruta.
+   - Al eliminar: mismo helper deleteFileFromGithub.
+*/
+function renderAdjuntosPG(pg) {
+  if (!pg.adjuntos || !Array.isArray(pg.adjuntos)) pg.adjuntos = [];
+  const total = pg.adjuntos.length;
+  let html = '<div class="pg-adjuntos-row">';
+  pg.adjuntos.forEach((adj, idx) => {
+    if (!adj) return;
+    const esPdf = adj.startsWith('data:application/pdf') || adj.toLowerCase().includes('.pdf');
+    const thumb = esPdf
+      ? `<div class="pg-adjunto-pdf" title="PDF"><i class="ti ti-file-type-pdf"></i></div>`
+      : `<img src="${adj}" alt="adjunto" loading="lazy">`;
+    const clickAction = esPdf ? `abrirPdfPG('${pg.id}', ${idx})` : `viewImage('${adj}')`;
+    html += `
+      <div class="pg-adjunto-item">
+        <div class="pg-adjunto-thumb" onclick="${clickAction}" title="${esPdf ? 'Ver PDF' : 'Ver imagen'}">
+          ${thumb}
+        </div>
+        <button class="pg-adjunto-del only-editable" onclick="eliminarAdjuntoPG(event, '${pg.id}', ${idx})" title="Eliminar archivo"><i class="ti ti-x"></i></button>
+      </div>`;
+  });
+  html += `
+      <div class="pg-adjunto-item pg-adjunto-add only-editable">
+        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" id="pg-adj-${pg.id}" class="input-oculto" onchange="subirAdjuntoPG(event, '${pg.id}')">
+        <label for="pg-adj-${pg.id}" class="pg-adjunto-add-label" title="Agregar archivo (imagen o PDF)">
+          <i class="ti ti-plus"></i>
+        </label>
+      </div>
+    </div>
+    <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:4px;">${total} archivo${total===1?'':'s'} adjunto${total===1?'':'s'}</div>
+  `;
+  return html;
+}
+
+function subirAdjuntoPG(event, pgId) {
+  if (!isEditableMode) { event.target.value = ''; return; }
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Validar tipo (imagen o PDF)
+  const esImagen = /^image\/(jpeg|jpg|png|webp)$/i.test(file.type);
+  const esPdf = file.type === 'application/pdf';
+  if (!esImagen && !esPdf) {
+    alert('Solo se permiten imágenes (JPG, JPEG, PNG, WEBP) o documentos PDF.');
+    event.target.value = '';
+    return;
+  }
+
+  const pg = (data.pendientesGenerales || []).find(p => p.id === pgId);
+  if (!pg) { event.target.value = ''; return; }
+  if (!pg.adjuntos) pg.adjuntos = [];
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    let contenido = e.target.result;
+
+    // Reutiliza la misma compresión que ya usa la app para las imágenes
+    if (esImagen) {
+      contenido = await compressImageDataUrl(contenido);
+    }
+
+    pg.adjuntos.push(contenido);
+    renderPG();
+    event.target.value = '';
+  };
+  reader.onerror = () => { alert('❌ No se pudo leer el archivo.'); event.target.value = ''; };
+  reader.readAsDataURL(file);
+}
+
+async function eliminarAdjuntoPG(event, pgId, idx) {
+  if (event) event.stopPropagation();
+  if (!isEditableMode) return;
+  const pg = (data.pendientesGenerales || []).find(p => p.id === pgId);
+  if (!pg || !pg.adjuntos || !pg.adjuntos[idx]) return;
+  if (!confirm('¿Eliminar este archivo adjunto?')) return;
+
+  const adj = pg.adjuntos[idx];
+
+  // Si ya está subido a GitHub (es una ruta relativa, no un data-URI),
+  // se borra el archivo del repositorio con el mismo helper que usan las fichas.
+  if (typeof adj === 'string' && !adj.startsWith('data:')) {
+    try {
+      const cfg = loadGithubConfig();
+      if (cfg && cfg.repo && cfg.token) {
+        const branch = cfg.branch || 'main';
+        const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
+        await deleteFileFromGithub(cfg.repo, adj, branch, headers, `Eliminar adjunto de pendiente general "${pg.title}"`);
+      }
+    } catch (err) {
+      console.error('No se pudo borrar el archivo del repositorio:', err);
+      // No se cancela la eliminación local: se limpia de todos modos.
+      // Al guardar en GitHub ya no se referenciará.
+    }
+  }
+
+  pg.adjuntos.splice(idx, 1);
+  renderPG();
+
+  // Si ya había config de GitHub, se persiste el cambio de inmediato
+  try {
+    const cfg = loadGithubConfig();
+    if (cfg && cfg.repo && cfg.token) {
+      await quickSaveGithub();
+    }
+  } catch (err) {
+    console.warn('El adjunto se eliminó localmente pero no se pudo guardar en GitHub todavía:', err);
+  }
+}
+
+function abrirPdfPG(pgId, idx) {
+  const pg = (data.pendientesGenerales || []).find(p => p.id === pgId);
+  if (!pg || !pg.adjuntos || !pg.adjuntos[idx]) return;
+  window.open(pg.adjuntos[idx], '_blank');
 }
 
 function savePG() {
@@ -409,12 +528,13 @@ function savePG() {
           pg.desc = desc;
       }
   } else {
-      data.pendientesGenerales.unshift({
-          id: uid(),
-          title: title,
-          desc: desc,
-          createdAt: Date.now()
-      });
+       data.pendientesGenerales.unshift({
+        id: uid(),
+        title: title,
+        desc: desc,
+        adjuntos: [],   // 🔽 inicia vacío
+        createdAt: Date.now()
+    });
   }
   
   closeModal('modal-pg');
@@ -3046,6 +3166,33 @@ async function pushToGithub() {
             ),
             apply: () => { f.content = 'data/images/' + fileName; }
           });
+        }
+      }
+    }
+ if (Array.isArray(data.pendientesGenerales)) {
+      for (const pg of data.pendientesGenerales) {
+        if (!Array.isArray(pg.adjuntos)) continue;
+        for (let k = 0; k < pg.adjuntos.length; k++) {
+          const adj = pg.adjuntos[k];
+          if (typeof adj === 'string' && adj.startsWith('data:')) {
+            // Detectar tipo y extensión
+            let ext = 'jpg';
+            if (adj.startsWith('data:application/pdf')) ext = 'pdf';
+            else if (adj.startsWith('data:image/png')) ext = 'png';
+            else if (adj.startsWith('data:image/webp')) ext = 'webp';
+            else if (adj.startsWith('data:image/jpeg') || adj.startsWith('data:image/jpg')) ext = 'jpg';
+
+            const fileName = `adj_pg_${pg.id}_${uid()}.${ext}`;
+            const b64 = adj.split(',', 2)[1];
+            uploadTasks.push({
+              label: `Adjunto de pendiente "${pg.title || 'general'}"`,
+              run: () => createNewFileOnGithub(
+                repo, imagesRepoPrefix + fileName, branch, headers, b64,
+                `Nuevo adjunto de pendiente general (${new Date().toLocaleString('es-MX')})`
+              ),
+              apply: () => { pg.adjuntos[k] = 'data/images/' + fileName; }
+            });
+          }
         }
       }
     }

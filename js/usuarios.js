@@ -11,6 +11,12 @@
    - La contraseña de "javier.c" solo la puede cambiar él mismo.
    - "javier.c" nunca puede ser eliminado.
    - Restricciones aplicadas en lógica (no solo en UI).
+
+   PERSISTENCIA:
+   - Cada vez que se modifica la lista de usuarios (crear, editar, eliminar,
+     cambiar contraseña, activar/desactivar), se activa la bandera global
+     "usuariosDBChanged" que app.js lee al subir a GitHub para incluir
+     data/usuarios.json en el commit.
    ============================================================ */
 
 const USUARIOS_FILE = 'data/usuarios.json';
@@ -22,6 +28,7 @@ const PROTECTED_ADMIN = 'javier.c';
 
 let usuariosDB = [];
 let currentUser = null;
+let usuariosDBChanged = false; // 🔽 bandera que app.js lee para saber si hay que subir usuarios.json
 
 /* ---------- Utilidades de hash ---------- */
 async function sha256Hex(texto) {
@@ -327,6 +334,7 @@ function editAdminUsuario(idx) {
   u.nombre = nuevoNombre.trim();
   u.username = nuevoUsername.trim();
   u.rol = nuevoRol;
+  usuariosDBChanged = true; // 🔽 marcar para que se suba a GitHub
   renderAdminUsuarios();
 }
 
@@ -353,6 +361,7 @@ async function changeAdminPassword(idx) {
   if (nueva === null) return;
   if (!nueva || nueva.length < 4) { alert('La contraseña debe tener al menos 4 caracteres.'); return; }
   u.passwordHash = await hashPassword(nueva);
+  usuariosDBChanged = true; // 🔽 marcar para que se suba a GitHub
   alert('✅ Contraseña actualizada. Recuerda guardar en GitHub para que sea permanente.');
   renderAdminUsuarios();
 }
@@ -371,6 +380,7 @@ function toggleAdminUsuario(idx) {
     return;
   }
   u.activo = !u.activo;
+  usuariosDBChanged = true; // 🔽 marcar para que se suba a GitHub
   renderAdminUsuarios();
 }
 
@@ -395,6 +405,7 @@ function deleteAdminUsuario(idx) {
   }
   if (!confirm('¿Eliminar al usuario "' + u.nombre + '"?')) return;
   usuariosDB.splice(idx, 1);
+  usuariosDBChanged = true; // 🔽 marcar para que se suba a GitHub
   renderAdminUsuarios();
 }
 
@@ -425,6 +436,7 @@ async function crearUsuarioAdmin() {
   document.getElementById('nu-nombre').value = '';
   document.getElementById('nu-username').value = '';
   document.getElementById('nu-password').value = '';
+  usuariosDBChanged = true; // 🔽 marcar para que se suba a GitHub
   renderAdminUsuarios();
   alert('✅ Usuario creado. Recuerda guardar en GitHub para que sea permanente.');
 }

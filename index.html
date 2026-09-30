@@ -94,6 +94,7 @@
   .pg-panel { background: var(--color-background-primary); border: 1px solid var(--color-border-secondary); border-radius: 12px; padding: 14px; margin-top: 8px; max-height: 350px; overflow-y: auto; box-shadow: var(--shadow-md); }
   .marcador-wrapper { margin-top: 12px; border-top: 1px solid var(--color-border-tertiary); padding-top: 12px; }
   .marcador-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--color-text-primary); margin-bottom: 10px; }
+  .marcador-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
   .marcador-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .marcador-grid .week-stat-card { cursor: default; min-width: 0; }
   .marcador-grid .week-stat-card:hover { transform: none; box-shadow: none; }
@@ -124,6 +125,12 @@
   #modal-admin-usuarios .modal { width: 560px; }
   #modal-admin-usuarios h3 { font-size: 14px; font-weight: 800; color: var(--color-text-primary); margin: 14px 0 8px; display: flex; align-items: center; gap: 6px; }
   #modal-admin-usuarios textarea { font-family: monospace; font-size: 12px; }
+
+  /* Switch de modo de marcador: CAMBIOS / GLOBAL */
+  .marcador-mode-switch { display: inline-flex; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); border-radius: 999px; padding: 2px; gap: 2px; }
+  .marcador-mode-btn { background: transparent; border: none; padding: 4px 12px; font-size: 11px; font-weight: 700; color: var(--color-text-secondary); border-radius: 999px; cursor: pointer; font-family: var(--font-sans); transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px; }
+  .marcador-mode-btn:hover { color: var(--navy); }
+  .marcador-mode-btn.active { background: var(--color-background-primary); color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 </style>
 </head>
 <body class="is-locked">
@@ -218,7 +225,13 @@
     </div>
 
     <div class="marcador-wrapper">
-      <div class="marcador-title"><i class="ti ti-chart-donut-2"></i> Marcador</div>
+      <div class="marcador-header">
+        <div class="marcador-title" style="margin-bottom:0;"><i class="ti ti-chart-donut-2"></i> Marcador</div>
+        <div class="marcador-mode-switch" role="group" aria-label="Modo de conteo del marcador">
+          <button type="button" class="marcador-mode-btn active" id="marcador-mode-cambios" onclick="setMarcadorModo('cambios')" title="Contar por cambio/grupo (1 cambio = 1 registro)"><i class="ti ti-list-check"></i> CAMBIOS</button>
+          <button type="button" class="marcador-mode-btn" id="marcador-mode-global" onclick="setMarcadorModo('global')" title="Contar cada mueble dentro de cada cambio"><i class="ti ti-world"></i> GLOBAL</button>
+        </div>
+      </div>
       <div class="marcador-grid">
         <div class="week-stat-card week-stat-pending">
           <div class="week-stat-count" id="marcador-count-pendiente">0</div>

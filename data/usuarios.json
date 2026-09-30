@@ -9,6 +9,16 @@
       "activo": true,
       "createdAt": 1790000000000,
       "createdBy": "sistema"
+    },
+    {
+      "id": "u_1gxfimw",
+      "nombre": "ALEXANDER N.",
+      "username": "alexander.n",
+      "passwordHash": "2729affcd5480b9d00c3da143390d4683201e10316de77961e3cd67d66a9f545",
+      "rol": "admin",
+      "activo": true,
+      "createdAt": 1790796955036,
+      "createdBy": "javier.c"
     }
   ]
 }

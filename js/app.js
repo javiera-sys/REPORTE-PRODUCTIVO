@@ -3114,6 +3114,19 @@ async function pushToGithub() {
       modelosDBChanged = false;
     }
     mark('modelos_json', tModelos);
+            // 4.5) Guardar usuarios.json SOLO si cambió (crear/editar/eliminar usuarios)
+    if (typeof usuariosDBChanged !== 'undefined' && usuariosDBChanged) {
+      setGithubStatus('Guardando usuarios...', 'info');
+      const usuariosRepoPath = baseDir + 'data/usuarios.json';
+      const usuariosData = (typeof getUsuariosParaGuardar === 'function')
+        ? getUsuariosParaGuardar()
+        : { usuarios: usuariosDB };
+      await putFileToGithubCached(
+        repo, usuariosRepoPath, branch, headers, utf8ToBase64(JSON.stringify(usuariosData, null, 2)),
+        `Actualización de usuarios (${new Date().toLocaleString('es-MX')})`
+      );
+      usuariosDBChanged = false;
+    }
 
     // 5) Actualizar interfaz: solo el mensaje de estado, sin re-renderizar toda la app
     //    (los datos en memoria ya reflejaban el cambio antes de subir; no hay nada visual que refrescar).

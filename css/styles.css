@@ -414,10 +414,14 @@ button, .btn, .btn-filter, .hbtn { touch-action: manipulation; }
    vacías quedan invisibles y la(s) tarjeta(s) real(es) no se estiran
    -> se ve idéntico a una lista aunque el grid esté activo. auto-fit
    sí las estira para llenar el ancho disponible. */
+/* CAMBIO: ahora se fija a máximo 3 columnas por fila (antes auto-fit
+   metía tantas columnas como cupieran, encogiendo las tarjetas). Los
+   cambios 4, 5, 6 bajan automáticamente a la segunda fila, y así
+   sucesivamente, sin límite de cantidad de cambios. */
 @media (min-width: 600px) {
   .items-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
   }
   .items-grid .item-card { margin-bottom: 0; }
@@ -428,10 +432,11 @@ button, .btn, .btn-filter, .hbtn { touch-action: manipulation; }
 
 /* Escritorio grande: se libera el ancho máximo de la app (antes fijo en
    980px) para que el panel de tarjetas tenga espacio real y llegue a las
-   ~4 columnas pedidas, sin afectar tablet/móvil. */
+   ~3 columnas pedidas, sin afectar tablet/móvil.
+   CAMBIO: también se fija a máximo 3 columnas (antes auto-fit). */
 @media (min-width: 1100px) {
   .app { max-width: 1500px; }
-  .items-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+  .items-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 }
 
 /* Tablets (768px–1024px): la app sigue en 2 columnas pero con más aire */

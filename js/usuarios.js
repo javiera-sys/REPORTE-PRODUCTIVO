@@ -1,15 +1,24 @@
 /* ============================================================
    MÓDULO DE USUARIOS Y ROLES
    ============================================================
-   - El login activa el MODO EDICIÓN automáticamente (ya no hay que
-     desbloquear el candado por separado).
-   - Al recargar la página con sesión activa, también se reactiva.
-   - Al cerrar sesión, se vuelve a modo lectura.
+   REGLAS DE SEGURIDAD:
+   - "javier.c" es el ADMIN PRINCIPAL (control total de usuarios).
+     Solo él puede: crear usuarios, eliminar usuarios, cambiar/restablecer
+     contraseñas de cualquier usuario.
+   - Los demás administradores conservan el resto de permisos de la app
+     (borrar cambios, restaurar versiones, etc.) pero NO pueden gestionar
+     usuarios.
+   - La contraseña de "javier.c" solo la puede cambiar él mismo.
+   - "javier.c" nunca puede ser eliminado.
+   - Restricciones aplicadas en lógica (no solo en UI).
    ============================================================ */
 
 const USUARIOS_FILE = 'data/usuarios.json';
 const SESSION_KEY = 'rpi_session_user';
 const SALT = 'rpi_prod_2026_salt_v1';
+
+// 🔒 Admin principal — única cuenta con control de usuarios
+const PROTECTED_ADMIN = 'javier.c';
 
 let usuariosDB = [];
 let currentUser = null;
@@ -25,6 +34,42 @@ async function sha256Hex(texto) {
 
 async function hashPassword(password) {
   return await sha256Hex(SALT + '::' + password);
+}
+
+/* ---------- Helpers de seguridad ---------- */
+function esAdminProtegido(username) {
+  return String(username || '').toLowerCase() === PROTECTED_ADMIN.toLowerCase();
+}
+
+// ¿El usuario actual es el admin principal?
+function soyAdminPrincipal() {
+  return !!currentUser && currentUser.username.toLowerCase() === PROTECTED_ADMIN.toLowerCase();
+}
+
+// ¿El usuario actual puede gestionar usuarios (crear/eliminar/password)?
+function puedeGestionarUsuarios() {
+  return soyAdminPrincipal();
+}
+
+// ¿Puedo modificar (editar/password) al usuario objetivo?
+function puedeModificarA(usernameObjetivo) {
+  if (!currentUser) return false;
+  const yo = currentUser.username.toLowerCase();
+  const objetivo = String(usernameObjetivo || '').toLowerCase();
+  // Si el objetivo es el admin principal → solo él mismo puede modificarse
+  if (objetivo === PROTECTED_ADMIN.toLowerCase()) return yo === PROTECTED_ADMIN.toLowerCase();
+  // Para los demás usuarios: solo el admin principal puede gestionarlos
+  return soyAdminPrincipal();
+}
+
+// ¿Puedo eliminar al usuario objetivo?
+function puedeEliminarA(usernameObjetivo) {
+  if (!currentUser) return false;
+  const objetivo = String(usernameObjetivo || '').toLowerCase();
+  // El admin principal NUNCA puede eliminarse (ni por él mismo)
+  if (objetivo === PROTECTED_ADMIN.toLowerCase()) return false;
+  // Solo el admin principal puede eliminar
+  return soyAdminPrincipal();
 }
 
 /* ---------- Activar modo edición (helper reutilizable) ---------- */
@@ -73,7 +118,6 @@ function restaurarSesion() {
     const user = usuariosDB.find(u => u.username === sess.username && u.activo);
     if (user) {
       currentUser = { username: user.username, nombre: user.nombre, rol: user.rol };
-      // Restaurar también el modo edición si ya había sesión
       setTimeout(activarModoEdicion, 500);
     }
   } catch (e) { }
@@ -98,10 +142,7 @@ async function loginUsuario(username, password) {
   currentUser = { username: user.username, nombre: user.nombre, rol: user.rol };
   guardarSesion();
   actualizarUISesion();
-
-  // 🔓 ACTIVAR MODO EDICIÓN AUTOMÁTICAMENTE AL INICIAR SESIÓN
   activarModoEdicion();
-
   return { ok: true, user: currentUser };
 }
 
@@ -109,7 +150,6 @@ function logoutUsuario() {
   currentUser = null;
   guardarSesion();
   actualizarUISesion();
-  // Al cerrar sesión, se vuelve a modo lectura por seguridad
   if (typeof isEditableMode !== 'undefined' && isEditableMode) {
     isEditableMode = false;
     document.body.classList.add('is-locked');
@@ -150,9 +190,12 @@ function actualizarUISesion() {
     label.textContent = 'Iniciar sesión';
     btn.title = 'Iniciar sesión';
   }
-  // Mostrar/ocultar elementos exclusivos de admin
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = isAdmin() ? '' : 'none';
+  });
+  // 🔒 Solo el admin principal ve el módulo de usuarios
+  document.querySelectorAll('.admin-principal-only').forEach(el => {
+    el.style.display = soyAdminPrincipal() ? '' : 'none';
   });
 }
 
@@ -185,10 +228,11 @@ async function doLogin() {
   }
 }
 
-/* ---------- Administración de usuarios (solo admin) ---------- */
+/* ---------- Administración de usuarios (SOLO ADMIN PRINCIPAL) ---------- */
 function openAdminUsuarios() {
-  if (!isAdmin()) {
-    alert('Solo el administrador puede acceder a esta sección.');
+  // 🔒 Restricción real: solo el admin principal
+  if (!soyAdminPrincipal()) {
+    alert('🔒 Solo la cuenta principal puede administrar usuarios.');
     return;
   }
   renderAdminUsuarios();
@@ -202,28 +246,59 @@ function renderAdminUsuarios() {
     list.innerHTML = '<div class="access-empty">No hay usuarios registrados.</div>';
     return;
   }
-  list.innerHTML = usuariosDB.map((u, idx) => `
+
+  list.innerHTML = usuariosDB.map((u, idx) => {
+    const esProtegido = esAdminProtegido(u.username);
+    const esYo = currentUser && currentUser.username.toLowerCase() === u.username.toLowerCase();
+
+    // Botón editar / password: oculto si el objetivo es el protegido y yo no soy él
+    const puedeEditar = !esProtegido || esYo;
+    // Botón eliminar: nunca en el protegido; nunca en uno mismo
+    const puedeBorrar = !esProtegido && !esYo;
+
+    return `
     <div class="access-chip" style="flex-wrap:wrap; gap:6px;">
       <span style="flex:1; min-width:150px;">
         <b>${escHtml(u.nombre)}</b>
         <span style="font-size:11px; color:var(--color-text-secondary);">(${escHtml(u.username)})</span>
         <span class="user-role-badge ${u.rol === 'admin' ? 'role-admin' : 'role-user'}">${u.rol === 'admin' ? '👑 ADMIN' : '👤 USUARIO'}</span>
+        ${esProtegido ? '<span class="user-role-badge role-protected">🔒 PRINCIPAL</span>' : ''}
         ${u.activo ? '' : '<span class="user-role-badge role-inactive">⛔ INACTIVO</span>'}
       </span>
-      <button class="btn btn-xs btn-ghost" title="Editar" onclick="editAdminUsuario(${idx})"><i class="ti ti-pencil"></i></button>
-      <button class="btn btn-xs btn-amber" title="Cambiar contraseña" onclick="changeAdminPassword(${idx})"><i class="ti ti-key"></i></button>
+      ${puedeEditar
+        ? `<button class="btn btn-xs btn-ghost" title="Editar" onclick="editAdminUsuario(${idx})"><i class="ti ti-pencil"></i></button>`
+        : `<button class="btn btn-xs btn-ghost" disabled title="Solo el propio ${escHtml(u.nombre)} o la cuenta principal puede editar" style="opacity:0.35;cursor:not-allowed;"><i class="ti ti-pencil"></i></button>`
+      }
+      ${puedeEditar
+        ? `<button class="btn btn-xs btn-amber" title="Cambiar contraseña" onclick="changeAdminPassword(${idx})"><i class="ti ti-key"></i></button>`
+        : `<button class="btn btn-xs btn-amber" disabled title="Solo el propio ${escHtml(u.nombre)} puede cambiar su contraseña" style="opacity:0.35;cursor:not-allowed;"><i class="ti ti-key"></i></button>`
+      }
       <button class="btn btn-xs ${u.activo ? 'btn-danger-ghost' : 'btn-green'}" title="${u.activo ? 'Desactivar' : 'Activar'}" onclick="toggleAdminUsuario(${idx})">
         <i class="ti ${u.activo ? 'ti-user-off' : 'ti-user-check'}"></i>
       </button>
-      ${u.username !== 'admin' || usuariosDB.filter(x=>x.rol==='admin').length > 1 ? `<button class="btn btn-xs btn-danger-ghost" title="Eliminar" onclick="deleteAdminUsuario(${idx})"><i class="ti ti-trash"></i></button>` : ''}
+      ${puedeBorrar
+        ? `<button class="btn btn-xs btn-danger-ghost" title="Eliminar" onclick="deleteAdminUsuario(${idx})"><i class="ti ti-trash"></i></button>`
+        : ''
+      }
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function editAdminUsuario(idx) {
-  if (!isAdmin()) return;
+  // 🔒 Restricción real
+  if (!soyAdminPrincipal()) {
+    alert('🔒 Solo la cuenta principal puede editar usuarios.');
+    return;
+  }
   const u = usuariosDB[idx];
   if (!u) return;
+
+  if (esAdminProtegido(u.username) && !soyAdminPrincipal()) {
+    alert('🔒 La cuenta principal solo puede ser editada por ella misma.');
+    return;
+  }
+
   const nuevoNombre = prompt('Nombre completo:', u.nombre);
   if (nuevoNombre === null) return;
   const nuevoUsername = prompt('Usuario (login):', u.username);
@@ -232,6 +307,20 @@ function editAdminUsuario(idx) {
   if (nuevoRol === null) return;
   if (!nuevoNombre.trim() || !nuevoUsername.trim()) { alert('Nombre y usuario son obligatorios.'); return; }
   if (nuevoRol !== 'admin' && nuevoRol !== 'user') { alert('Rol debe ser "admin" o "user".'); return; }
+
+  // 🔒 El admin principal no puede perder el rol de admin
+  if (esAdminProtegido(u.username) && nuevoRol !== 'admin') {
+    alert('🔒 La cuenta principal no puede perder el rol de administrador.');
+    return;
+  }
+
+  // 🔒 Si estoy editando la cuenta principal y cambio el username, aviso
+  if (esAdminProtegido(u.username) && nuevoUsername.trim().toLowerCase() !== PROTECTED_ADMIN.toLowerCase()) {
+    if (!confirm('⚠️ Estás cambiando el username de la cuenta principal.\n\nEsto romperá la protección hasta que actualices la constante PROTECTED_ADMIN en js/usuarios.js a "' + nuevoUsername.trim().toLowerCase() + '".\n\n¿Continuar de todas formas?')) {
+      return;
+    }
+  }
+
   if (usuariosDB.some((x, i) => i !== idx && x.username.toLowerCase() === nuevoUsername.trim().toLowerCase())) {
     alert('Ya existe otro usuario con ese nombre de usuario.'); return;
   }
@@ -242,9 +331,24 @@ function editAdminUsuario(idx) {
 }
 
 async function changeAdminPassword(idx) {
-  if (!isAdmin()) return;
+  // 🔒 Restricción real
   const u = usuariosDB[idx];
   if (!u) return;
+
+  const esProtegido = esAdminProtegido(u.username);
+  const esYo = currentUser && currentUser.username.toLowerCase() === u.username.toLowerCase();
+
+  // Si es la cuenta protegida → solo ella misma
+  if (esProtegido && !esYo) {
+    alert('🔒 La contraseña de la cuenta principal solo puede cambiarla el propio "' + u.nombre + '".');
+    return;
+  }
+  // Si no es la cuenta protegida → solo el admin principal
+  if (!esProtegido && !soyAdminPrincipal()) {
+    alert('🔒 Solo la cuenta principal puede cambiar contraseñas de otros usuarios.');
+    return;
+  }
+
   const nueva = prompt('Nueva contraseña para "' + u.nombre + '":', '');
   if (nueva === null) return;
   if (!nueva || nueva.length < 4) { alert('La contraseña debe tener al menos 4 caracteres.'); return; }
@@ -254,18 +358,38 @@ async function changeAdminPassword(idx) {
 }
 
 function toggleAdminUsuario(idx) {
-  if (!isAdmin()) return;
+  // 🔒 Solo el admin principal puede activar/desactivar usuarios
+  if (!soyAdminPrincipal()) {
+    alert('🔒 Solo la cuenta principal puede activar/desactivar usuarios.');
+    return;
+  }
   const u = usuariosDB[idx];
   if (!u) return;
+  // El admin principal no se puede desactivar a sí mismo
+  if (esAdminProtegido(u.username) && currentUser && currentUser.username.toLowerCase() === u.username.toLowerCase()) {
+    alert('🔒 No puedes desactivar tu propia cuenta principal.');
+    return;
+  }
   u.activo = !u.activo;
   renderAdminUsuarios();
 }
 
 function deleteAdminUsuario(idx) {
-  if (!isAdmin()) return;
+  // 🔒 Restricción real
+  if (!soyAdminPrincipal()) {
+    alert('🔒 Solo la cuenta principal puede eliminar usuarios.');
+    return;
+  }
   const u = usuariosDB[idx];
   if (!u) return;
-  if (u.username === currentUser.username) {
+
+  // El admin principal nunca puede ser eliminado (ni por él mismo)
+  if (esAdminProtegido(u.username)) {
+    alert('🔒 La cuenta principal no se puede eliminar.');
+    return;
+  }
+  // No eliminar la propia cuenta logueada
+  if (currentUser && currentUser.username.toLowerCase() === u.username.toLowerCase()) {
     alert('No puedes eliminar tu propio usuario mientras tienes la sesión activa.');
     return;
   }
@@ -275,7 +399,11 @@ function deleteAdminUsuario(idx) {
 }
 
 async function crearUsuarioAdmin() {
-  if (!isAdmin()) return;
+  // 🔒 Solo el admin principal
+  if (!soyAdminPrincipal()) {
+    alert('🔒 Solo la cuenta principal puede crear usuarios.');
+    return;
+  }
   const nombre = document.getElementById('nu-nombre').value.trim();
   const username = document.getElementById('nu-username').value.trim();
   const password = document.getElementById('nu-password').value;

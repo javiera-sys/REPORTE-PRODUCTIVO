@@ -711,14 +711,24 @@ function renderItemCard(item, naveId){
     : `<div class="plano-terminado-badge pendiente" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Marcar plano como terminado"><i class="ti ti-alert-triangle"></i><span>PENDIENTE</span></div>`;
 
   let metaHtml = '';
-  if (safeOdt || safeFecha || isEditableMode) {
-     let odtTag = safeOdt ? `<span>ODT: ${escHtml(safeOdt)}</span>` : (isEditableMode ? `<span class="dashed-add only-editable" onclick="startEdit('${item.id}')" title="Agregar Código ODT">+ ODT</span>` : '');
-     let fechaTag = safeFecha ? `<span>${formatDateEs(safeFecha)}</span>` : (isEditableMode ? `<span class="dashed-add only-editable" onclick="startEdit('${item.id}')" title="Agregar Fecha">+ Fecha</span>` : '');
-     
-     if (odtTag || fechaTag) {
-         metaHtml = `<div class="item-meta">${odtTag}${fechaTag}</div>`;
-     }
-  }
+    if (safeOdt || safeFecha || isEditableMode || item.createdByName || item.modifiedByName) {
+       let odtTag = safeOdt ? `<span>ODT: ${escHtml(safeOdt)}</span>` : (isEditableMode ? `<span class="dashed-add only-editable" onclick="startEdit('${item.id}')" title="Agregar Código ODT">+ ODT</span>` : '');
+       let fechaTag = safeFecha ? `<span>${formatDateEs(safeFecha)}</span>` : (isEditableMode ? `<span class="dashed-add only-editable" onclick="startEdit('${item.id}')" title="Agregar Fecha">+ Fecha</span>` : '');
+
+       // 🔽 Etiqueta del autor
+       let autorTag = '';
+       if (item.createdByName) {
+         autorTag = `<span title="Creado por" style="background:#e0f2f1; color:#0f6e8c; border:1px solid #99e6df;">👤 ${escHtml(item.createdByName.toUpperCase())}</span>`;
+       }
+       if (item.modifiedByName && item.modifiedByName !== item.createdByName) {
+         autorTag += `<span title="Última modificación por" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a;">✏️ ${escHtml(item.modifiedByName.toUpperCase())}</span>`;
+       }
+       // 🔼 Fin del cambio
+
+       if (odtTag || fechaTag || autorTag) {
+           metaHtml = `<div class="item-meta">${autorTag}${odtTag}${fechaTag}</div>`;
+       }
+    }
 
   const isNew = item.createdAt && (Date.now() - item.createdAt) < (72 * 60 * 60 * 1000);
   const starIndicatorHtml = isNew 
@@ -2225,11 +2235,17 @@ function mergeData(importedData) {
             } else {
               existingItem.title = existingItem.title || impItem.title;
               existingItem.desc = existingItem.desc || impItem.desc;
-              
               existingItem.fecha = existingItem.fecha || impItem.fecha || '';
               existingItem.odt = existingItem.odt || impItem.odt || '';
               existingItem.createdAt = existingItem.createdAt || impItem.createdAt || Date.now();
-              
+
+              // Conservar autores al importar respaldos
+              existingItem.createdBy = existingItem.createdBy || impItem.createdBy || null;
+              existingItem.createdByName = existingItem.createdByName || impItem.createdByName || null;
+              existingItem.modifiedBy = existingItem.modifiedBy || impItem.modifiedBy || null;
+              existingItem.modifiedByName = existingItem.modifiedByName || impItem.modifiedByName || null;
+              existingItem.modifiedAt = existingItem.modifiedAt || impItem.modifiedAt || null;
+
               if (!existingItem.proceso) {
                 existingItem.proceso = impItem.proceso || { habilitado: false, planos: false, etiquetas: false };
               }
@@ -2320,12 +2336,22 @@ function saveEdit(naveId,itemId){
       item.odt=o;
       item.type=c;
       item.subType=sc;
+
+      // Autor de la modificación (no sobrescribe al autor original)
+      const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+      if (_user) {
+        item.modifiedBy = _user.username;
+        item.modifiedByName = _user.nombre;
+        item.modifiedAt = Date.now();
+      }
+
       if(nave.tipo === 'errores' && c === 'mejora') nave.tipo = 'ambos';
       if(nave.tipo === 'mejoras' && (c === 'error' || c === 'ajuste')) nave.tipo = 'ambos';
     }
   }
   editingItemId=null;render();
 }
+
 
 /* ---- Add item modal ---- */
 function openAddItem(naveId,defaultCat){
@@ -2377,7 +2403,12 @@ function saveItem(){
       fecha,
       odt,
       subType,
-      createdAt: Date.now(), 
+      createdAt: Date.now(),
+      createdBy: (typeof getCurrentUser === 'function' && getCurrentUser()) ? getCurrentUser().username : 'anonimo',
+      createdByName: (typeof getCurrentUser === 'function' && getCurrentUser()) ? getCurrentUser().nombre : 'Anónimo',
+      modifiedBy: null,
+      modifiedByName: null,
+      modifiedAt: null,
       proceso: { habilitado: false, planos: false, etiquetas: false, planoTerminado: false },
       cancelado: false,
       adjuntos: ["","","","",""]

@@ -2732,13 +2732,134 @@ function exportPDFStatic(name) {
   }, 500); 
 }
 
-const GH_CONFIG_KEY = 'reporte_produccion_gh_config';
+/* ============================================================
+   ⬅️ CORREGIDO: CONFIGURACIÓN DE GITHUB POR USUARIO
+   ============================================================
+   Antes: una sola clave global "reporte_produccion_gh_config".
+          Todos los usuarios compartían el mismo token/repo/ruta/rama,
+          y se sobrescribían entre sí.
 
+   Ahora: la clave incluye el username del usuario logueado:
+          "reporte_produccion_gh_config::<username>"
+          Si no hay sesión (anónimo), se usa "__anon__".
+
+   Migración: si existía la clave vieja global, se copia a la clave
+          del usuario que esté logueado al momento de actualizar.
+   ============================================================ */
+
+const GH_CONFIG_KEY_PREFIX = 'reporte_produccion_gh_config';
+const GH_CONFIG_LEGACY_KEY = 'reporte_produccion_gh_config';
+let _ghConfigActiveUsername = null; // username actualmente activo para la config
+
+function getGhConfigKey(username) {
+  const u = (username && String(username).trim()) ? String(username).trim() : '__anon__';
+  return `${GH_CONFIG_KEY_PREFIX}::${u}`;
+}
+
+// Devuelve el username de la sesión actual (o null si es anónimo)
+function getGhConfigActiveUsername() {
+  if (typeof getCurrentUser === 'function') {
+    const u = getCurrentUser();
+    if (u && u.username) return u.username;
+  }
+  return null;
+}
+
+// 🔽 NUEVO: hook que usuarios.js llama al iniciar/cerrar sesión
+window.onUserSessionChanged = function(username) {
+  _ghConfigActiveUsername = username || null;
+  console.log('[GitHub Config] Usuario activo cambiado a:', _ghConfigActiveUsername || '(anónimo)');
+
+  // Si hay una clave vieja global y el usuario actual no tiene config todavía,
+  // se la "hereda" una sola vez (típicamente será javier.c, el primero que
+  // abra la app después de esta actualización). Así no se pierde su setup.
+  if (_ghConfigActiveUsername) {
+    migrarConfigGlobalSiHaceFalta(_ghConfigActiveUsername);
+  }
+
+  // Refrescar el modal de GitHub si estaba abierto con la config del usuario anterior
+  const modal = document.getElementById('modal-github');
+  if (modal && modal.classList.contains('open')) {
+    const cfg = loadGithubConfig();
+    const repoEl = document.getElementById('gh-repo');
+    const pathEl = document.getElementById('gh-path');
+    const branchEl = document.getElementById('gh-branch');
+    const tokenEl = document.getElementById('gh-token');
+    if (repoEl) repoEl.value = cfg && cfg.repo ? cfg.repo : '';
+    if (pathEl) pathEl.value = cfg && cfg.path ? cfg.path : '';
+    if (branchEl) branchEl.value = cfg && cfg.branch ? cfg.branch : 'main';
+    if (tokenEl) tokenEl.value = cfg && cfg.token ? cfg.token : '';
+    const status = document.getElementById('gh-status');
+    if (status) {
+      status.style.display = 'block';
+      status.style.color = 'var(--color-text-secondary)';
+      status.textContent = _ghConfigActiveUsername
+        ? `Mostrando configuración guardada de: ${_ghConfigActiveUsername}`
+        : 'Mostrando configuración anónima (inicia sesión para guardar la tuya).';
+    }
+  }
+};
+
+function migrarConfigGlobalSiHaceFalta(username) {
+  try {
+    const legacyRaw = localStorage.getItem(GH_CONFIG_LEGACY_KEY);
+    if (!legacyRaw) return; // nada que migrar
+    // ¿Es la clave vieja? Ojo: si ya migramos, la clave legacy puede
+    // coincidir con la del prefijo nuevo. Comparamos explícitamente.
+    // La clave legacy es exactamente "reporte_produccion_gh_config" sin sufijo "::".
+    if (legacyRaw === null) return;
+
+    const newKey = getGhConfigKey(username);
+    if (localStorage.getItem(newKey)) {
+      // El usuario ya tiene su propia config, no tocamos nada.
+      // (Igual limpiamos el legacy para que no se siga propagando.)
+      localStorage.removeItem(GH_CONFIG_LEGACY_KEY);
+      return;
+    }
+    // Parsear y validar antes de copiar
+    let parsed;
+    try { parsed = JSON.parse(legacyRaw); } catch (e) { parsed = null; }
+    if (parsed && (parsed.repo || parsed.token || parsed.path)) {
+      localStorage.setItem(newKey, JSON.stringify(parsed));
+      console.log('[GitHub Config] Migrada config global a la cuenta:', username);
+    }
+    // Una vez migrada, eliminamos la clave global para evitar que otro
+    // usuario sin config la herede silenciosamente.
+    localStorage.removeItem(GH_CONFIG_LEGACY_KEY);
+  } catch (e) {
+    console.warn('No se pudo migrar la config global de GitHub:', e);
+  }
+}
+
+// ⬅️ AHORA: lee la config del USUARIO ACTUAL, no una global.
 function loadGithubConfig() {
   try {
-    const raw = localStorage.getItem(GH_CONFIG_KEY);
+    const username = getGhConfigActiveUsername();
+    // Si nunca se notificó el cambio de sesión (arranque frío), lo calculamos.
+    if (_ghConfigActiveUsername === null) {
+      _ghConfigActiveUsername = username || null;
+      if (_ghConfigActiveUsername) migrarConfigGlobalSiHaceFalta(_ghConfigActiveUsername);
+    }
+    const key = getGhConfigKey(_ghConfigActiveUsername);
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : null;
-  } catch (e) { return null; }
+  } catch (e) {
+    console.warn('loadGithubConfig error:', e);
+    return null;
+  }
+}
+
+function saveGithubConfig(cfg) {
+  const username = getGhConfigActiveUsername();
+  const key = getGhConfigKey(username);
+  localStorage.setItem(key, JSON.stringify(cfg));
+  _ghConfigActiveUsername = username || null;
+}
+
+function clearGithubConfigForCurrentUser() {
+  const username = getGhConfigActiveUsername();
+  const key = getGhConfigKey(username);
+  localStorage.removeItem(key);
 }
 
 function openGithubModal() {
@@ -2748,9 +2869,21 @@ function openGithubModal() {
   document.getElementById('gh-branch').value = cfg && cfg.branch ? cfg.branch : 'main';
   document.getElementById('gh-token').value = cfg && cfg.token ? cfg.token : '';
   document.getElementById('gh-remember').checked = true;
+
   const status = document.getElementById('gh-status');
-  status.style.display = 'none';
-  status.textContent = '';
+  status.style.display = 'block';
+  status.style.whiteSpace = 'pre-line';
+
+  const username = getGhConfigActiveUsername();
+  if (username) {
+    status.style.color = 'var(--color-text-secondary)';
+    status.textContent = `Estas son TUS credenciales de GitHub (usuario: ${username}). ` +
+      `No se mezclan con las de otras cuentas: cada quien guarda su propio Token.`;
+  } else {
+    status.style.color = 'var(--color-text-secondary)';
+    status.textContent = '⚠️ No has iniciado sesión. Puedes guardar cambios, pero para que queden asociados a tu usuario, inicia sesión primero (botón "Iniciar sesión" arriba).';
+  }
+
   document.getElementById('modal-github').classList.add('open');
 }
 
@@ -2790,6 +2923,22 @@ function githubApiUrl(repo, repoPath) {
 const ghShaCache = {};
 function ghCacheKey(repo, repoPath, branch) { return `${repo}|${repoPath}|${branch}`; }
 
+// ⬅️ MEJORADO: mensajes de error detallados según el código HTTP.
+function describeGithubError(status, action, detail) {
+  const map = {
+    401: 'Autenticación fallida (401). El Token de GitHub es inválido, expiró o no fue enviado correctamente.',
+    403: 'Permisos insuficientes (403). El Token no tiene scope "repo" (o "Contents: Read and write" si es fino), o superaste el límite de peticiones.',
+    404: 'No encontrado (404). El repositorio, la rama o la ruta son incorrectos, o el Token no tiene permiso para verlos.',
+    409: 'Conflicto (409). El archivo fue modificado en GitHub entre tu lectura y tu escritura. La app reintenta automáticamente; si vuelve a fallar, refresca y vuelve a intentar.',
+    422: 'Datos inválidos (422). GitHub rechazó el contenido. Revisa que la rama exista y que el nombre del archivo sea válido.',
+    500: 'Error interno de GitHub (500). Intenta de nuevo en unos minutos.',
+    502: 'GitHub no disponible (502). Intenta de nuevo en unos minutos.',
+    503: 'GitHub sobrecargado (503). Intenta de nuevo en unos minutos.'
+  };
+  const base = map[status] || `Error de GitHub API (${status}).`;
+  return base + (detail ? `\nDetalle: ${detail}` : '') + (action ? `\nAcción: ${action}` : '');
+}
+
 async function putFileToGithub(repo, repoPath, branch, headers, contentBase64, message, knownSha) {
   const apiUrl = githubApiUrl(repo, repoPath);
   let sha = knownSha;
@@ -2801,7 +2950,7 @@ async function putFileToGithub(repo, repoPath, branch, headers, contentBase64, m
       sha = info.sha;
     } else if (getResp.status !== 404) {
       const errBody = await getResp.json().catch(() => ({}));
-      const e = new Error(`No se pudo consultar ${repoPath} (${getResp.status}): ${errBody.message || 'error desconocido'}`);
+      const e = new Error(describeGithubError(getResp.status, `Al consultar ${repoPath} antes de guardarlo.`, errBody.message));
       e.status = getResp.status;
       throw e;
     }
@@ -2819,7 +2968,7 @@ async function putFileToGithub(repo, repoPath, branch, headers, contentBase64, m
   });
   if (!putResp.ok) {
     const errBody = await putResp.json().catch(() => ({}));
-    const e = new Error(`GitHub respondió ${putResp.status} al guardar ${repoPath}: ${errBody.message || 'error desconocido'}`);
+    const e = new Error(describeGithubError(putResp.status, `Al guardar ${repoPath}.`, errBody.message));
     e.status = putResp.status;
     throw e;
   }
@@ -2879,8 +3028,46 @@ function extFromDataUri(uri) {
   return fmt === 'jpeg' ? 'jpg' : fmt;
 }
 
+// ⬅️ NUEVO: verifica que haya sesión y config propia antes de subir.
+async function ensureSessionForGithub() {
+  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  if (!user) {
+    const loginAhora = confirm(
+      '⚠️ No has iniciado sesión.\n\n' +
+      'Para guardar en GitHub con TU propio Token (y no mezclarlo con el de otra persona), ' +
+      'debes iniciar sesión primero.\n\n' +
+      '¿Quieres iniciar sesión ahora?'
+    );
+    if (loginAhora) {
+      if (typeof openSessionModal === 'function') openSessionModal();
+    }
+    return null;
+  }
+  const username = user.username;
+  const key = getGhConfigKey(username);
+  const raw = localStorage.getItem(key);
+  if (!raw) {
+    const configAhora = confirm(
+      `👤 Usuario activo: ${user.nombre || username} (${username})\n\n` +
+      'Todavía NO has configurado TU Token de GitHub en este navegador.\n\n' +
+      'Cada usuario tiene su propio Token, no se comparten.\n\n' +
+      '¿Quieres abrir la configuración ahora para pegar el tuyo?'
+    );
+    if (configAhora) openGithubModal();
+    return null;
+  }
+  return username;
+}
+
 async function pushToGithub() {
   commitPendingEditsBeforePush();
+
+  // ⬅️ Verificar sesión y config propia
+  const sessionUser = await ensureSessionForGithub();
+  if (sessionUser === null) {
+    // No hay sesión o no hay config: abortamos con mensaje claro.
+    return;
+  }
 
   const repo = normalizeRepoInput(document.getElementById('gh-repo').value);
   document.getElementById('gh-repo').value = repo;
@@ -2890,18 +3077,27 @@ async function pushToGithub() {
   const remember = document.getElementById('gh-remember').checked;
 
   if (!repo || !path || !token) {
-    setGithubStatus('Completa repositorio, ruta del archivo y token.', 'error');
+    setGithubStatus(
+      '❌ Faltan datos obligatorios:\n' +
+      (!repo ? '• Repositorio (formato usuario/repo)\n' : '') +
+      (!path ? '• Ruta de tu index.html dentro del repo\n' : '') +
+      (!token ? '• Token de GitHub (no puede estar vacío)\n' : '') +
+      '\nComplétalos y vuelve a intentar.',
+      'error'
+    );
     return;
   }
   if (!/^[^\/\s]+\/[^\/\s]+$/.test(repo)) {
-    setGithubStatus('El repositorio debe tener el formato usuario/repositorio.', 'error');
+    setGithubStatus('❌ El repositorio debe tener el formato usuario/repositorio (ej: javiera-sys/REPORTE-PRODUCTIVO).', 'error');
     return;
   }
 
   if (remember) {
-    localStorage.setItem(GH_CONFIG_KEY, JSON.stringify({ repo, path, branch, token }));
+    // ⬅️ Guardar SIEMPRE bajo la clave del usuario actual
+    saveGithubConfig({ repo, path, branch, token });
+    setGithubStatus(`🔐 Configuración guardada para el usuario: ${sessionUser}`, 'info');
   } else {
-    localStorage.removeItem(GH_CONFIG_KEY);
+    clearGithubConfigForCurrentUser();
   }
 
   if (!navigator.onLine) {
@@ -2918,7 +3114,7 @@ async function pushToGithub() {
   btn.innerHTML = 'Subiendo...';
   btn.disabled = true;
   if(mainBtn) { mainBtn.innerHTML = '<i class="ti ti-loader"></i> Subiendo...'; mainBtn.disabled = true; }
-  setGithubStatus('Conectando con GitHub...', 'info');
+  setGithubStatus(`Conectando con GitHub como "${sessionUser}"...`, 'info');
 
   const headers = {
     'Authorization': `Bearer ${token}`,
@@ -3096,7 +3292,7 @@ async function pushToGithub() {
     const dataString = JSON.stringify(data);
     const dataPutResult = await putFileToGithubCached(
       repo, dataRepoPath, branch, headers, utf8ToBase64(dataString),
-      `Actualización del reporte desde la app (${new Date().toLocaleString('es-MX')})`
+      `Actualización del reporte desde la app (${new Date().toLocaleString('es-MX')}) [${sessionUser}]`
     );
     mark('datos_cambios_json', tData);
 
@@ -3106,7 +3302,7 @@ async function pushToGithub() {
       const modelosRepoPath = baseDir + 'data/modelos.json';
       await putFileToGithubCached(
         repo, modelosRepoPath, branch, headers, utf8ToBase64(JSON.stringify(modelosDB)),
-        `Actualización de base de datos de modelos (${new Date().toLocaleString('es-MX')})`
+        `Actualización de base de datos de modelos (${new Date().toLocaleString('es-MX')}) [${sessionUser}]`
       );
       modelosDBChanged = false;
     }
@@ -3120,7 +3316,7 @@ async function pushToGithub() {
         : { usuarios: usuariosDB };
       await putFileToGithubCached(
         repo, usuariosRepoPath, branch, headers, utf8ToBase64(JSON.stringify(usuariosData, null, 2)),
-        `Actualización de usuarios (${new Date().toLocaleString('es-MX')})`
+        `Actualización de usuarios (${new Date().toLocaleString('es-MX')}) [${sessionUser}]`
       );
       usuariosDBChanged = false;
     }
@@ -3134,28 +3330,43 @@ async function pushToGithub() {
     if (fallosImagenes.length > 0) {
       const detalle = fallosImagenes.map(f => `• ${f.label}: ${f.message}`).join('\n');
       setGithubStatus(
-        `⚠️ El cambio se guardó${commitMsg}, pero ${fallosImagenes.length} imagen(es) no se pudieron subir tras reintentar. ` +
+        `⚠️ El cambio se guardó${commitMsg} como "${sessionUser}", pero ${fallosImagenes.length} imagen(es) no se pudieron subir tras reintentar. ` +
         `Las fotos no se perdieron (quedaron guardadas dentro del registro); vuelve a darle "Guardar en GitHub" cuando tengas mejor conexión para reintentarlas.\n${detalle}`,
         'error'
       );
     } else {
-      setGithubStatus(`✅ Cambios subidos correctamente a GitHub${nuevasImagenes ? ` (${nuevasImagenes} imagen(es) nueva(s))` : ''}${commitMsg}.`, 'ok');
+      setGithubStatus(`✅ Cambios subidos correctamente a GitHub como "${sessionUser}"${nuevasImagenes ? ` (${nuevasImagenes} imagen(es) nueva(s))` : ''}${commitMsg}.`, 'ok');
     }
     mark('actualizar_ui', tUI);
 
     timings.total = Math.round(performance.now() - t0);
-    console.log('[GitHub Save] Tiempos por etapa (ms):', timings);
+    console.log('[GitHub Save] Usuario:', sessionUser, '| Tiempos por etapa (ms):', timings);
   } catch (err) {
     console.error('Error al subir a GitHub:', err);
     timings.total = Math.round(performance.now() - t0);
-    console.log('[GitHub Save] Tiempos por etapa hasta el error (ms):', timings);
+    console.log('[GitHub Save] Usuario:', sessionUser, '| Tiempos hasta el error (ms):', timings);
+
     const pareceFalloDeRed = (err instanceof TypeError) || !navigator.onLine;
     if (pareceFalloDeRed) {
       await saveOfflineSnapshot(data);
       setSyncStatusUI('pending');
-      setGithubStatus('📦 Se perdió la conexión durante el guardado. Tu cambio quedó respaldado en este dispositivo y se sincronizará automáticamente en cuanto vuelva el internet.', 'error');
+      setGithubStatus(
+        `📦 Se perdió la conexión durante el guardado como "${sessionUser}".\n\n` +
+        `Tu cambio quedó respaldado en este dispositivo y se sincronizará automáticamente en cuanto vuelva el internet.`,
+        'error'
+      );
     } else {
-      setGithubStatus('❌ ' + (err.message || 'No se pudo conectar con GitHub. Verifica el token y el repositorio.'), 'error');
+      // ⬅️ MEJORADO: mensaje real, no genérico
+      const detalle = err.message || 'Error desconocido.';
+      const pista = (() => {
+        if (/401/.test(detalle)) return '\n\n👉 Causa probable: TU Token de GitHub es inválido, expiró o está mal copiado. Vuelve a generarlo en GitHub → Settings → Developer settings → Personal access tokens y pégalo en la configuración.';
+        if (/403/.test(detalle)) return '\n\n👉 Causa probable: TU Token no tiene permisos suficientes. Debe tener scope "repo" (o "Contents: Read and write" si es un token fino) y acceso al repositorio.';
+        if (/404/.test(detalle)) return '\n\n👉 Causa probable: el repositorio, la rama o la ruta no existen, o tu Token no tiene acceso a ellos. Verifica que tengas permiso de escritura sobre ese repositorio.';
+        if (/409/.test(detalle)) return '\n\n👉 El archivo cambió en GitHub justo cuando subías. Vuelve a presionar "Guardar en GitHub"; la app sincronizará automáticamente.';
+        if (/422/.test(detalle)) return '\n\n👉 Causa probable: la rama no existe. Verifica el nombre de la rama (main / master / otra).';
+        return '';
+      })();
+      setGithubStatus(`❌ No se pudo guardar como "${sessionUser}".\n\n${detalle}${pista}`, 'error');
     }
   } finally {
     btn.innerHTML = originalHtml;
@@ -3163,6 +3374,7 @@ async function pushToGithub() {
     if(mainBtn) { mainBtn.innerHTML = originalMainHtml; mainBtn.disabled = false; }
   }
 }
+
 function base64ToUtf8(b64) {
   const binary = atob(b64.replace(/\n/g, ''));
   const bytes = new Uint8Array(binary.length);
@@ -3181,13 +3393,18 @@ function quickRevertGithub() {
     document.getElementById('gh-remember').checked = true;
     revertToLastCommit();
   } else {
-    alert('Primero configura la conexión con GitHub (ícono de engranaje junto a "Guardar en GitHub") antes de poder restaurar la última versión.');
+    alert('Primero configura la conexión con GitHub (ícono de engranaje junto a "Guardar en GitHub") antes de poder restaurar la última versión.\n\nRecuerda que cada usuario tiene su propia configuración, así que este aviso aparece si TÚ todavía no has configurado tu Token.');
     openGithubModal();
   }
 }
 
 async function revertToLastCommit() {
       if (!isAdminSafe()) { alert('🔒 Solo un administrador puede restaurar versiones.'); return; }
+
+      // ⬅️ Verificar sesión y config propia
+      const sessionUser = await ensureSessionForGithub();
+      if (sessionUser === null) return;
+
       const repo = normalizeRepoInput(document.getElementById('gh-repo').value);
   document.getElementById('gh-repo').value = repo;
   const path = document.getElementById('gh-path').value.trim().replace(/^\/+/, '');
@@ -3205,7 +3422,8 @@ async function revertToLastCommit() {
 
   const confirmado = confirm(
     '¿Restaurar el proyecto a la última versión guardada en GitHub?\n\n' +
-    'Se perderán todos los cambios locales que todavía no hayas subido. Esta acción no se puede deshacer.'
+    'Se perderán todos los cambios locales que todavía no hayas subido. Esta acción no se puede deshacer.\n\n' +
+    'Se usará TU Token (' + sessionUser + ').'
   );
   if (!confirmado) return;
 
@@ -3230,14 +3448,8 @@ async function revertToLastCommit() {
     const branchUrl = `https://api.github.com/repos/${repo}/branches/${encodeURIComponent(branch)}`;
     const branchResp = await fetch(branchUrl, { headers, cache: 'no-store' });
     if (!branchResp.ok) {
-      if (branchResp.status === 404) {
-        throw new Error(`No se encontró la rama "${branch}" en ${repo}. Revisa el nombre de la rama.`);
-      }
-      if (branchResp.status === 401 || branchResp.status === 403) {
-        throw new Error('El token no tiene permiso para leer este repositorio. Verifica que sea válido y tenga el scope "repo".');
-      }
       const errBody = await branchResp.json().catch(() => ({}));
-      throw new Error(`No se pudo consultar la rama (${branchResp.status}): ${errBody.message || 'error desconocido'}`);
+      throw new Error(describeGithubError(branchResp.status, `Al consultar la rama "${branch}" de ${repo}.`, errBody.message));
     }
     const branchInfo = await branchResp.json();
     const commitSha = branchInfo.commit && branchInfo.commit.sha;
@@ -3250,11 +3462,8 @@ async function revertToLastCommit() {
     setGithubStatus('Descargando la última versión de los datos...', 'info');
     const dataResp = await fetch(`${githubApiUrl(repo, dataRepoPath)}?ref=${encodeURIComponent(commitSha)}`, { headers, cache: 'no-store' });
     if (!dataResp.ok) {
-      if (dataResp.status === 404) {
-        throw new Error(`No se encontró "${dataRepoPath}" en el último commit. Revisa que la ruta configurada sea correcta.`);
-      }
       const errBody = await dataResp.json().catch(() => ({}));
-      throw new Error(`No se pudo descargar los datos (${dataResp.status}): ${errBody.message || 'error desconocido'}`);
+      throw new Error(describeGithubError(dataResp.status, `Al descargar "${dataRepoPath}" del commit ${commitShort}.`, errBody.message));
     }
     const dataInfo = await dataResp.json();
     let restoredData;
@@ -3288,8 +3497,8 @@ async function revertToLastCommit() {
       ghShaCache[ghCacheKey(repo, dataRepoPath, branch)] = dataInfo.sha;
     }
 
-    setGithubStatus(`✅ Proyecto restaurado al commit ${commitShort}: "${commitMessage}".`, 'ok');
-    alert(`✅ El proyecto se restauró correctamente.\n\nCommit: ${commitShort}\nMensaje: ${commitMessage}`);
+    setGithubStatus(`✅ Proyecto restaurado al commit ${commitShort} como "${sessionUser}": "${commitMessage}".`, 'ok');
+    alert(`✅ El proyecto se restauró correctamente.\n\nUsuario: ${sessionUser}\nCommit: ${commitShort}\nMensaje: ${commitMessage}`);
   } catch (err) {
     console.error('Error al restaurar desde GitHub:', err);
     let msg = err.message || 'No se pudo restaurar la última versión.';
@@ -3708,11 +3917,16 @@ async function attemptOfflineSync() {
   if (!pending) { setSyncStatusUI('hidden'); return; }
   if (!navigator.onLine) { setSyncStatusUI('pending'); return; }
 
+  // ⬅️ Ahora usa la config del USUARIO ACTUAL, no una global
   const cfg = loadGithubConfig();
   if (!cfg || !cfg.repo || !cfg.path || !cfg.token) {
     setSyncStatusUI('pending');
+    console.warn('[Sync Offline] No hay configuración de GitHub para el usuario actual; no se puede sincronizar todavía.');
     return;
   }
+
+  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  const sessionUser = user ? user.username : '(anónimo)';
 
   setSyncStatusUI('syncing');
   try {
@@ -3724,15 +3938,16 @@ async function attemptOfflineSync() {
 
     await putFileToGithubCached(
       cfg.repo, dataRepoPath, branch, headers, utf8ToBase64(JSON.stringify(data)),
-      `Sincronización automática de cambios guardados sin conexión (${new Date().toLocaleString('es-MX')})`
+      `Sincronización automática de cambios guardados sin conexión (${new Date().toLocaleString('es-MX')}) [${sessionUser}]`
     );
 
     await clearOfflineSnapshot();
     setSyncStatusUI('synced');
-    setGithubStatus('✅ Tus cambios guardados sin conexión ya se sincronizaron con GitHub.', 'ok');
+    setGithubStatus(`✅ Tus cambios guardados sin conexión ya se sincronizaron con GitHub (usuario: ${sessionUser}).`, 'ok');
   } catch (err) {
     console.error('No se pudo sincronizar el respaldo local:', err);
     setSyncStatusUI('pending');
+    setGithubStatus(`❌ No se pudo sincronizar automáticamente: ${err.message || err}`, 'error');
   }
 }
 
@@ -3962,7 +4177,7 @@ async function deleteFileFromGithub(repo, repoPath, branch, headers, message) {
   }
   if (!getResp.ok) {
     const errBody = await getResp.json().catch(() => ({}));
-    throw new Error(`No se pudo verificar el archivo antes de borrarlo (${getResp.status}): ${errBody.message || 'error desconocido'}`);
+    throw new Error(describeGithubError(getResp.status, `Al verificar ${repoPath} antes de borrarlo.`, errBody.message));
   }
   const info = await getResp.json();
   const delResp = await fetch(apiUrl, {
@@ -3972,7 +4187,7 @@ async function deleteFileFromGithub(repo, repoPath, branch, headers, message) {
   });
   if (!delResp.ok) {
     const errBody = await delResp.json().catch(() => ({}));
-    throw new Error(`GitHub respondió ${delResp.status} al borrar ${repoPath}: ${errBody.message || 'error desconocido'}`);
+    throw new Error(describeGithubError(delResp.status, `Al borrar ${repoPath}.`, errBody.message));
   }
   return delResp.json().catch(() => null);
 }
@@ -3995,7 +4210,7 @@ async function deleteFicha(id) {
   try {
     if (isRemoteFile) {
       if (!cfg || !cfg.repo || !cfg.token) {
-        throw new Error('No hay una conexión de GitHub configurada; no se puede borrar el archivo del repositorio desde aquí.');
+        throw new Error('No hay una conexión de GitHub configurada para tu usuario; no se puede borrar el archivo del repositorio desde aquí.');
       }
       const branch = cfg.branch || 'main';
       const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
@@ -4068,7 +4283,7 @@ async function replaceFichaContent(id, newName, newContentBase64) {
   try {
     if (oldRemotePath) {
       if (!cfg || !cfg.repo || !cfg.token) {
-        throw new Error('No hay una conexión de GitHub configurada; no se puede reemplazar el archivo del repositorio desde aquí.');
+        throw new Error('No hay una conexión de GitHub configurada para tu usuario; no se puede reemplazar el archivo del repositorio desde aquí.');
       }
       const branch = cfg.branch || 'main';
       const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
@@ -4841,16 +5056,38 @@ function iupAddSelected() {
     closeModal('modal-iup');
 }
 
-function quickSaveGithub() {
+// ⬅️ CORREGIDO: quickSaveGithub ahora pide sesión si no hay, y usa la config del usuario actual.
+async function quickSaveGithub() {
+  // Verificar sesión
+  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  if (!user) {
+    const loginAhora = confirm(
+      '⚠️ No has iniciado sesión.\n\n' +
+      'Para guardar en GitHub con TU propio Token, inicia sesión primero.\n\n' +
+      '¿Iniciar sesión ahora?'
+    );
+    if (loginAhora && typeof openSessionModal === 'function') openSessionModal();
+    return;
+  }
+
+  // Verificar config propia
   const cfg = loadGithubConfig();
   if (cfg && cfg.repo && cfg.path && cfg.token) {
-      document.getElementById('gh-repo').value = cfg.repo;
-      document.getElementById('gh-path').value = cfg.path;
-      document.getElementById('gh-branch').value = cfg.branch || 'main';
-      document.getElementById('gh-token').value = cfg.token;
-      document.getElementById('gh-remember').checked = true;
-      return pushToGithub();
+    document.getElementById('gh-repo').value = cfg.repo;
+    document.getElementById('gh-path').value = cfg.path;
+    document.getElementById('gh-branch').value = cfg.branch || 'main';
+    document.getElementById('gh-token').value = cfg.token;
+    document.getElementById('gh-remember').checked = true;
+    return pushToGithub();
   } else {
-      openGithubModal();
+    // No tiene config propia: abrir el modal con el mensaje correcto
+    setGithubStatus(
+      `👤 Usuario activo: ${user.nombre || user.username} (${user.username})\n\n` +
+      'Todavía NO has configurado TU Token de GitHub en este navegador.\n' +
+      'Cada usuario tiene su propio Token, no se comparten.\n\n' +
+      'Pega aquí tu Token y guarda. A partir de ese momento, todo lo que guardes se subirá a GitHub con TU cuenta.',
+      'info'
+    );
+    openGithubModal();
   }
 }

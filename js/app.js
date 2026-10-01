@@ -2733,23 +2733,16 @@ function exportPDFStatic(name) {
 }
 
 /* ============================================================
-   CONFIGURACIÓN DE GITHUB POR USUARIO
+   CONFIGURACIÓN DE GITHUB (ÚNICA, COMPARTIDA POR TODOS LOS USUARIOS)
    ============================================================
-   La configuración (token, repo, ruta, rama) se guarda en
-   localStorage bajo una clave que incluye el username:
-      "reporte_produccion_gh_config::<username>"
-   Si no hay sesión, se usa "__anon__".
-   Cada usuario tiene SU propio Token; no se comparten.
+   - Hay UN SOLO token/repo/ruta/rama para toda la app.
+   - Se configura una vez con cualquier usuario (típicamente javier.c)
+     y queda disponible para todos los usuarios logueados.
+   - La etiqueta del commit en GitHub usa el USUARIO LOGUEADO en ese
+     momento (no el dueño del token).
    ============================================================ */
 
-const GH_CONFIG_KEY_PREFIX = 'reporte_produccion_gh_config';
-const GH_CONFIG_LEGACY_KEY = 'reporte_produccion_gh_config';
-let _ghConfigActiveUsername = null;
-
-function getGhConfigKey(username) {
-  const u = (username && String(username).trim()) ? String(username).trim() : '__anon__';
-  return `${GH_CONFIG_KEY_PREFIX}::${u}`;
-}
+const GH_CONFIG_KEY = 'reporte_produccion_gh_config';
 
 function getGhConfigActiveUsername() {
   if (typeof getCurrentUser === 'function') {
@@ -2759,22 +2752,30 @@ function getGhConfigActiveUsername() {
   return null;
 }
 
-// ⬅️ NUEVA: construye el mensaje de commit etiquetado con el usuario activo.
-// Si no hay sesión, devuelve el mensaje limpio (sin sufijo).
-function ghCommitMessage(base) {
-  const u = getGhConfigActiveUsername();
-  if (!u) return base;
-  return `${base} [${u}]`;
+// La config es única y global.
+function loadGithubConfig() {
+  try {
+    const raw = localStorage.getItem(GH_CONFIG_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    console.warn('loadGithubConfig error:', e);
+    return null;
+  }
 }
 
+function saveGithubConfig(cfg) {
+  localStorage.setItem(GH_CONFIG_KEY, JSON.stringify(cfg));
+}
+
+function clearGithubConfig() {
+  localStorage.removeItem(GH_CONFIG_KEY);
+}
+
+// Hook que usuarios.js llama al iniciar/cerrar sesión.
+// Solo refresca el modal de GitHub si estaba abierto, para que muestre
+// la config actual. Ya no hay migración ni separación por usuario.
 window.onUserSessionChanged = function(username) {
-  _ghConfigActiveUsername = username || null;
-  console.log('[GitHub Config] Usuario activo cambiado a:', _ghConfigActiveUsername || '(anónimo)');
-
-  if (_ghConfigActiveUsername) {
-    migrarConfigGlobalSiHaceFalta(_ghConfigActiveUsername);
-  }
-
+  console.log('[GitHub Config] Usuario activo cambiado a:', username || '(anónimo)');
   const modal = document.getElementById('modal-github');
   if (modal && modal.classList.contains('open')) {
     const cfg = loadGithubConfig();
@@ -2790,62 +2791,18 @@ window.onUserSessionChanged = function(username) {
     if (status) {
       status.style.display = 'block';
       status.style.color = 'var(--color-text-secondary)';
-      status.textContent = _ghConfigActiveUsername
-        ? `Mostrando configuración guardada de: ${_ghConfigActiveUsername}`
-        : 'Mostrando configuración anónima (inicia sesión para guardar la tuya).';
+      status.textContent = username
+        ? `Configuración de GitHub compartida. Guardarás los cambios como: ${username}`
+        : 'Configuración de GitHub compartida. Inicia sesión para que tus commits lleven tu nombre.';
     }
   }
 };
 
-function migrarConfigGlobalSiHaceFalta(username) {
-  try {
-    const legacyRaw = localStorage.getItem(GH_CONFIG_LEGACY_KEY);
-    if (legacyRaw === null) return;
-
-    const newKey = getGhConfigKey(username);
-    if (localStorage.getItem(newKey)) {
-      localStorage.removeItem(GH_CONFIG_LEGACY_KEY);
-      return;
-    }
-    let parsed;
-    try { parsed = JSON.parse(legacyRaw); } catch (e) { parsed = null; }
-    if (parsed && (parsed.repo || parsed.token || parsed.path)) {
-      localStorage.setItem(newKey, JSON.stringify(parsed));
-      console.log('[GitHub Config] Migrada config global a la cuenta:', username);
-    }
-    localStorage.removeItem(GH_CONFIG_LEGACY_KEY);
-  } catch (e) {
-    console.warn('No se pudo migrar la config global de GitHub:', e);
-  }
-}
-
-function loadGithubConfig() {
-  try {
-    const username = getGhConfigActiveUsername();
-    if (_ghConfigActiveUsername === null) {
-      _ghConfigActiveUsername = username || null;
-      if (_ghConfigActiveUsername) migrarConfigGlobalSiHaceFalta(_ghConfigActiveUsername);
-    }
-    const key = getGhConfigKey(_ghConfigActiveUsername);
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) {
-    console.warn('loadGithubConfig error:', e);
-    return null;
-  }
-}
-
-function saveGithubConfig(cfg) {
-  const username = getGhConfigActiveUsername();
-  const key = getGhConfigKey(username);
-  localStorage.setItem(key, JSON.stringify(cfg));
-  _ghConfigActiveUsername = username || null;
-}
-
-function clearGithubConfigForCurrentUser() {
-  const username = getGhConfigActiveUsername();
-  const key = getGhConfigKey(username);
-  localStorage.removeItem(key);
+// ⬅️ CLAVE: el mensaje de commit lleva el USUARIO LOGUEADO, no el del token.
+function ghCommitMessage(base) {
+  const u = getGhConfigActiveUsername();
+  if (!u) return base;
+  return `${base} [${u}]`;
 }
 
 function openGithubModal() {
@@ -2863,11 +2820,10 @@ function openGithubModal() {
   const username = getGhConfigActiveUsername();
   if (username) {
     status.style.color = 'var(--color-text-secondary)';
-    status.textContent = `Estas son TUS credenciales de GitHub (usuario: ${username}). ` +
-      `No se mezclan con las de otras cuentas: cada quien guarda su propio Token.`;
+    status.textContent = `Esta configuración de GitHub es COMPARTIDA por todos los usuarios.\n\nAl guardar ahora, el commit llevará la etiqueta: [${username}].`;
   } else {
     status.style.color = 'var(--color-text-secondary)';
-    status.textContent = '⚠️ No has iniciado sesión. Puedes guardar cambios, pero para que queden asociados a tu usuario, inicia sesión primero (botón "Iniciar sesión" arriba).';
+    status.textContent = '⚠️ No has iniciado sesión. Puedes guardar igual (con el token compartido), pero el commit no llevará tu nombre.';
   }
 
   document.getElementById('modal-github').classList.add('open');
@@ -3013,43 +2969,27 @@ function extFromDataUri(uri) {
   return fmt === 'jpeg' ? 'jpg' : fmt;
 }
 
-async function ensureSessionForGithub() {
-  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
-  if (!user) {
-    const loginAhora = confirm(
-      '⚠️ No has iniciado sesión.\n\n' +
-      'Para guardar en GitHub con TU propio Token (y no mezclarlo con el de otra persona), ' +
-      'debes iniciar sesión primero.\n\n' +
-      '¿Quieres iniciar sesión ahora?'
-    );
-    if (loginAhora) {
-      if (typeof openSessionModal === 'function') openSessionModal();
-    }
-    return null;
-  }
-  const username = user.username;
-  const key = getGhConfigKey(username);
-  const raw = localStorage.getItem(key);
-  if (!raw) {
-    const configAhora = confirm(
-      `👤 Usuario activo: ${user.nombre || username} (${username})\n\n` +
-      'Todavía NO has configurado TU Token de GitHub en este navegador.\n\n' +
-      'Cada usuario tiene su propio Token, no se comparten.\n\n' +
-      '¿Quieres abrir la configuración ahora para pegar el tuyo?'
-    );
-    if (configAhora) openGithubModal();
-    return null;
-  }
-  return username;
-}
-
 async function pushToGithub() {
   commitPendingEditsBeforePush();
 
-  const sessionUser = await ensureSessionForGithub();
-  if (sessionUser === null) {
-    return;
+  // Ya no se exige token propio. Se usa la config GLOBAL compartida.
+  // Solo se pide que el usuario haya iniciado sesión para poder
+  // etiquetar el commit con su nombre.
+  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  if (!user) {
+    const loginAhora = confirm(
+      'No has iniciado sesión.\n\n' +
+      'Puedes guardar de todas formas (se usará el token compartido), ' +
+      'pero el commit no llevará tu nombre.\n\n' +
+      '¿Iniciar sesión ahora para que tu commit quede firmado?'
+    );
+    if (loginAhora && typeof openSessionModal === 'function') {
+      openSessionModal();
+      return;
+    }
   }
+
+  const sessionUser = user ? user.username : null;
 
   const repo = normalizeRepoInput(document.getElementById('gh-repo').value);
   document.getElementById('gh-repo').value = repo;
@@ -3075,10 +3015,16 @@ async function pushToGithub() {
   }
 
   if (remember) {
+    // Se guarda en la clave GLOBAL compartida.
     saveGithubConfig({ repo, path, branch, token });
-    setGithubStatus(`🔐 Configuración guardada para el usuario: ${sessionUser}`, 'info');
+    setGithubStatus(
+      sessionUser
+        ? `🔐 Configuración compartida guardada. Los commits llevarán la etiqueta: [${sessionUser}]`
+        : `🔐 Configuración compartida guardada. (Sin sesión: los commits no llevarán nombre de usuario).`,
+      'info'
+    );
   } else {
-    clearGithubConfigForCurrentUser();
+    clearGithubConfig();
   }
 
   if (!navigator.onLine) {
@@ -3095,7 +3041,12 @@ async function pushToGithub() {
   btn.innerHTML = 'Subiendo...';
   btn.disabled = true;
   if(mainBtn) { mainBtn.innerHTML = '<i class="ti ti-loader"></i> Subiendo...'; mainBtn.disabled = true; }
-  setGithubStatus(`Conectando con GitHub como "${sessionUser}"...`, 'info');
+  setGithubStatus(
+    sessionUser
+      ? `Conectando con GitHub. Los commits llevarán la etiqueta: [${sessionUser}]`
+      : `Conectando con GitHub (sin sesión activa, los commits no llevarán nombre).`,
+    'info'
+  );
 
   const headers = {
     'Authorization': `Bearer ${token}`,
@@ -3308,15 +3259,16 @@ async function pushToGithub() {
       : null;
     const commitMsg = commitSha ? ` (commit ${commitSha})` : '';
 
+    const etiqueta = sessionUser ? `"${sessionUser}"` : '(sin sesión)';
     if (fallosImagenes.length > 0) {
       const detalle = fallosImagenes.map(f => `• ${f.label}: ${f.message}`).join('\n');
       setGithubStatus(
-        `⚠️ El cambio se guardó${commitMsg} como "${sessionUser}", pero ${fallosImagenes.length} imagen(es) no se pudieron subir tras reintentar. ` +
+        `⚠️ El cambio se guardó${commitMsg} como ${etiqueta}, pero ${fallosImagenes.length} imagen(es) no se pudieron subir tras reintentar. ` +
         `Las fotos no se perdieron (quedaron guardadas dentro del registro); vuelve a darle "Guardar en GitHub" cuando tengas mejor conexión para reintentarlas.\n${detalle}`,
         'error'
       );
     } else {
-      setGithubStatus(`✅ Cambios subidos correctamente a GitHub como "${sessionUser}"${nuevasImagenes ? ` (${nuevasImagenes} imagen(es) nueva(s))` : ''}${commitMsg}.`, 'ok');
+      setGithubStatus(`✅ Cambios subidos correctamente a GitHub como ${etiqueta}${nuevasImagenes ? ` (${nuevasImagenes} imagen(es) nueva(s))` : ''}${commitMsg}.`, 'ok');
     }
     mark('actualizar_ui', tUI);
 
@@ -3332,21 +3284,21 @@ async function pushToGithub() {
       await saveOfflineSnapshot(data);
       setSyncStatusUI('pending');
       setGithubStatus(
-        `📦 Se perdió la conexión durante el guardado como "${sessionUser}".\n\n` +
+        `📦 Se perdió la conexión durante el guardado.\n\n` +
         `Tu cambio quedó respaldado en este dispositivo y se sincronizará automáticamente en cuanto vuelva el internet.`,
         'error'
       );
     } else {
       const detalle = err.message || 'Error desconocido.';
       const pista = (() => {
-        if (/401/.test(detalle)) return '\n\n👉 Causa probable: TU Token de GitHub es inválido, expiró o está mal copiado. Vuelve a generarlo en GitHub → Settings → Developer settings → Personal access tokens y pégalo en la configuración.';
-        if (/403/.test(detalle)) return '\n\n👉 Causa probable: TU Token no tiene permisos suficientes. Debe tener scope "repo" (o "Contents: Read and write" si es un token fino) y acceso al repositorio.';
-        if (/404/.test(detalle)) return '\n\n👉 Causa probable: el repositorio, la rama o la ruta no existen, o tu Token no tiene acceso a ellos. Verifica que tengas permiso de escritura sobre ese repositorio.';
+        if (/401/.test(detalle)) return '\n\n👉 Causa probable: el Token de GitHub es inválido, expiró o está mal copiado. Vuelve a generarlo en GitHub → Settings → Developer settings → Personal access tokens.';
+        if (/403/.test(detalle)) return '\n\n👉 Causa probable: el Token no tiene permisos suficientes. Debe tener scope "repo" (o "Contents: Read and write" si es un token fino) y acceso al repositorio.';
+        if (/404/.test(detalle)) return '\n\n👉 Causa probable: el repositorio, la rama o la ruta no existen. Verifica la configuración.';
         if (/409/.test(detalle)) return '\n\n👉 El archivo cambió en GitHub justo cuando subías. Vuelve a presionar "Guardar en GitHub"; la app sincronizará automáticamente.';
         if (/422/.test(detalle)) return '\n\n👉 Causa probable: la rama no existe. Verifica el nombre de la rama (main / master / otra).';
         return '';
       })();
-      setGithubStatus(`❌ No se pudo guardar como "${sessionUser}".\n\n${detalle}${pista}`, 'error');
+      setGithubStatus(`❌ No se pudo guardar.\n\n${detalle}${pista}`, 'error');
     }
   } finally {
     btn.innerHTML = originalHtml;
@@ -3373,7 +3325,7 @@ function quickRevertGithub() {
     document.getElementById('gh-remember').checked = true;
     revertToLastCommit();
   } else {
-    alert('Primero configura la conexión con GitHub (ícono de engranaje junto a "Guardar en GitHub") antes de poder restaurar la última versión.\n\nRecuerda que cada usuario tiene su propia configuración, así que este aviso aparece si TÚ todavía no has configurado tu Token.');
+    alert('Primero configura la conexión con GitHub (ícono de engranaje junto a "Guardar en GitHub") antes de poder restaurar la última versión.\n\nLa configuración es COMPARTIDA, así que basta con que cualquier usuario la haya configurado una vez.');
     openGithubModal();
   }
 }
@@ -3381,8 +3333,8 @@ function quickRevertGithub() {
 async function revertToLastCommit() {
       if (!isAdminSafe()) { alert('🔒 Solo un administrador puede restaurar versiones.'); return; }
 
-      const sessionUser = await ensureSessionForGithub();
-      if (sessionUser === null) return;
+      const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+      const sessionUser = user ? user.username : '(anónimo)';
 
       const repo = normalizeRepoInput(document.getElementById('gh-repo').value);
   document.getElementById('gh-repo').value = repo;
@@ -5035,17 +4987,9 @@ function iupAddSelected() {
 }
 
 async function quickSaveGithub() {
-  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
-  if (!user) {
-    const loginAhora = confirm(
-      '⚠️ No has iniciado sesión.\n\n' +
-      'Para guardar en GitHub con TU propio Token, inicia sesión primero.\n\n' +
-      '¿Iniciar sesión ahora?'
-    );
-    if (loginAhora && typeof openSessionModal === 'function') openSessionModal();
-    return;
-  }
-
+  // ⬅️ Ya no exige sesión. La config es compartida.
+  //     Si hay config guardada, sube directo.
+  //     Si no, abre el modal para configurarla una sola vez.
   const cfg = loadGithubConfig();
   if (cfg && cfg.repo && cfg.path && cfg.token) {
     document.getElementById('gh-repo').value = cfg.repo;
@@ -5055,11 +4999,12 @@ async function quickSaveGithub() {
     document.getElementById('gh-remember').checked = true;
     return pushToGithub();
   } else {
+    const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
     setGithubStatus(
-      `👤 Usuario activo: ${user.nombre || user.username} (${user.username})\n\n` +
-      'Todavía NO has configurado TU Token de GitHub en este navegador.\n' +
-      'Cada usuario tiene su propio Token, no se comparten.\n\n' +
-      'Pega aquí tu Token y guarda. A partir de ese momento, todo lo que guardes se subirá a GitHub con TU cuenta.',
+      (user ? `👤 Usuario activo: ${user.nombre || user.username} (${user.username})\n\n` : '') +
+      'Todavía no hay una configuración de GitHub guardada en este navegador.\n\n' +
+      'Pega aquí el Token (es ÚNICO y COMPARTIDO por todos los usuarios) y guarda.\n' +
+      'A partir de ese momento, todos podrán subir cambios, y cada commit quedará etiquetado con el usuario que lo hizo.',
       'info'
     );
     openGithubModal();

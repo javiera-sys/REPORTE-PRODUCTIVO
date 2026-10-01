@@ -111,7 +111,7 @@ let isEditableMode = false;
 let filterStatus = 'all'; 
 let filterNave = 'all'; 
 let isPGPanelOpen = false; 
-let marcadorModo = 'cambios'; // 'cambios' (actual) o 'global' (nuevo)
+let marcadorModo = 'cambios';
 
 let fileHandle = null;
 let data = { naves: [], accessPasswords: [], pendientesGenerales: [], fichasTecnicas: [] };
@@ -251,10 +251,6 @@ function toggleCancelado(naveId, itemId, event) {
   render();
 }
 
-/* ---- Compresión de imágenes antes de guardarlas ----
-   Las fotos de celular (Android/iOS) pueden pesar varios MB, lo que hace lenta
-   o inestable la subida a GitHub, sobre todo en datos móviles. Se redimensionan
-   a un máximo razonable para visualización en pantalla y se comprimen a JPEG. */
 function compressImageDataUrl(dataUrl, maxDim = 1600, quality = 0.82) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -389,12 +385,7 @@ function openAddPG() {
   document.getElementById('modal-pg').classList.add('open');
   setTimeout(() => document.getElementById('pg-title').focus(), 100);
 }
-/* ---- Adjuntos de Pendientes Generales (imágenes + PDFs) ----
-   Reutiliza el MISMO sistema de almacenamiento que las naves/fichas:
-   - En memoria: data-URI base64.
-   - Al guardar en GitHub: se suben a data/images/ y el JSON queda con la ruta.
-   - Al eliminar: mismo helper deleteFileFromGithub.
-*/
+
 function renderAdjuntosPG(pg) {
   if (!pg.adjuntos || !Array.isArray(pg.adjuntos)) pg.adjuntos = [];
   const total = pg.adjuntos.length;
@@ -432,7 +423,6 @@ function subirAdjuntoPG(event, pgId) {
   const file = event.target.files[0];
   if (!file) return;
 
-  // Validar tipo (imagen o PDF)
   const esImagen = /^image\/(jpeg|jpg|png|webp)$/i.test(file.type);
   const esPdf = file.type === 'application/pdf';
   if (!esImagen && !esPdf) {
@@ -449,7 +439,6 @@ function subirAdjuntoPG(event, pgId) {
   reader.onload = async function(e) {
     let contenido = e.target.result;
 
-    // Reutiliza la misma compresión que ya usa la app para las imágenes
     if (esImagen) {
       contenido = await compressImageDataUrl(contenido);
     }
@@ -471,8 +460,6 @@ async function eliminarAdjuntoPG(event, pgId, idx) {
 
   const adj = pg.adjuntos[idx];
 
-  // Si ya está subido a GitHub (es una ruta relativa, no un data-URI),
-  // se borra el archivo del repositorio con el mismo helper que usan las fichas.
   if (typeof adj === 'string' && !adj.startsWith('data:')) {
     try {
       const cfg = loadGithubConfig();
@@ -483,15 +470,12 @@ async function eliminarAdjuntoPG(event, pgId, idx) {
       }
     } catch (err) {
       console.error('No se pudo borrar el archivo del repositorio:', err);
-      // No se cancela la eliminación local: se limpia de todos modos.
-      // Al guardar en GitHub ya no se referenciará.
     }
   }
 
   pg.adjuntos.splice(idx, 1);
   renderPG();
 
-  // Si ya había config de GitHub, se persiste el cambio de inmediato
   try {
     const cfg = loadGithubConfig();
     if (cfg && cfg.repo && cfg.token) {
@@ -532,7 +516,7 @@ function savePG() {
         id: uid(),
         title: title,
         desc: desc,
-        adjuntos: [],   // 🔽 inicia vacío
+        adjuntos: [],
         createdAt: Date.now()
     });
   }
@@ -587,24 +571,12 @@ function render(){
   filterItems(); 
 }
 
-/* MARCADOR: estado actual de TODOS los registros almacenados, sin filtro
-   de fecha ni semana (independiente del Reporte Semanal Histórico, que
-   vive aparte en app.js y no se toca aquí). Se llama desde el mismo
-   render() central que ya se ejecuta tras crear/editar/eliminar/cambiar
-   el estado de cualquier cambio, así que siempre queda al día solo. */
-/* MARCADOR: estado actual de TODOS los registros almacenados.
-   Dos modos de conteo:
-     - 'cambios' (actual): cada item de cada nave = 1 registro.
-     - 'global': cada item × cada modelo de la nave = 1 registro.
-   El modo se cambia con setMarcadorModo() y se refleja de inmediato. */
 function setMarcadorModo(modo) {
   marcadorModo = (modo === 'global') ? 'global' : 'cambios';
-  // Actualizar estado visual del switch
   const btnCambios = document.getElementById('marcador-mode-cambios');
   const btnGlobal = document.getElementById('marcador-mode-global');
   if (btnCambios) btnCambios.classList.toggle('active', marcadorModo === 'cambios');
   if (btnGlobal) btnGlobal.classList.toggle('active', marcadorModo === 'global');
-  // Re-renderizar solo el marcador (sin recargar la página)
   renderMarcador();
 }
 
@@ -617,8 +589,6 @@ function renderMarcador() {
   let pendientes = 0, terminados = 0, cancelados = 0;
 
   (data.naves || []).forEach(nave => {
-    // En modo GLOBAL, cada item pesa tantas veces como modelos tenga la nave.
-    // Si la nave no tiene modelos registrados, se cuenta 1 (para no perder el registro).
     let peso = 1;
     if (marcadorModo === 'global') {
       peso = (Array.isArray(nave.models) && nave.models.length > 0) ? nave.models.length : 1;
@@ -772,9 +742,6 @@ function renderItemCard(item, naveId){
   let safeOdt = item.odt && item.odt !== 'undefined' ? item.odt : '';
   
   if(editing && isEditableMode){
-    // Solo se bloquea (pide autorización) si el cambio YA tenía una fecha
-    // puesta. Si nunca se le puso una, se deja libre para completarla la
-    // primera vez, sin pedir contraseña (no es "modificar una existente").
     const fechaBloqueada = !!safeFecha;
     if(!safeFecha) {
         const today = new Date();
@@ -864,7 +831,6 @@ function renderItemCard(item, naveId){
        let odtTag = safeOdt ? `<span>ODT: ${escHtml(safeOdt)}</span>` : (isEditableMode ? `<span class="dashed-add only-editable" onclick="startEdit('${item.id}')" title="Agregar Código ODT">+ ODT</span>` : '');
        let fechaTag = safeFecha ? `<span>${formatDateEs(safeFecha)}</span>` : (isEditableMode ? `<span class="dashed-add only-editable" onclick="startEdit('${item.id}')" title="Agregar Fecha">+ Fecha</span>` : '');
 
-       // 🔽 Etiqueta del autor
        let autorTag = '';
        if (item.createdByName) {
          autorTag = `<span title="Creado por" style="background:#e0f2f1; color:#0f6e8c; border:1px solid #99e6df;">👤 ${escHtml(item.createdByName.toUpperCase())}</span>`;
@@ -872,7 +838,6 @@ function renderItemCard(item, naveId){
        if (item.modifiedByName && item.modifiedByName !== item.createdByName) {
          autorTag += `<span title="Última modificación por" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a;">✏️ ${escHtml(item.modifiedByName.toUpperCase())}</span>`;
        }
-       // 🔼 Fin del cambio
 
        if (odtTag || fechaTag || autorTag) {
            metaHtml = `<div class="item-meta">${autorTag}${odtTag}${fechaTag}</div>`;
@@ -913,6 +878,24 @@ function renderItemCard(item, naveId){
       </div>
     </div>
   </div>`;
+}
+
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
+}
+
+function renderItemsRow(items, naveId) {
+  if (!items || !items.length) return '';
+  const filas = chunk(items, 3);
+  return filas.map(fila => `
+    <div class="items-row items-row-${fila.length}">
+      ${fila.map(i => renderItemCard(i, naveId)).join('')}
+    </div>
+  `).join('');
 }
 
 function renderNave(nave, index, total){
@@ -958,15 +941,16 @@ function renderNave(nave, index, total){
       </div>
     </div>`;
   }).join('');
-    
+
   const errSection=showErrores?`
     <div class="section-block">
       <div class="section-header">
         <span class="section-pill pill-error"><i class="ti ti-alert-circle" style="font-size:13px"></i> Reporte de errores</span>
         <button class="btn btn-xs btn-ghost only-editable" onclick="openAddItem('${nave.id}','error')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
       </div>
-      ${errores.length?`<div class="items-grid">${errores.map(i=>renderItemCard(i,nave.id)).join('')}</div>`:'<div class="empty-section">Sin errores registrados.</div>'}
+      ${errores.length?renderItemsRow(errores, nave.id):'<div class="empty-section">Sin errores registrados.</div>'}
     </div>`:''
+
   const ajuSection=showAjustes?`
     ${showErrores&&errores.length?'<div class="divider"></div>':''}
     <div class="section-block">
@@ -974,8 +958,9 @@ function renderNave(nave, index, total){
         <span class="section-pill" style="background:#fef08a; color:#854d0e; border:1px solid #fde047; padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i class="ti ti-tool" style="font-size:13px"></i> Reporte de ajustes</span>
         <button class="btn btn-xs btn-ghost only-editable" onclick="openAddItem('${nave.id}','ajuste')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
       </div>
-      ${ajustes.length?`<div class="items-grid">${ajustes.map(i=>renderItemCard(i,nave.id)).join('')}</div>`:'<div class="empty-section">Sin ajustes registrados.</div>'}
+      ${ajustes.length?renderItemsRow(ajustes, nave.id):'<div class="empty-section">Sin ajustes registrados.</div>'}
     </div>`:''
+
   const mejSection=showMejoras?`
     ${(showErrores&&errores.length)||(showAjustes&&ajustes.length)?'<div class="divider"></div>':''}
     <div class="section-block">
@@ -983,9 +968,9 @@ function renderNave(nave, index, total){
         <span class="section-pill pill-mejora"><i class="ti ti-sparkles" style="font-size:13px"></i> Reporte de mejoras</span>
         <button class="btn btn-xs btn-ghost scholarly only-editable" onclick="openAddItem('${nave.id}','mejora')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
       </div>
-      ${mejoras.length?`<div class="items-grid">${mejoras.map(i=>renderItemCard(i,nave.id)).join('')}</div>`:'<div class="empty-section">Sin mejoras registradas.</div>'}
+      ${mejoras.length?renderItemsRow(mejoras, nave.id):'<div class="empty-section">Sin mejoras registradas.</div>'}
     </div>`:''
-  
+
   return `<div class="nave-card" id="nave-${nave.id}" onmouseenter="currentImgNaveId='${nave.id}'">
     <div class="nave-header">
       <div class="nave-header-left">
@@ -1021,13 +1006,11 @@ function renderNave(nave, index, total){
   </div>`;
 }
 
-/* ---- Visor de Imagen Full Size ---- */
 function viewImage(src) {
   document.getElementById('view-img-element').src = src;
   document.getElementById('modal-view-img').classList.add('open');
 }
 
-/* ---- Mover Naves Arriba/Abajo ---- */
 function moveNaveUp(idx){
   if (!isEditableMode) return;
   if(idx > 0){
@@ -1035,7 +1018,6 @@ function moveNaveUp(idx){
     data.naves[idx - 1] = data.naves[idx];
     data.naves[idx] = temp;
     
-    // Intercambiar timestamps para mantener el orden frente a futuros renderizados
     const tempTime = data.naves[idx - 1].createdAt;
     data.naves[idx - 1].createdAt = data.naves[idx].createdAt;
     data.naves[idx].createdAt = tempTime;
@@ -1050,7 +1032,6 @@ function moveNaveDown(idx){
     data.naves[idx + 1] = data.naves[idx];
     data.naves[idx] = temp;
     
-    // Intercambiar timestamps para mantener el orden frente a futuros renderizados
     const tempTime = data.naves[idx + 1].createdAt;
     data.naves[idx + 1].createdAt = data.naves[idx].createdAt;
     data.naves[idx].createdAt = tempTime;
@@ -1059,7 +1040,6 @@ function moveNaveDown(idx){
   }
 }
 
-/* ---- Autocompletado (COMPATIBLE CON ANDROID Y PC) ---- */
 function renderAutocompleteList(container, matches, onSelectAttr){
   if(!container) return;
   if(!matches.length){ container.classList.remove('open'); container.innerHTML=''; return; }
@@ -1111,8 +1091,6 @@ function mostrarSugerenciasTagModal(){
   if(!inp || !cont) return;
   const matches = buscarModelosDB(inp.value, 8);
   renderAutocompleteList(cont, matches, (m)=>`seleccionarSugerenciaTagModal('${m.codigo.replace(/'/g,"\\'")}')`);
-  // En móvil el modal tiene scroll propio y el teclado ocupa media pantalla;
-  // esto evita que el menú de sugerencias quede tapado o cortado al abrirse.
   if (matches.length) {
     setTimeout(() => inp.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50);
   }
@@ -1144,7 +1122,6 @@ function seleccionarSugerenciaModeloModal(codigo){
   ocultarSugerenciasModeloModal();
 }
 
-/* ---- Models Management ---- */
 function addModel(naveId){
   if (!isEditableMode) return;
   const inp=document.getElementById('addm-'+naveId);
@@ -1266,7 +1243,6 @@ function saveEditedNaveHeader() {
   closeModal('modal-edit-nave');
 }
 
-/* ---- Image Management ---- */
 function triggerImg(id){
   if (!isEditableMode) return;
   currentImgNaveId=id;
@@ -1292,7 +1268,6 @@ function removeImg(naveId, imgIdx){
   if(n){n.images.splice(imgIdx, 1);render();}
 }
 
-/* ---- Pegar Imagen (Ctrl+V) ---- */
 document.addEventListener('paste', function(e) {
   if (!isEditableMode) return;
   let targetId = currentImgNaveId;
@@ -1321,7 +1296,6 @@ document.addEventListener('paste', function(e) {
   }
 });
 
-/* ---- Menú desplegable del botón Excel ---- */
 function toggleExcelMenu(event){
   if(event) event.stopPropagation();
   const menu = document.getElementById('excel-menu');
@@ -1353,10 +1327,6 @@ document.addEventListener('click', (e)=>{
   }
 });
 
-/* Panel lateral de acciones (reemplaza la antigua barra inferior flotante,
-   que se recortaba de forma distinta según el ancho reportado por cada
-   navegador/dispositivo). Un único botón fijo, siempre en el mismo lugar,
-   abre un panel de ancho fijo con scroll vertical normal. */
 function toggleSideMenu(){
   const menu = document.getElementById('side-menu');
   const backdrop = document.getElementById('side-menu-backdrop');
@@ -1379,7 +1349,6 @@ document.addEventListener('keydown', (e)=>{
   if(e.key === 'Escape') closeSideMenu();
 });
 
-/* ---- Exportar a Excel (.xlsx) ---- */
 function exportarExcel(){
   if(typeof XLSX === 'undefined'){
     alert('No se pudo cargar la librería de Excel. Revisa tu conexión a internet e intenta de nuevo.');
@@ -1438,7 +1407,6 @@ function exportarExcel(){
   XLSX.writeFile(wb, `reporte_produccion_${fechaHoy}.xlsx`);
 }
 
-/* ---- Importar base de datos de modelos (.xlsx) ---- */
 function triggerImportModelos(){
   document.getElementById('import-modelos-input').click();
 }
@@ -1493,31 +1461,8 @@ function handleImportModelos(e){
 
 /* ============================================================
    MÓDULO INDEPENDIENTE: PROCESOS DE DISEÑO
-   No modifica ninguna función existente. Reutiliza:
-   - El objeto global `data` (mismo sistema de guardado/GitHub) -> solo
-     se agrega `data.procesosDiseno = {submodules:[...]}`, sin storage
-     paralelo. Es un CONTENEDOR de submódulos (hoy solo trae "Ficha
-     Técnica de Tolerancias" precargado, pero no está fijo en el código:
-     cualquier función de aquí que recorra `submodules` sirve para
-     cualquier submódulo que se agregue después).
-   - Las mismas contraseñas de autorización que ya usa el resto de la
-     app (`data.accessPasswords`) - la contraseña nunca se guarda, solo
-     se compara en memoria contra esa lista ya existente.
-   - La librería XLSX (SheetJS) ya cargada por la app.
-   - `quickSaveGithub()` para persistir: es el MISMO handler que ya usa
-     el botón "Guardar en GitHub" que funciona (primero carga el token
-     guardado en los campos del formulario, y ENTONCES sube a GitHub).
-     Antes este módulo llamaba a `pushToGithub()` directo, saltándose
-     ese paso -> por eso fallaba si no se había abierto la configuración
-     de GitHub en la sesión. Corregido: se usa el mismo flujo, sin
-     ninguna lógica de token propia.
-   Los permisos de edición de este módulo son EXACTAMENTE los del candado
-   general "MODO EDICIÓN" de arriba (isEditableMode) - no existe ningún
-   estado ni contraseña propios. Se consulta isEditableMode directamente
-   en cada acción; al activar/desactivar el candado general, este módulo
-   queda habilitado/bloqueado de inmediato, sin volver a pedir nada aquí.
    ============================================================ */
-let pdCurrentSubmoduleId = null; // null = viendo la lista de submódulos
+let pdCurrentSubmoduleId = null;
 
 const PD_DEFAULT_SUBMODULES = [
   { id: 'ficha_tolerancias', label: 'Ficha Técnica de Tolerancias', type: 'excel', headers: [], rows: [] }
@@ -1529,8 +1474,6 @@ function ensureProcesosDiseno() {
     data.procesosDiseno = { submodules: PD_DEFAULT_SUBMODULES.map(s => ({ ...s, headers: [], rows: [], createdAt: now, updatedAt: now })) };
   }
   data.procesosDiseno.submodules.forEach(sm => {
-    // Compatibilidad con apartados guardados antes de que existiera el
-    // campo "tipo": todo lo anterior era Excel.
     if (sm.type !== 'excel' && sm.type !== 'pdf') sm.type = 'excel';
     if (!Array.isArray(sm.headers)) sm.headers = [];
     if (!Array.isArray(sm.rows)) sm.rows = [];
@@ -1570,11 +1513,6 @@ function closeProcesosDiseno() {
   closeModal('modal-procesos-diseno');
 }
 
-/* ---- Navegación entre la lista de submódulos y la tabla de uno de ellos ----
-   El modo de edición se comparte en toda la sesión del módulo (una vez
-   autorizado, sirve tanto para administrar apartados como para editar
-   cualquier tabla) - no se vuelve a pedir la contraseña solo por navegar
-   entre la lista y un apartado; solo se resetea al cerrar el módulo. */
 function renderPdView() {
   ensureProcesosDiseno();
   const listView = document.getElementById('pd-list-view');
@@ -1598,15 +1536,10 @@ function renderPdView() {
     if (titleEl) titleEl.textContent = sm ? sm.label : '';
 
     const isPdf = sm && sm.type === 'pdf';
-    // En modo PDF se usa flex para que el visor se estire y ocupe todo el
-    // alto libre del modal (sin franja en blanco abajo); en modo Excel se
-    // mantiene el flujo normal de bloque.
     tableView.style.display = isPdf ? 'flex' : 'block';
     if (excelView) excelView.style.display = isPdf ? 'none' : 'block';
     if (pdfView) pdfView.style.display = isPdf ? 'flex' : 'none';
 
-    // El visor de PDF usa casi toda la pantalla; la vista de tabla mantiene
-    // el ancho normal del modal (no se toca ningún otro visor de la app).
     const modalBox = document.querySelector('#modal-procesos-diseno .modal');
     if (modalBox) modalBox.classList.toggle('pd-modal-wide', !!isPdf);
 
@@ -1618,8 +1551,6 @@ function renderPdView() {
   }
 }
 
-// IDs de apartados con una operación de administración en curso (crear
-// usa 'new' como marcador temporal) -> evita doble ejecución.
 const pdSubmoduleOpInProgress = new Set();
 
 function renderPdSubmoduleList() {
@@ -1650,18 +1581,14 @@ function renderPdSubmoduleList() {
   }).join('');
 }
 
-/* Todas las acciones de administrar apartados (crear/renombrar/eliminar)
-   se guardan de inmediato con quickSaveGithub() - el mismo guardado de
-   siempre, sin token propio - igual que ya se hace con las fichas técnicas. */
-/* ---- Modal de crear/editar apartado (nombre + tipo Excel/PDF) ---- */
-let pdSubmoduleModalMode = 'create'; // 'create' | 'edit'
+let pdSubmoduleModalMode = 'create';
 let pdSubmoduleModalEditId = null;
 let pdSubmoduleModalSelectedType = 'excel';
 
 function selectPdSubmoduleType(type) {
   const excelOpt = document.getElementById('pd-submodule-type-excel-opt');
   const pdfOpt = document.getElementById('pd-submodule-type-pdf-opt');
-  if (excelOpt.classList.contains('locked') || pdfOpt.classList.contains('locked')) return; // tipo bloqueado, ya tiene datos
+  if (excelOpt.classList.contains('locked') || pdfOpt.classList.contains('locked')) return;
   pdSubmoduleModalSelectedType = type;
   excelOpt.classList.toggle('selected', type === 'excel');
   pdfOpt.classList.toggle('selected', type === 'pdf');
@@ -1669,9 +1596,6 @@ function selectPdSubmoduleType(type) {
   pdfOpt.querySelector('input').checked = type === 'pdf';
 }
 
-// El botón "Agregar apartado" ahora siempre visible solo con .only-editable
-// (igual que el resto de la app) -> si se llega a invocar sin permisos, no
-// hace nada; no existe ya ninguna contraseña propia de este módulo.
 function addPdSubmodule() {
   if (!isEditableMode) return;
   openPdSubmoduleCreateModal();
@@ -1759,13 +1683,13 @@ async function updatePdSubmodule(id, name, type) {
   const hasData = sm.type === 'excel' ? (sm.rows.length > 0 || sm.headers.length > 0) : !!sm.pdfContent;
   const oldName = sm.label;
   const oldType = sm.type;
-  if (name === oldName && type === oldType) return; // nada que guardar
+  if (name === oldName && type === oldType) return;
 
   pdSubmoduleOpInProgress.add(id);
   renderPdSubmoduleList();
 
   sm.label = name;
-  if (!hasData) sm.type = type; // el tipo solo se puede cambiar si el apartado sigue vacío
+  if (!hasData) sm.type = type;
   sm.updatedAt = Date.now();
 
   try {
@@ -1774,7 +1698,7 @@ async function updatePdSubmodule(id, name, type) {
     setPdStatus(`✅ Apartado actualizado.`, 'ok');
   } catch (err) {
     console.error('No se pudo guardar el cambio del apartado:', err);
-    sm.label = oldName; sm.type = oldType; // se revierte: no se pudo confirmar el guardado
+    sm.label = oldName; sm.type = oldType;
     setPdStatus('❌ No se pudo guardar el cambio. Se conservó el apartado original.', 'error');
   } finally {
     pdSubmoduleOpInProgress.delete(id);
@@ -1796,9 +1720,6 @@ async function deletePdSubmodule(id) {
   renderPdSubmoduleList();
 
   const cfg = loadGithubConfig();
-  // Si es un apartado tipo PDF con archivo ya guardado en el repositorio,
-  // se borra ese archivo primero (mismo helper que usan las fichas técnicas)
-  // para no dejarlo huérfano.
   if (sm.type === 'pdf' && sm.pdfContent && !sm.pdfContent.startsWith('data:')) {
     try {
       if (!cfg || !cfg.repo || !cfg.token) throw new Error('No hay una conexión de GitHub configurada; no se puede borrar el archivo del repositorio desde aquí.');
@@ -1822,7 +1743,7 @@ async function deletePdSubmodule(id) {
     setPdStatus(`✅ Apartado "${removed.label}" eliminado.`, 'ok');
   } catch (err) {
     console.error('No se pudo guardar la eliminación del apartado:', err);
-    data.procesosDiseno.submodules.splice(idx, 0, removed); // se revierte
+    data.procesosDiseno.submodules.splice(idx, 0, removed);
     setPdStatus('❌ No se pudo guardar la eliminación. Se conservó el apartado.', 'error');
   } finally {
     pdSubmoduleOpInProgress.delete(id);
@@ -1832,9 +1753,6 @@ async function deletePdSubmodule(id) {
 
 function openPdSubmodule(id) {
   pdCurrentSubmoduleId = id;
-  // El modo de edición ya no se resetea al entrar a un apartado: se
-  // comparte en toda la sesión del módulo (se autoriza una vez, con
-  // contraseña, y sirve para administrar apartados y editar tablas).
   setPdStatus('');
   renderPdView();
 }
@@ -1850,10 +1768,6 @@ function updatePdModeBadge() {
   const label = document.getElementById('pd-mode-label');
   if (!badge || !label) return;
   const icon = badge.querySelector('i');
-  // Indicador informativo únicamente: refleja el candado general "MODO
-  // EDICIÓN" (isEditableMode). Los controles de edición del módulo ya no
-  // se muestran/ocultan desde aquí -> usan la misma clase .only-editable
-  // que el resto de la app, reactiva automáticamente al candado general.
   if (isEditableMode) {
     badge.style.background = '#dcfce7'; badge.style.color = '#15803d'; badge.style.borderColor = '#bbf7d0';
     label.textContent = 'Edición activa';
@@ -1884,8 +1798,6 @@ function handlePdImport(e) {
   const wrap = document.getElementById('pd-table-wrap');
   if (wrap) wrap.classList.add('pd-loading');
   setPdStatus('Leyendo archivo...', 'info');
-  // Si ya había un Excel original guardado en el repositorio, se borra al
-  // sustituirlo para no dejarlo huérfano (mismo helper que usan las fichas).
   const oldExcelPath = (typeof sm.excelOriginal === 'string' && !sm.excelOriginal.startsWith('data:')) ? sm.excelOriginal : null;
   const reader = new FileReader();
   reader.onload = (ev) => {
@@ -1912,11 +1824,6 @@ function handlePdImport(e) {
 
       sm.headers = headers;
       sm.rows = dataRows;
-      // Se conserva el archivo ORIGINAL tal cual (bytes intactos) para que
-      // "Descargar Excel original" entregue exactamente el mismo libro que
-      // se subió: colores, anchos, bordes, celdas combinadas, fórmulas,
-      // imágenes, hojas y nombres. La tabla editable de abajo es solo una
-      // lectura de los datos, no reemplaza al archivo.
       const bytes = new Uint8Array(ev.target.result);
       let binary = '';
       const chunk = 0x8000;
@@ -1931,8 +1838,6 @@ function handlePdImport(e) {
       sm.updatedAt = Date.now();
 
       if (oldExcelPath) {
-        // No bloquea la importación: si falla el borrado del viejo, se avisa
-        // en consola y el archivo nuevo igual queda cargado.
         (async () => {
           try {
             const cfg = loadGithubConfig();
@@ -2010,11 +1915,6 @@ function renderPdTable() {
   }).join('');
 }
 
-/* ---- Apartados tipo PDF: gestión independiente (no se convierte a tabla).
-   Reutiliza EXACTAMENTE la misma infraestructura que fichas técnicas:
-   se guarda como data-URI en memoria hasta el siguiente guardado general
-   (que lo sube como archivo aparte), y se borra con el mismo helper de
-   GitHub ya usado en "Eliminar ficha". ---- */
 function renderPdPdfView() {
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
   const viewerWrap = document.getElementById('pd-pdf-viewer-wrap');
@@ -2052,8 +1952,6 @@ function handlePdPdfUpload(e) {
   const reader = new FileReader();
   reader.onload = async (ev) => {
     setPdStatus('Subiendo PDF...', 'info');
-    // Si ya había un PDF guardado en el repositorio, se borra primero para
-    // no dejarlo huérfano (mismo helper que usa "Eliminar ficha técnica").
     if (oldRemotePath) {
       try {
         const cfg = loadGithubConfig();
@@ -2140,9 +2038,6 @@ async function deletePdPdf() {
     if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
     setPdStatus('✅ PDF eliminado.', 'ok');
   } catch (err) {
-    // El archivo remoto ya se borró de verdad -> no se revive la referencia
-    // local (eso sería mostrar como disponible algo que ya no existe).
-    // Solo se avisa que falta re-sincronizar el listado guardado.
     console.error('El PDF se borró pero no se pudo actualizar el guardado:', err);
     alert('⚠️ El archivo se eliminó, pero no se pudo actualizar el guardado en GitHub. Usa "Guardar en GitHub" para terminar de sincronizarlo.');
   }
@@ -2154,10 +2049,6 @@ function editPdCell(rowIdx, header, value) {
   sm.rows[rowIdx][header] = value;
 }
 
-/* ---- Editor tipo spreadsheet: insertar/eliminar filas y columnas ----
-   Todo se refleja de inmediato en `data.procesosDiseno` (el estado),
-   antes de guardar - "Guardar cambios del Excel" solo sube lo que ya
-   está en el estado en ese momento. */
 function addPdRow() {
   if (!isEditableMode) return;
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
@@ -2214,10 +2105,6 @@ async function savePdChanges() {
   setPdStatus('Guardando cambios...', 'info');
 
   try {
-    // Reutiliza EXACTAMENTE el mismo handler que el botón "Guardar en
-    // GitHub" que ya funciona: primero carga el token/repo/rama guardados
-    // en el formulario, y luego sube a GitHub (pushToGithub). No hay
-    // ninguna lógica de autenticación/token propia de este módulo.
     const ghStatusBefore = document.getElementById('gh-status');
     const txtBefore = ghStatusBefore ? (ghStatusBefore.textContent || '') : '';
 
@@ -2231,8 +2118,6 @@ async function savePdChanges() {
     } else if (txt && txt !== txtBefore) {
       setPdStatus('⚠️ ' + txt, 'error');
     } else {
-      // txt no cambió: significa que quickSaveGithub() no tenía token/repo
-      // guardado y abrió la configuración de GitHub en vez de guardar.
       setPdStatus('⚠️ No hay una conexión de GitHub configurada todavía. Completa "Guardar en GitHub" (ícono de engranaje) una vez, y luego vuelve a intentar "Guardar cambios del Excel".', 'error');
     }
   } catch (err) {
@@ -2244,11 +2129,6 @@ async function savePdChanges() {
   }
 }
 
-/* DESCARGA: entrega el archivo ORIGINAL subido, byte por byte, para que
-   conserve colores, anchos, bordes, fuentes, celdas combinadas, formatos
-   numéricos, fórmulas, imágenes y todas las hojas del libro. Solo si el
-   apartado nunca tuvo un archivo original (tabla creada a mano, o datos
-   de antes de esta mejora) se reconstruye desde la tabla como respaldo. */
 function exportPdExcel() {
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
   if (!sm) return;
@@ -2266,9 +2146,6 @@ function exportPdExcel() {
   exportPdExcelRebuilt();
 }
 
-/* Exporta la tabla tal como está AHORA (con las filas/columnas/celdas que
-   se hayan editado aquí). Se reconstruye el archivo, así que no conserva
-   el formato del original - por eso vive en un botón aparte. */
 function exportPdExcelRebuilt() {
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
   if (!sm) return;
@@ -2388,7 +2265,6 @@ function mergeData(importedData) {
               existingItem.odt = existingItem.odt || impItem.odt || '';
               existingItem.createdAt = existingItem.createdAt || impItem.createdAt || Date.now();
 
-              // Conservar autores al importar respaldos
               existingItem.createdBy = existingItem.createdBy || impItem.createdBy || null;
               existingItem.createdByName = existingItem.createdByName || impItem.createdByName || null;
               existingItem.modifiedBy = existingItem.modifiedBy || impItem.modifiedBy || null;
@@ -2407,7 +2283,6 @@ function mergeData(importedData) {
   }
 }
 
-/* ---- Edit item inline ---- */
 function startEdit(itemId){
   if (!isEditableMode) return;
   editingItemId=itemId;
@@ -2419,13 +2294,6 @@ function cancelEdit(){
   render();
 }
 
-/* ---- Autorización para editar una fecha YA existente ----
-   Reutiliza exactamente la misma lista de contraseñas que ya usa el resto
-   de la app (data.accessPasswords) - no se crea ni almacena ninguna
-   contraseña nueva. Este paso solo DESBLOQUEA el campo de fecha para que
-   se pueda escribir; el guardado real sigue pasando por saveEdit(), que
-   no se modifica en absoluto. Si la contraseña es incorrecta, no se toca
-   el campo ni item.fecha -> la fecha original queda intacta sin más. */
 let pendingFechaUnlockItemId = null;
 
 function unlockFechaEdit(itemId) {
@@ -2450,7 +2318,6 @@ function validateFechaAuth() {
     if (input) {
       input.disabled = false;
       input.focus();
-      // El botón de candado ya no aplica una vez desbloqueado en esta sesión de edición.
       const lockBtn = input.nextElementSibling;
       if (lockBtn && lockBtn.tagName === 'BUTTON') lockBtn.style.display = 'none';
     }
@@ -2462,7 +2329,6 @@ function validateFechaAuth() {
     modal.classList.add('auth-shake');
     const err = document.getElementById('fecha-auth-error');
     if (err) err.style.display = 'block';
-    // Contraseña incorrecta: no se toca el input ni item.fecha; queda tal cual estaba.
   }
 }
 function saveEdit(naveId,itemId){
@@ -2486,7 +2352,6 @@ function saveEdit(naveId,itemId){
       item.type=c;
       item.subType=sc;
 
-      // Autor de la modificación (no sobrescribe al autor original)
       const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
       if (_user) {
         item.modifiedBy = _user.username;
@@ -2501,8 +2366,6 @@ function saveEdit(naveId,itemId){
   editingItemId=null;render();
 }
 
-
-/* ---- Add item modal ---- */
 function openAddItem(naveId,defaultCat){
   if (!isEditableMode) return;
   currentNaveId=naveId;
@@ -2663,7 +2526,6 @@ function addNave(){
   closeModal('modal-nave');render();
 }
 
-/* ---- Exportar Archivos ---- */
 async function downloadWithDialog(content, fileName, type) {
   try {
     if (window.showSaveFilePicker) {
@@ -2722,7 +2584,6 @@ function doExport(skipModal = false){
   else exportPDFStatic(name);
 }
 
-/* ---- Exportar PDF Idéntico a la Interfaz ---- */
 function exportPDFStatic(name) {
   const btn = document.getElementById('export-btn');
   btn.textContent = 'Generando PDF...';
@@ -2871,7 +2732,6 @@ function exportPDFStatic(name) {
   }, 500); 
 }
 
-/* ---- Guardar en GitHub ---- */
 const GH_CONFIG_KEY = 'reporte_produccion_gh_config';
 
 function loadGithubConfig() {
@@ -2927,22 +2787,9 @@ function githubApiUrl(repo, repoPath) {
   return `https://api.github.com/repos/${repo}/contents/${repoPath.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-/* ============================================================
-   Caché de "sha" por archivo (repo|ruta|rama) para evitar el GET
-   previo al PUT en guardados sucesivos dentro de la misma sesión.
-   Si GitHub responde 409 (conflicto porque el archivo cambió en
-   otro lado, p.ej. otro dispositivo), se limpia y se reintenta
-   una vez con el sha fresco — así nunca se sobreescribe a ciegas.
-   ============================================================ */
 const ghShaCache = {};
 function ghCacheKey(repo, repoPath, branch) { return `${repo}|${repoPath}|${branch}`; }
 
-/**
- * Sube (crea o actualiza) un archivo en GitHub.
- * - Si se pasa `knownSha`, se omite la consulta GET y se hace PUT directo (ahorra 1 petición).
- * - Si `knownSha` es null explícito, se fuerza creación sin sha (para archivos nuevos con nombre único, ej. imágenes).
- * - Si `knownSha` es undefined, se hace GET primero para obtener el sha actual (comportamiento seguro por defecto).
- */
 async function putFileToGithub(repo, repoPath, branch, headers, contentBase64, message, knownSha) {
   const apiUrl = githubApiUrl(repo, repoPath);
   let sha = knownSha;
@@ -2979,10 +2826,6 @@ async function putFileToGithub(repo, repoPath, branch, headers, contentBase64, m
   return putResp.json().catch(() => null);
 }
 
-/**
- * Guarda un archivo cuyo sha ya conocemos (o cacheamos), reintentando una sola vez
- * con sha fresco si GitHub responde 409 (conflicto por cambios de otro dispositivo).
- */
 async function putFileToGithubCached(repo, repoPath, branch, headers, contentBase64, message) {
   const key = ghCacheKey(repo, repoPath, branch);
   const cachedSha = ghShaCache[key];
@@ -2992,7 +2835,6 @@ async function putFileToGithubCached(repo, repoPath, branch, headers, contentBas
     return result;
   } catch (err) {
     if (err.status === 409 && cachedSha !== undefined) {
-      // El sha en caché quedó obsoleto (alguien más guardó primero) -> se refresca y reintenta UNA vez.
       delete ghShaCache[key];
       const result = await putFileToGithub(repo, repoPath, branch, headers, contentBase64, message, undefined);
       if (result && result.content && result.content.sha) ghShaCache[key] = result.content.sha;
@@ -3002,12 +2844,10 @@ async function putFileToGithubCached(repo, repoPath, branch, headers, contentBas
   }
 }
 
-/** Crea un archivo nuevo con nombre garantizado único (imágenes/fichas con uid()): un solo PUT, sin GET previo. */
 function createNewFileOnGithub(repo, repoPath, branch, headers, contentBase64, message) {
   return putFileToGithub(repo, repoPath, branch, headers, contentBase64, message, null);
 }
 
-/** Ejecuta tareas async con un límite de concurrencia (evita saturar la API pero deja de ser secuencial). */
 async function runWithConcurrency(tasks, limit) {
   const results = new Array(tasks.length);
   let idx = 0;
@@ -3022,8 +2862,6 @@ async function runWithConcurrency(tasks, limit) {
   return results;
 }
 
-/* Confirma que exista un ítem/campo en edición antes de subir, para no perder
-   cambios que el usuario todavía no ha confirmado con el botón "Guardar" de la tarjeta. */
 function commitPendingEditsBeforePush() {
   if (editingItemId) {
     const nave = data.naves.find(n => n.items && n.items.some(i => i.id === editingItemId));
@@ -3042,8 +2880,6 @@ function extFromDataUri(uri) {
 }
 
 async function pushToGithub() {
-  // Evita subir datos "viejos": si hay una tarjeta en edición sin confirmar,
-  // se guarda primero para que el cambio sí quede incluido en el JSON que se sube.
   commitPendingEditsBeforePush();
 
   const repo = normalizeRepoInput(document.getElementById('gh-repo').value);
@@ -3068,9 +2904,6 @@ async function pushToGithub() {
     localStorage.removeItem(GH_CONFIG_KEY);
   }
 
-  // PWA offline: sin conexión no se intenta llegar a GitHub. Se guarda el
-  // estado actual en IndexedDB (no se pierde nada) y se sincroniza solo,
-  // en automático, en cuanto vuelva la conexión (ver evento 'online').
   if (!navigator.onLine) {
     await saveOfflineSnapshot(data);
     setSyncStatusUI('pending');
@@ -3096,14 +2929,11 @@ async function pushToGithub() {
   const dataRepoPath = baseDir + 'data/cambios.json';
   const imagesRepoPrefix = baseDir + 'data/images/';
 
-  // --- Medición de tiempos por etapa (queda en consola para diagnóstico) ---
   const t0 = performance.now();
   const timings = {};
   const mark = (label, from) => { timings[label] = Math.round(performance.now() - from); };
 
   try {
-    // 1) Preparar: recolectar todas las imágenes/fichas nuevas como tareas independientes
-    //    (cada una tiene nombre único, así que se pueden crear en paralelo sin GET previo).
     const tPrep = performance.now();
     const uploadTasks = [];
 
@@ -3169,13 +2999,13 @@ async function pushToGithub() {
         }
       }
     }
- if (Array.isArray(data.pendientesGenerales)) {
+
+    if (Array.isArray(data.pendientesGenerales)) {
       for (const pg of data.pendientesGenerales) {
         if (!Array.isArray(pg.adjuntos)) continue;
         for (let k = 0; k < pg.adjuntos.length; k++) {
           const adj = pg.adjuntos[k];
           if (typeof adj === 'string' && adj.startsWith('data:')) {
-            // Detectar tipo y extensión
             let ext = 'jpg';
             if (adj.startsWith('data:application/pdf')) ext = 'pdf';
             else if (adj.startsWith('data:image/png')) ext = 'png';
@@ -3196,6 +3026,7 @@ async function pushToGithub() {
         }
       }
     }
+
     if (data.procesosDiseno && Array.isArray(data.procesosDiseno.submodules)) {
       for (const sm of data.procesosDiseno.submodules) {
         if (sm.type === 'pdf' && sm.pdfContent && sm.pdfContent.startsWith('data:')) {
@@ -3230,10 +3061,6 @@ async function pushToGithub() {
     }
     mark('preparar', tPrep);
 
-    // 2) Subir todos los archivos nuevos EN PARALELO. Cada imagen se maneja de forma
-    //    INDEPENDIENTE: si una falla (ej. conexión inestable en celular), NO se cancela
-    //    el resto ni se pierde el guardado de los datos del cambio. Se reintenta 1 vez
-    //    automáticamente antes de darla por fallida.
     const tImgs = performance.now();
     let nuevasImagenes = 0;
     const fallosImagenes = [];
@@ -3246,7 +3073,6 @@ async function pushToGithub() {
             try {
               await t.run();
             } catch (firstErr) {
-              // Reintento único: útil para cortes breves de red en celular.
               console.warn(`Fallo al subir archivo ${taskIdx + 1}, reintentando una vez...`, firstErr);
               await t.run();
             }
@@ -3255,20 +3081,16 @@ async function pushToGithub() {
           } catch (err) {
             console.error(`No se pudo subir el archivo ${taskIdx + 1} tras reintentar:`, err);
             fallosImagenes.push({ label: t.label, message: err.message || 'error desconocido' });
-            // OJO: no se llama a t.apply(), así que la imagen se queda como data-URI
-            // dentro de `data` y se guarda embebida en cambios.json (no se pierde),
-            // aunque no haya quedado como archivo aparte en /data/images/.
           } finally {
             completadas++;
             setGithubStatus(`Subiendo archivos nuevos... (${completadas}/${uploadTasks.length})`, 'info');
           }
         }),
-        5 // hasta 5 subidas simultáneas
+        5
       );
     }
     mark('imagenes', tImgs);
 
-    // 3) Guardar data/cambios.json — usa el sha en caché de la sesión (sin GET previo) cuando existe.
     const tData = performance.now();
     setGithubStatus('Guardando datos...', 'info');
     const dataString = JSON.stringify(data);
@@ -3278,7 +3100,6 @@ async function pushToGithub() {
     );
     mark('datos_cambios_json', tData);
 
-    // 4) Guardar modelos.json SOLO si de verdad cambió.
     const tModelos = performance.now();
     if(modelosDBChanged){
       setGithubStatus('Guardando base de datos de modelos...', 'info');
@@ -3290,7 +3111,7 @@ async function pushToGithub() {
       modelosDBChanged = false;
     }
     mark('modelos_json', tModelos);
-            // 4.5) Guardar usuarios.json SOLO si cambió (crear/editar/eliminar usuarios)
+
     if (typeof usuariosDBChanged !== 'undefined' && usuariosDBChanged) {
       setGithubStatus('Guardando usuarios...', 'info');
       const usuariosRepoPath = baseDir + 'data/usuarios.json';
@@ -3304,8 +3125,6 @@ async function pushToGithub() {
       usuariosDBChanged = false;
     }
 
-    // 5) Actualizar interfaz: solo el mensaje de estado, sin re-renderizar toda la app
-    //    (los datos en memoria ya reflejaban el cambio antes de subir; no hay nada visual que refrescar).
     const tUI = performance.now();
     const commitSha = dataPutResult && dataPutResult.commit && dataPutResult.commit.sha
       ? dataPutResult.commit.sha.slice(0, 7)
@@ -3313,9 +3132,6 @@ async function pushToGithub() {
     const commitMsg = commitSha ? ` (commit ${commitSha})` : '';
 
     if (fallosImagenes.length > 0) {
-      // Guardado parcial: el cambio y sus datos SÍ se subieron; algunas imágenes no.
-      // Como no se pierden (quedan embebidas en cambios.json), basta con reintentar
-      // el guardado más tarde para que esas fotos terminen de subirse como archivo aparte.
       const detalle = fallosImagenes.map(f => `• ${f.label}: ${f.message}`).join('\n');
       setGithubStatus(
         `⚠️ El cambio se guardó${commitMsg}, pero ${fallosImagenes.length} imagen(es) no se pudieron subir tras reintentar. ` +
@@ -3333,8 +3149,6 @@ async function pushToGithub() {
     console.error('Error al subir a GitHub:', err);
     timings.total = Math.round(performance.now() - t0);
     console.log('[GitHub Save] Tiempos por etapa hasta el error (ms):', timings);
-    // Si la conexión se cayó a mitad del guardado (no un error de configuración/token),
-    // el cambio no se pierde: se respalda en IndexedDB para reintentarlo solo después.
     const pareceFalloDeRed = (err instanceof TypeError) || !navigator.onLine;
     if (pareceFalloDeRed) {
       await saveOfflineSnapshot(data);
@@ -3349,7 +3163,6 @@ async function pushToGithub() {
     if(mainBtn) { mainBtn.innerHTML = originalMainHtml; mainBtn.disabled = false; }
   }
 }
-
 function base64ToUtf8(b64) {
   const binary = atob(b64.replace(/\n/g, ''));
   const bytes = new Uint8Array(binary.length);
@@ -3414,7 +3227,6 @@ async function revertToLastCommit() {
   const modelosRepoPath = baseDir + 'data/modelos.json';
 
   try {
-    // 1. Encontrar el último commit confirmado en la rama activa
     const branchUrl = `https://api.github.com/repos/${repo}/branches/${encodeURIComponent(branch)}`;
     const branchResp = await fetch(branchUrl, { headers, cache: 'no-store' });
     if (!branchResp.ok) {
@@ -3435,7 +3247,6 @@ async function revertToLastCommit() {
 
     if (!commitSha) throw new Error('GitHub no devolvió información del último commit de la rama.');
 
-    // 2. Descargar data/cambios.json exactamente como estaba en ese commit
     setGithubStatus('Descargando la última versión de los datos...', 'info');
     const dataResp = await fetch(`${githubApiUrl(repo, dataRepoPath)}?ref=${encodeURIComponent(commitSha)}`, { headers, cache: 'no-store' });
     if (!dataResp.ok) {
@@ -3453,7 +3264,6 @@ async function revertToLastCommit() {
       throw new Error('El archivo data/cambios.json del repositorio no es un JSON válido. No se pudo restaurar.');
     }
 
-    // 3. Descargar data/modelos.json también, si existe (no es crítico si falla)
     let restoredModelos = null;
     try {
       const modelosResp = await fetch(`${githubApiUrl(repo, modelosRepoPath)}?ref=${encodeURIComponent(commitSha)}`, { headers, cache: 'no-store' });
@@ -3465,7 +3275,6 @@ async function revertToLastCommit() {
       console.warn('No se pudo restaurar data/modelos.json, se conserva el actual:', e);
     }
 
-    // 4. Aplicar los datos restaurados localmente, descartando cambios sin subir
     data = restoredData;
     ensureAccessPasswords();
     if (Array.isArray(restoredModelos)) {
@@ -3475,8 +3284,6 @@ async function revertToLastCommit() {
     editingItemId = null;
     render();
 
-    // Actualiza el sha en caché con el que acabamos de leer, así el próximo "Guardar en GitHub"
-    // también evita el GET previo (ya sabemos exactamente en qué versión estamos parados).
     if (dataInfo && dataInfo.sha) {
       ghShaCache[ghCacheKey(repo, dataRepoPath, branch)] = dataInfo.sha;
     }
@@ -3499,27 +3306,6 @@ async function revertToLastCommit() {
 
 /* ============================================================
    EXPORTACIÓN OFFLINE (ZIP) — descubrimiento automático de recursos
-   No se modifica GitHub/BD/guardado/Excel/PDF/filtros/edición/UI: esto
-   solo reescribe cómo se arma el ZIP de "Descargar Repositorio".
-
-   En vez de una lista fija de archivos ("excepciones manuales"), se
-   audita automáticamente:
-   - El DOM clonado: <link href>, <script src>, <img src>, url(...) en
-     atributos style.
-   - El contenido real de css/styles.css: sus propios url(...).
-   - El contenido real de js/app.js: fetch('...') y
-     serviceWorker.register('...') -> así se detectan solas rutas como
-     data/cambios.json, data/modelos.json o firebase-messaging-sw.js,
-     sin tenerlas escritas a mano en ningún lado.
-   - manifest.json: sus íconos declarados.
-   - El objeto `data` en memoria: imágenes de cada nave (n.images),
-     adjuntos de cada cambio (item.adjuntos) y fichas técnicas
-     (fichasTecnicas[].content) - así ninguna imagen cargada
-     dinámicamente desde la BD queda apuntando al repositorio original.
-   Los recursos externos (CDNs) se intentan descargar e incluir en
-   vendor/ y se reescriben las referencias a rutas locales; si alguno
-   no se puede traer (CORS, sin internet), se deja el enlace externo
-   tal cual y se anota en el reporte - nunca rompe el ZIP.
    ============================================================ */
 
 function isLocalAssetRef(url) {
@@ -3540,9 +3326,6 @@ function extractCssUrls(cssText) {
   return out;
 }
 
-/* Recorre el DOM clonado y junta toda referencia local (relativa, sin
-   internet) a un archivo: hojas de estilo, scripts, imágenes, e íconos
-   declarados vía atributo style. */
 function collectLocalAssetPathsFromDom(clonedDoc) {
   const paths = new Set();
   clonedDoc.querySelectorAll('link[href]').forEach(el => {
@@ -3563,8 +3346,6 @@ function collectLocalAssetPathsFromDom(clonedDoc) {
   return paths;
 }
 
-/* Rutas que solo existen como texto dentro del propio código (fetch(),
-   registro del Service Worker, etc.) - "rutas generadas por JS". */
 function collectLocalAssetPathsFromJs(jsText) {
   const paths = new Set();
   const patterns = [
@@ -3579,9 +3360,6 @@ function collectLocalAssetPathsFromJs(jsText) {
   return paths;
 }
 
-/* Imágenes que viven en la BD/JSON en memoria (naves, adjuntos de cada
-   cambio, fichas técnicas) - estas nunca aparecen en el HTML/CSS/JS
-   porque se insertan dinámicamente; hay que resolverlas aparte. */
 function collectLocalAssetPathsFromData() {
   const paths = new Set();
   (data.naves || []).forEach(n => {
@@ -3594,9 +3372,6 @@ function collectLocalAssetPathsFromData() {
   return paths;
 }
 
-/* Descarga un recurso local del propio sitio y lo mete al zip. Si falla
-   (archivo faltante / ruta rota), se anota en el reporte en vez de
-   cortar todo el proceso. */
 async function fetchAssetIntoZip(path, zip, report) {
   try {
     const res = await fetch(path, { cache: 'no-store' });
@@ -3611,12 +3386,6 @@ async function fetchAssetIntoZip(path, zip, report) {
   }
 }
 
-/* Recursos externos (CDNs) que se pueden convertir a locales: se
-   intenta descargar cada <script src="http...">/<link href="http...">
-   y se reescribe la referencia en el propio HTML exportado hacia el
-   archivo local. Si el navegador bloquea la descarga (CORS) o no hay
-   internet, se deja el enlace externo intacto (no rompe el ZIP) y se
-   anota como dependencia externa no resuelta. */
 async function localizeExternalResourcesForZip(clonedDoc, zip, report) {
   const els = [
     ...clonedDoc.querySelectorAll('script[src]'),
@@ -3635,9 +3404,6 @@ async function localizeExternalResourcesForZip(clonedDoc, zip, report) {
       const fileName = (u.pathname.split('/').pop() || 'recurso') || (isCss ? 'style.css' : 'script.js');
       let content = isCss ? await res.text() : await res.blob();
 
-      // Si es CSS externo (ej. Google Fonts), sus propias fuentes también
-      // son externas -> se intentan traer y se reescribe el CSS para que
-      // apunten al archivo local ya dentro del mismo vendor/.
       if (isCss) {
         for (const fontUrl of extractCssUrls(content)) {
           if (!/^https?:\/\//i.test(fontUrl)) continue;
@@ -3688,14 +3454,6 @@ function downloadBlob(content, fileName, mime){
   URL.revokeObjectURL(url);
 }
 
-/* ---- Modo "espejo real del repositorio" (preferido) ----
-   En vez de adivinar qué archivos hacen falta a partir de referencias
-   en el HTML/CSS/JS/BD, se le pregunta directamente a GitHub qué
-   archivos existen (API de árboles de Git, recursiva) y se descargan
-   TODOS - así ninguna imagen queda fuera, esté o no referenciada en
-   el estado cargado actualmente en el navegador. Reutiliza el mismo
-   token/config guardado que ya usa "Guardar en GitHub" (sin lógica de
-   autenticación propia). */
 async function listRepoFilesRecursive(repo, branch, headers) {
   const url = `https://api.github.com/repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`;
   const res = await fetch(url, { headers, cache: 'no-store' });
@@ -3708,17 +3466,12 @@ async function listRepoFilesRecursive(repo, branch, headers) {
 }
 
 async function fetchRepoFileBlob(repo, branch, path, headers) {
-  // Intento 1: raw.githubusercontent.com - directo y sin consumir el
-  // límite de peticiones de la API (funciona en repos públicos, que es
-  // el caso normal de un sitio publicado con GitHub Pages).
   try {
     const rawUrl = `https://raw.githubusercontent.com/${repo}/${branch}/${path.split('/').map(encodeURIComponent).join('/')}`;
     const res = await fetch(rawUrl, { cache: 'no-store' });
     if (res.ok) return await res.blob();
   } catch (e) { /* sigue al plan B */ }
 
-  // Intento 2: API de contenidos de GitHub (funciona también si el repo
-  // es privado, usando el mismo token guardado).
   const apiUrl = githubApiUrl(repo, path) + `?ref=${encodeURIComponent(branch)}`;
   const res2 = await fetch(apiUrl, { headers, cache: 'no-store' });
   if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
@@ -3771,9 +3524,6 @@ async function exportProjectZip(name) {
       let usedRepoMirror = false;
 
       if (cfg && cfg.repo && cfg.token) {
-        // Modo preferido: espejo real y completo del repositorio (incluye
-        // TODO lo que exista ahí, como data/images/, sin depender de si
-        // el navegador tiene esas referencias cargadas en este momento).
         try {
           await exportProjectZipFromRepo(zip, cfg, btn, report);
           usedRepoMirror = true;
@@ -3784,8 +3534,6 @@ async function exportProjectZip(name) {
       }
 
       if (!usedRepoMirror) {
-        // Respaldo (sin GitHub configurado, o falló el listado): auditoría
-        // automática por referencias en el DOM/CSS/JS/BD, igual que antes.
         btn.textContent = 'Auditando recursos...';
         const localPaths = new Set([
           ...collectLocalAssetPathsFromDom(clone),
@@ -3815,24 +3563,16 @@ async function exportProjectZip(name) {
         }
       }
 
-      // Recursos externos (CDNs) -> se intentan volver locales dentro del ZIP,
-      // en ambos modos.
       btn.textContent = 'Resolviendo dependencias externas...';
       await localizeExternalResourcesForZip(clone, zip, report);
 
-      // HTML final (ya con las referencias externas reescritas a locales
-      // cuando se pudo resolverlas).
       const htmlString = buildProjectHTMLString(clone);
       zip.file('index.html', htmlString);
 
-      // Bases de datos JSON: se escribe el estado ACTUAL en memoria (más al
-      // día que la última copia del repositorio, por si hay cambios sin
-      // subir), al final para que gane sobre cualquier copia ya descargada.
       zip.folder('data').file('cambios.json', JSON.stringify(data, null, 2));
       zip.folder('data').file('modelos.json', JSON.stringify(modelosDB, null, 2));
       report.incluidos.push('data/cambios.json (estado actual)', 'data/modelos.json (estado actual)');
 
-      // Reporte de auditoría dentro del propio ZIP (trazabilidad).
       const reportTxt = [
         `Snapshot offline generado: ${new Date().toLocaleString('es-MX')}`,
         `Modo: ${usedRepoMirror ? 'Espejo completo del repositorio de GitHub' : 'Detección automática por referencias (sin GitHub configurado)'}`,
@@ -3848,7 +3588,6 @@ async function exportProjectZip(name) {
       ].join('\n');
       zip.file('_reporte_offline.txt', reportTxt);
 
-      // 7) Generar y descargar ZIP
       btn.textContent = 'Generando ZIP...';
       const content = await zip.generateAsync({ type: 'blob' });
       downloadBlob(content, name + '.zip', 'application/zip');
@@ -3865,18 +3604,10 @@ async function exportProjectZip(name) {
       btn.textContent = originalText;
   }
 }
-
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
-/* ---- Carga inicial de datos (data/cambios.json) ---- */
 /* ============================================================
    PWA / MODO OFFLINE
-   - IndexedDB guarda un único respaldo "pendiente" (se sobrescribe,
-     nunca se acumulan copias -> imposible que se generen duplicados
-     al sincronizar).
-   - El Service Worker (firebase-messaging-sw.js) es quien decide qué
-     se cachea y cómo; aquí solo se activa el respaldo local de cambios
-     y se dispara la sincronización automática al recuperar conexión.
    ============================================================ */
 const OFFLINE_DB_NAME = 'rpi_offline_db';
 const OFFLINE_DB_VERSION = 1;
@@ -3902,8 +3633,6 @@ async function saveOfflineSnapshot(dataObj) {
     const db = await openOfflineDB();
     await new Promise((resolve, reject) => {
       const tx = db.transaction(OFFLINE_STORE, 'readwrite');
-      // id fijo 'pending': cada guardado sin conexión SOBRESCRIBE el mismo
-      // registro (no se van acumulando copias) -> nunca hay duplicados al sincronizar.
       tx.objectStore(OFFLINE_STORE).put({ id: 'pending', dataJson: JSON.stringify(dataObj), savedAt: Date.now() });
       tx.oncomplete = resolve;
       tx.onerror = () => reject(tx.error);
@@ -3959,7 +3688,6 @@ function updateConnStatusUI() {
 }
 
 function setSyncStatusUI(mode) {
-  // mode: 'hidden' | 'pending' | 'syncing' | 'synced'
   const pill = document.getElementById('sync-status');
   const label = document.getElementById('sync-status-label');
   if (!pill || !label) return;
@@ -3975,11 +3703,6 @@ function setSyncStatusUI(mode) {
   }
 }
 
-/* Intenta subir a GitHub cualquier cambio pendiente guardado sin conexión.
-   Sube el estado ACTUAL en memoria (no la copia vieja guardada), porque
-   pudo haber seguido editando sin conexión después de ese primer guardado;
-   la copia en IndexedDB solo se usa como bandera de "hay algo pendiente"
-   y para restaurar el trabajo si se cerró la pestaña estando offline. */
 async function attemptOfflineSync() {
   const pending = await getOfflineSnapshot();
   if (!pending) { setSyncStatusUI('hidden'); return; }
@@ -3987,8 +3710,6 @@ async function attemptOfflineSync() {
 
   const cfg = loadGithubConfig();
   if (!cfg || !cfg.repo || !cfg.path || !cfg.token) {
-    // No hay configuración de GitHub guardada para sincronizar solo;
-    // se deja pendiente hasta que el usuario use "Guardar en GitHub" manualmente.
     setSyncStatusUI('pending');
     return;
   }
@@ -4023,11 +3744,6 @@ window.addEventListener('offline', () => {
   updateConnStatusUI();
 });
 
-/* Botón "Descargar versión offline": le pide al Service Worker (que ya
-   está registrado para las notificaciones) que guarde el cascarón de la
-   app -HTML/CSS/JS/manifest/ícono-, nada de datos ni imágenes, para que
-   la app pueda abrirse sin conexión. No descarga nada hasta que se
-   presiona este botón. */
 async function downloadOfflineVersion() {
   const btn = document.getElementById('btn-download-offline');
   if (!('serviceWorker' in navigator)) {
@@ -4083,10 +3799,6 @@ async function cargarDatosIniciales(){
   }
   cargarModelosDB();
 
-  // PWA offline: si quedaron cambios guardados localmente sin sincronizar
-  // (de una sesión anterior sin conexión), se restauran para no perderlos
-  // -son más recientes que lo que se acaba de cargar del servidor- y se
-  // intenta sincronizar de inmediato si ya hay conexión.
   updateConnStatusUI();
   try {
     const pending = await getOfflineSnapshot();
@@ -4101,7 +3813,6 @@ async function cargarDatosIniciales(){
   }
 }
 
-/* ---- Base de datos de modelos (data/modelos.json) ---- */
 async function cargarModelosDB(){
   try{
     const resp = await fetch('data/modelos.json', {cache:'no-store'});
@@ -4158,8 +3869,7 @@ function toggleFichasMenu(event) {
     menu.style.bottom = 'auto';
     menu.style.left = Math.round(rect.left) + 'px';
     menu.style.right = 'auto';
-    
-    // Ajuste dinámico para pantallas pequeñas (celulares)
+
     setTimeout(() => {
       const menuRect = menu.getBoundingClientRect();
       if (menuRect.right > window.innerWidth) {
@@ -4182,7 +3892,7 @@ function handleFichaUpload(e) {
     data.fichasTecnicas.push({
       id: uid(),
       name: file.name,
-      content: ev.target.result // Base64
+      content: ev.target.result
     });
     renderFichas();
   };
@@ -4190,9 +3900,6 @@ function handleFichaUpload(e) {
   e.target.value = '';
 }
 
-// IDs (no índices) de fichas que se están borrando/reemplazando en este
-// momento -> evita doble ejecución y permite mostrar el estado de carga en
-// la fila correcta aunque el arreglo cambie de tamaño mientras tanto.
 const fichaDeleteInProgress = new Set();
 const fichaReplaceInProgress = new Set();
 
@@ -4228,17 +3935,12 @@ function renderFichas() {
   }).join('');
 }
 
-/* VER: abre el PDF/imagen en una pestaña nueva usando la misma URL/ruta ya
-   guardada (relativa del repositorio, o el data-URI si todavía no se ha
-   guardado en GitHub) - no descarga ni genera ninguna copia. */
 function viewFicha(id) {
   const f = getFichaById(id);
   if (!f) return;
   window.open(f.content, '_blank');
 }
 
-/* DESCARGAR: exactamente la misma función que ya existía, solo que ahora
-   busca por id (estable) en vez de por índice del arreglo. */
 function downloadFicha(id) {
   const f = getFichaById(id);
   if(!f) return;
@@ -4246,21 +3948,17 @@ function downloadFicha(id) {
   const a = document.createElement('a');
   a.href = f.content;
   a.download = f.name;
-  a.target = "_blank"; 
+  a.target = "_blank";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 }
 
-/* Borra un archivo ya subido al repositorio (API de contenidos de GitHub).
-   Reutiliza el mismo patrón que ya usa el guardado de imágenes/adjuntos
-   (consultar el sha actual antes de escribir) - misma arquitectura, solo
-   que con el verbo DELETE en vez de PUT. */
 async function deleteFileFromGithub(repo, repoPath, branch, headers, message) {
   const apiUrl = githubApiUrl(repo, repoPath);
   const getResp = await fetch(`${apiUrl}?ref=${encodeURIComponent(branch)}`, { headers, cache: 'no-store' });
   if (getResp.status === 404) {
-    return { alreadyGone: true }; // no existía en el repositorio (o nunca se guardó) - no es un error real
+    return { alreadyGone: true };
   }
   if (!getResp.ok) {
     const errBody = await getResp.json().catch(() => ({}));
@@ -4279,27 +3977,17 @@ async function deleteFileFromGithub(repo, repoPath, branch, headers, message) {
   return delResp.json().catch(() => null);
 }
 
-/* ELIMINAR → CONFIRMACIÓN → ELIMINAR ARCHIVO → ELIMINAR REFERENCIA → ACTUALIZAR UI
-   - Si el archivo todavía no se había guardado en GitHub (sigue como
-     data-URI en memoria), no hay archivo remoto que borrar: solo se quita
-     la referencia local.
-   - Si el paso de borrar el ARCHIVO falla, no se toca nada más: se
-     conserva la ficha tal cual estaba y se muestra el error.
-   - Si el archivo sí se logra borrar pero después falla el guardado de
-     la referencia (data/cambios.json), no se revive la ficha -el archivo
-     ya no existe de verdad- pero se avisa claramente que hace falta volver
-     a guardar para que el listado remoto quede sincronizado. */
 async function deleteFicha(id) {
       if (!isEditableMode) return;
       if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar fichas técnicas.'); return; }
-      if (fichaDeleteInProgress.has(id)) return; // evita doble ejecución
+      if (fichaDeleteInProgress.has(id)) return;
       const f = getFichaById(id);
   if (!f) return;
 
   if (!confirm('¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTA FICHA TÉCNICA?')) return;
 
   fichaDeleteInProgress.add(id);
-  renderFichas(); // muestra el estado de "eliminando..." de inmediato
+  renderFichas();
 
   const cfg = loadGithubConfig();
   const isRemoteFile = typeof f.content === 'string' && !f.content.startsWith('data:');
@@ -4321,16 +4009,11 @@ async function deleteFicha(id) {
     return;
   }
 
-  // El archivo (si existía) ya se borró del repositorio -> ahora sí se
-  // quita la referencia local, pase lo que pase después.
   const idx = data.fichasTecnicas.findIndex(x => x.id === id);
   if (idx !== -1) data.fichasTecnicas.splice(idx, 1);
 
   try {
     if (cfg && cfg.repo && cfg.token) {
-      // Reutiliza EXACTAMENTE el mismo guardado que "Guardar en GitHub"
-      // (mismo token, mismo handler) para que data/cambios.json quede
-      // sin la referencia borrada. No se crea ningún guardado propio.
       await quickSaveGithub();
     }
   } catch (err) {
@@ -4342,15 +4025,6 @@ async function deleteFicha(id) {
   }
 }
 
-/* REEMPLAZAR: para cuando se subió el archivo equivocado. Corrige la
-   ficha en el mismo lugar (mismo id, misma posición en la lista) en vez
-   de tener que borrarla y subir una nueva por separado.
-   - Si la ficha vieja ya estaba guardada en GitHub (ruta remota), se
-     borra ese archivo viejo primero (mismo helper que usa "Eliminar")
-     para no dejarlo huérfano.
-   - Se guarda de inmediato con quickSaveGithub() -el mismo guardado de
-     siempre- para que el archivo nuevo quede subido y la referencia
-     actualizada en un solo paso. */
 let pendingReplaceFichaId = null;
 
 function triggerFichaReplace(id) {
@@ -4398,8 +4072,6 @@ async function replaceFichaContent(id, newName, newContentBase64) {
       }
       const branch = cfg.branch || 'main';
       const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
-      // Se borra el archivo viejo antes de dejar el nuevo en su lugar, para
-      // no dejarlo huérfano en el repositorio.
       await deleteFileFromGithub(cfg.repo, oldRemotePath, branch, headers, `Reemplazar ficha técnica "${f.name}"`);
     }
   } catch (err) {
@@ -4410,14 +4082,11 @@ async function replaceFichaContent(id, newName, newContentBase64) {
     return;
   }
 
-  // Archivo viejo fuera (si existía) -> ahora sí se actualiza con el nuevo.
   f.name = newName;
   f.content = newContentBase64;
 
   try {
     if (cfg && cfg.repo && cfg.token) {
-      // Mismo guardado de siempre: al detectar que el content es un
-      // data-URI nuevo, lo sube como archivo y actualiza la referencia.
       await quickSaveGithub();
     }
   } catch (err) {
@@ -4431,27 +4100,21 @@ async function replaceFichaContent(id, newName, newContentBase64) {
 
 /* ---- RECORDATORIO DE PENDIENTES (CADA 2 HORAS) ---- */
 function checkAndSendPendingReminders() {
-  // Solo continuar si tenemos permisos de notificación
   if (Notification.permission !== 'granted') return;
 
   const now = new Date();
   const day = now.getDay();
   const hour = now.getHours();
 
-  // Condición: Lunes (1) a Viernes (5)
   if (day === 0 || day === 6) return;
-  // Condición: 7:00 a.m. a 8:00 p.m. (7 a 19 hrs)
   if (hour < 7 || hour >= 20) return;
 
-  // Verificar si hay elementos pendientes
   let hasPendientes = false;
-  
-  // 1. Revisar Pendientes Generales
+
   if (data.pendientesGenerales && data.pendientesGenerales.length > 0) {
     hasPendientes = true;
   }
-  
-  // 2. Revisar muebles con registros NO terminados
+
   if (!hasPendientes && data.naves) {
     for (const nave of data.naves) {
       if (nave.items && nave.items.some(item => !item.proceso?.planoTerminado)) {
@@ -4461,10 +4124,8 @@ function checkAndSendPendingReminders() {
     }
   }
 
-  // Si no hay nada pendiente, no hacemos nada
   if (!hasPendientes) return;
 
-  // Verificar si ya pasaron 2 horas desde la última notificación
   const lastSentStr = localStorage.getItem('lastPendingReminder');
   const lastSent = lastSentStr ? parseInt(lastSentStr, 10) : 0;
   const timeSinceLast = now.getTime() - lastSent;
@@ -4477,20 +4138,16 @@ function checkAndSendPendingReminders() {
       badge: 'https://cdn-icons-png.flaticon.com/512/2558/2558944.png',
       vibrate: [200, 100, 200]
     });
-    
-    // Guardar la hora del envío
+
     localStorage.setItem('lastPendingReminder', now.getTime().toString());
   }
 }
 
-// Revisar cada 5 minutos si es momento de enviar el recordatorio
 setInterval(checkAndSendPendingReminders, 5 * 60 * 1000);
-// Revisar también 5 segundos después de abrir la aplicación
 setTimeout(checkAndSendPendingReminders, 5000);
 
 /* ---- MÓDULO DASHBOARD Y ESTADÍSTICAS ---- */
 
-// Utilidad para cambiar las opciones del submenú
 function updateSubCatDropdown(type, selectId) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
@@ -4499,7 +4156,7 @@ function updateSubCatDropdown(type, selectId) {
   if (type === 'error') opts = ['ERROR EN PLANO', 'ERROR EN PIEZA', 'ERROR EN ENSAMBLE'];
   else if (type === 'ajuste') opts = ['AJUSTE EN PLANO', 'AJUSTE EN PIEZA', 'AJUSTE EN ENSAMBLE'];
   else if (type === 'mejora') opts = ['MEJORA DE INGENIERÍA', 'APROVECHAMIENTO DE MATERIAL'];
-  
+
   opts.forEach(o => {
     const opt = document.createElement('option');
     opt.value = o; opt.textContent = o;
@@ -4507,7 +4164,6 @@ function updateSubCatDropdown(type, selectId) {
   });
 }
 
-// Para que cuando se abra la edición inline por primera vez, se llenen las opciones correctamente si están vacías
 document.addEventListener('click', function(e) {
   if (e.target.closest('.btn-ghost[title="Editar"]')) {
       setTimeout(() => {
@@ -4515,7 +4171,6 @@ document.addEventListener('click', function(e) {
               const id = sel.id.replace('ec-', 'esc-');
               const currentVal = document.getElementById(id).value;
               updateSubCatDropdown(sel.value, id);
-              // Restaurar valor previo si es válido
               const opts = Array.from(document.getElementById(id).options).map(o=>o.value);
               if(opts.includes(currentVal)) document.getElementById(id).value = currentVal;
           });
@@ -4526,9 +4181,6 @@ document.addEventListener('click', function(e) {
 
 let chartTipo, chartClasif, chartImpacto;
 
-// Si la ventana cambia de tamaño (o el celular rota) mientras el dashboard
-// está abierto, se reajustan las gráficas para que el lienzo interno nunca
-// quede desfasado del tamaño real en pantalla.
 window.addEventListener('resize', () => {
   if (chartTipo) chartTipo.resize();
   if (chartClasif) chartClasif.resize();
@@ -4536,29 +4188,12 @@ window.addEventListener('resize', () => {
 });
 let dashFilters = { tipo: null, clasificacion: null, impacto: null };
 
-/* ============================================================
-   REPORTE SEMANAL HISTÓRICO (Dashboard)
-   No se duplica ni modifica ningún registro original: todo se calcula
-   "al vuelo" cada vez que se genera un reporte, leyendo directamente
-   item.fecha de los cambios ya existentes en `data.naves[].items[]`.
-   Semanas ISO-8601 (lunes a domingo), año dividido automáticamente en
-   52 o 53 semanas según corresponda.
-   ============================================================ */
 function parseItemFecha(str) {
   if (!str) return null;
-  // item.fecha viene de <input type="date"> como "YYYY-MM-DD"; se agrega
-  // la hora para que se interprete en horario local (evita que se corra
-  // un día por el desfase UTC).
   const d = new Date(str + 'T00:00:00');
   return isNaN(d.getTime()) ? null : d;
 }
 
-/* Fecha efectiva de un cambio para el reporte semanal: se usa la fecha
-   manual (item.fecha) si existe, y si no, la fecha real de creación/
-   registro del cambio (item.createdAt) - que prácticamente todos los
-   cambios sí tienen, aunque nunca se les haya puesto una "Fecha" manual
-   a mano. Así se capturan los datos históricos existentes en vez de
-   quedar vacíos solo porque ese campo opcional no se llenó. */
 function getItemEffectiveDate(item) {
   const fromFecha = parseItemFecha(item.fecha);
   if (fromFecha) return fromFecha;
@@ -4580,7 +4215,6 @@ function getISOWeeksInYear(isoYear) {
 }
 
 function getISOWeekDateRange(isoYear, week) {
-  // Lunes de la semana ISO `week` del año `isoYear`.
   const simple = new Date(Date.UTC(isoYear, 0, 1 + (week - 1) * 7));
   const dow = simple.getUTCDay();
   const diff = (dow <= 4 ? dow - 1 : dow - 8);
@@ -4647,7 +4281,7 @@ function getISOWeekInfoSafe(date) {
   return { week, isoYear: d.getUTCFullYear() };
 }
 
-let weekReportData = null; // { start, end, terminado:[], pendiente:[], cancelado:[] }
+let weekReportData = null;
 let weekReportOpenCategory = null;
 
 function generateWeeklyReport() {
@@ -4756,8 +4390,6 @@ async function generateWeeklyReportPDF() {
     const blob = await html2pdf().set(opt).from(container).output('blob');
     document.body.removeChild(container);
 
-    // Vista previa primero (visor nativo del navegador), y desde ahí el
-    // usuario puede descargarlo con el botón del propio visor.
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
   } catch (err) {
@@ -4777,7 +4409,7 @@ function openDashboard() {
 
 function clearDashFilter(field) {
   dashFilters[field] = null;
-  if(field === 'tipo') dashFilters.clasificacion = null; // cascade
+  if(field === 'tipo') dashFilters.clasificacion = null;
   renderDashboard();
 }
 
@@ -4785,13 +4417,13 @@ function updateFilterBadges() {
   const bTipo = document.getElementById('filter-badge-tipo');
   const bClasif = document.getElementById('filter-badge-clasif');
   const bImpacto = document.getElementById('filter-badge-impacto');
-  
+
   if(dashFilters.tipo) { bTipo.style.display = 'inline-block'; bTipo.innerHTML = dashFilters.tipo + ' &times;'; }
   else bTipo.style.display = 'none';
-  
+
   if(dashFilters.clasificacion) { bClasif.style.display = 'inline-block'; bClasif.innerHTML = dashFilters.clasificacion + ' &times;'; }
   else bClasif.style.display = 'none';
-  
+
   if(dashFilters.impacto) { bImpacto.style.display = 'inline-block'; bImpacto.innerHTML = dashFilters.impacto + ' &times;'; }
   else bImpacto.style.display = 'none';
 }
@@ -4801,7 +4433,7 @@ function renderDashboard() {
       alert("Cargando librerías de gráficos, intenta de nuevo en un segundo...");
       return;
   }
-  
+
   updateFilterBadges();
 
   if(!chartTipo) {
@@ -4822,12 +4454,11 @@ function renderDashboard() {
   if(!chartImpacto) {
       chartImpacto = echarts.init(document.getElementById('chart-impacto'));
       chartImpacto.on('click', function(params) {
-          dashFilters.impacto = params.name; // Ej: "Planos: ✔️"
+          dashFilters.impacto = params.name;
           renderDashboard();
       });
   }
 
-  // Recolectar datos
   let tError=0, tAjuste=0, tMejora=0;
   let clasifCounts = {};
   let impactoCounts = {
@@ -4835,35 +4466,35 @@ function renderDashboard() {
       'Habilitado: ✔️':0, 'Habilitado: ✖️':0,
       'Etiquetas: ✔️':0, 'Etiquetas: ✖️':0
   };
-  
+
   let relatedItems = [];
 
   data.naves.forEach(nave => {
       nave.items.forEach(item => {
-          let typeMatch = !dashFilters.tipo || 
+          let typeMatch = !dashFilters.tipo ||
                           (dashFilters.tipo === 'Errores' && item.type === 'error') ||
                           (dashFilters.tipo === 'Ajustes' && item.type === 'ajuste') ||
                           (dashFilters.tipo === 'Mejoras' && item.type === 'mejora');
-                          
+
           let classMatch = !dashFilters.clasificacion || (item.subType === dashFilters.clasificacion);
-          
+
           let proc = item.proceso || {planos:false, habilitado:false, etiquetas:false};
           let pVal = proc.planos ? 'Planos: ✔️' : 'Planos: ✖️';
           let hVal = proc.habilitado ? 'Habilitado: ✔️' : 'Habilitado: ✖️';
           let eVal = proc.etiquetas ? 'Etiquetas: ✔️' : 'Etiquetas: ✖️';
-          
+
           let impMatch = !dashFilters.impacto || (pVal===dashFilters.impacto || hVal===dashFilters.impacto || eVal===dashFilters.impacto);
 
           if (typeMatch && classMatch && impMatch) {
               relatedItems.push({nave, item});
-              
+
               if(item.type==='error') tError++;
               if(item.type==='ajuste') tAjuste++;
               if(item.type==='mejora') tMejora++;
-              
+
               const sc = item.subType || 'Sin clasificar';
               clasifCounts[sc] = (clasifCounts[sc] || 0) + 1;
-              
+
               impactoCounts[pVal]++;
               impactoCounts[hVal]++;
               impactoCounts[eVal]++;
@@ -4871,29 +4502,23 @@ function renderDashboard() {
       });
   });
 
-  // Chart 1
   chartTipo.setOption({
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'category', data: ['Errores', 'Ajustes', 'Mejoras'], axisLabel: {interval: 0} },
       yAxis: { type: 'value' },
       series: [{
           data: [
-              {value: tError, itemStyle: {color: '#ef4444'}}, 
-              {value: tAjuste, itemStyle: {color: '#eab308'}}, 
+              {value: tError, itemStyle: {color: '#ef4444'}},
+              {value: tAjuste, itemStyle: {color: '#eab308'}},
               {value: tMejora, itemStyle: {color: '#8b5cf6'}}
           ],
           type: 'bar',
           label: { show: true, position: 'top' }
       }]
   });
-  // Sin este resize(), si el contenedor cambió de tamaño desde la última vez
-  // (rotar el celular, redimensionar la ventana, o que el modal no terminó
-  // de dimensionarse a tiempo la primera vez), el lienzo interno queda con
-  // una resolución vieja y el navegador lo estira -> texto borroso/desfasado.
   chartTipo.resize();
 
-  // Chart 2 (Clasificación) - ordenado de mayor a menor, con alto dinámico según cantidad de categorías
-  let cEntries = Object.entries(clasifCounts).sort((a, b) => a[1] - b[1]); // ascendente: en barra horizontal ECharts, el primero queda abajo
+  let cEntries = Object.entries(clasifCounts).sort((a, b) => a[1] - b[1]);
   let cKeys = cEntries.map(e => e[0]);
   const palette = ['#3b82f6', '#06b6d4', '#10b981', '#84cc16', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#a855f7', '#6366f1', '#0ea5e9', '#d946ef', '#f43f5e', '#8b5cf6'];
 
@@ -4905,7 +4530,6 @@ function renderDashboard() {
       };
   });
 
-  // Alto dinámico: cada categoría necesita ~34px para no amontonarse, con un mínimo razonable
   const clasifBox = document.getElementById('chart-clasificacion');
   const clasifHeight = Math.max(250, cKeys.length * 34 + 60);
   clasifBox.style.height = clasifHeight + 'px';
@@ -4928,8 +4552,6 @@ function renderDashboard() {
   }, true);
   chartClasif.resize();
 
-
-  // Chart 3
   chartImpacto.setOption({
       tooltip: { trigger: 'item' },
       series: [
@@ -4951,7 +4573,7 @@ function renderDashboard() {
       ]
   });
   chartImpacto.resize();
-  
+
   renderDashList(relatedItems);
 
   const totalR = relatedItems.length;
@@ -4959,20 +4581,17 @@ function renderDashboard() {
   if (totalR === 0) {
       conclusiones.push("No hay registros suficientes para generar un análisis con los filtros actuales.");
   } else {
-      // Predominancia de Tipo
       let tipos = [{name: 'Errores', val: tError}, {name: 'Ajustes', val: tAjuste}, {name: 'Mejoras', val: tMejora}];
       tipos.sort((a,b) => b.val - a.val);
       if(tipos[0].val > 0) {
           conclusiones.push(`📌 <b>Tendencia principal:</b> El tipo de reporte predominante es <b>${tipos[0].name}</b>, representando el ${Math.round((tipos[0].val/totalR)*100)}% de los registros analizados.`);
       }
 
-      // Mayor Clasificación
       if(cKeys.length > 0) {
           let maxClasif = cKeys.reduce((a, b) => clasifCounts[a] > clasifCounts[b] ? a : b);
           conclusiones.push(`📊 <b>Clasificación más frecuente:</b> La categoría con mayor incidencia es <b>${maxClasif}</b> (${clasifCounts[maxClasif]} casos). Sería recomendable enfocar acciones preventivas o de mejora en esta área.`);
       }
 
-      // Impacto más afectado
       let maxImpacto = '';
       let maxImpactoVal = -1;
       ['Planos: ✖️', 'Habilitado: ✖️', 'Etiquetas: ✖️'].forEach(k => {
@@ -4997,7 +4616,7 @@ function renderDashList(items) {
       list.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No se encontraron modelos con estos filtros.</div>';
       return;
   }
-  
+
   list.innerHTML = items.map(entry => {
       let mText = entry.nave.models.map(m => m.name).join(', ');
       return `
@@ -5019,21 +4638,17 @@ async function generateStatsPDF() {
   const oldTxt = btn.innerHTML;
   btn.innerHTML = '<i class="ti ti-loader"></i> Generando...';
 
-  // Asegura que el lienzo de cada gráfica esté sincronizado con su tamaño
-  // actual en pantalla antes de exportarla a imagen (evita capturar una
-  // resolución vieja/desfasada si el layout cambió desde que se abrió el dashboard).
   if (chartTipo) chartTipo.resize();
   if (chartClasif) chartClasif.resize();
   if (chartImpacto) chartImpacto.resize();
 
-  // 1. Obtener base64 de las gráficas
   const c1Img = chartTipo.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
   const c2Img = chartClasif.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
   const c3Img = chartImpacto.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
-  
+
   let totalModelos = 0, totalODT = 0, totalRegistros = 0;
   let modelosRows = '';
-  
+
   data.naves.forEach(n => {
       totalModelos += n.models.length;
       n.items.forEach(i => {
@@ -5049,11 +4664,11 @@ async function generateStatsPDF() {
   const container = document.getElementById('pdf-report-container');
   container.style.display = 'block';
   const conclusionesText = document.getElementById('dash-conclusions') ? document.getElementById('dash-conclusions').innerHTML : '';
-  
+
   container.innerHTML = `
       <div class="pdf-title">Reporte Estadístico de Producción</div>
       <div class="pdf-subtitle">Generado el ${now}</div>
-      
+
       <div class="pdf-metrics">
           <div class="pdf-metric-box">
               <div class="pdf-metric-val">${totalRegistros}</div>
@@ -5080,7 +4695,7 @@ async function generateStatsPDF() {
               <img src="${c3Img}" class="pdf-chart-img">
           </div>
       </div>
-      
+
       <div class="pdf-chart-row">
           <div class="pdf-chart-col" style="flex:1;">
               <div style="font-size:12px; font-weight:700; margin-bottom:10px; text-align:center;">Clasificación Detallada</div>
@@ -5098,7 +4713,7 @@ async function generateStatsPDF() {
           <thead><tr><th>Fecha</th><th>Modelo(s)</th><th>ODT</th><th>Clasificación</th><th>Estatus</th></tr></thead>
           <tbody>${modelosRows}</tbody>
       </table>
-      
+
       <div style="font-size:12px; color:#64748b; margin-top:40px;">* Fin del reporte. Resumen ejecutivo generado automáticamente por el Dashboard de Estadísticas.</div>
   `;
 
@@ -5121,7 +4736,6 @@ async function generateStatsPDF() {
   }
 }
 
-// Interceptar re-renders para asegurar redibujado de charts al actualizar datos (si modal está abierto)
 const oldRender = render;
 render = function() {
   oldRender();
@@ -5158,7 +4772,7 @@ function processNewModelCode(codigo, naveId = null) {
                 `).join('');
 
                 document.getElementById('modal-iup').classList.add('open');
-                
+
                 if (naveId) {
                     const inp = document.getElementById('addm-'+naveId);
                     if(inp) inp.value='';
@@ -5240,4 +4854,3 @@ function quickSaveGithub() {
       openGithubModal();
   }
 }
-

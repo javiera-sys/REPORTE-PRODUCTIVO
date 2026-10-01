@@ -593,3 +593,89 @@ button, .btn, .btn-filter, .hbtn { touch-action: manipulation; }
   .pd-table { font-size: 12.5px; }
   .pd-table th, .pd-table td { padding: 8px 10px; }
 }
+
+/* ============================================================
+   FIX: Botones e íconos borrosos
+   ============================================================
+   Causa raíz: el header con `backdrop-filter: blur()`, combinado con
+   `transform: translateY()` en hover y con `@keyframes slideUp` (que
+   deja `scale(0.98)` residual), fuerza al navegador a rasterizar los
+   botones y la fuente de íconos Tabler en capas GPU con sub-pixel
+   rendering desactivado -> todo se ve borroso aunque siga siendo
+   clickeable.
+
+   Este bloque NO reemplaza nada del CSS original, solo sobrescribe
+   las propiedades problemáticas con valores más seguros.
+   ============================================================ */
+
+/* 1) Antialiasing real de texto e íconos en TODO el documento.
+      Esta es la corrección más importante: quita el "borroso" de las
+      fuentes en la mayoría de navegadores Chromium en Windows. */
+html, body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+.btn, .btn-filter, .hbtn, .btn-session, .btn-bell,
+.btn i, .btn-filter i, .hbtn i, .btn-session i, .btn-bell i,
+.ti, [class^="ti-"], [class*=" ti-"] {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+
+/* 2) Quitar el blur del header. El backdrop-filter es el que más
+      rompe la capa de composición cuando contiene botones con sombra.
+      Mantenemos el fondo semitransparente (visualmente casi igual)
+      pero sin blur, así el navegador ya no promueve el header a una
+      capa GPU separada. */
+.top-bar {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+}
+
+/* 3) En hover, no mover con translateY fraccionario. Se deja solo
+      el cambio de fondo + sombra. El "brinco" visual se pierde muy
+      poco y se gana claridad total. */
+.btn:hover,
+.btn:focus-visible,
+.btn:active,
+.btn-filter:hover,
+.btn-filter:focus-visible,
+.hbtn:hover,
+.hbtn:focus-visible,
+.btn-session:hover,
+.btn-session:focus-visible,
+.btn-bell:hover,
+.btn-bell:focus-visible {
+  transform: none !important;
+}
+
+/* 4) Modales: después de la animación slideUp, forzar
+      `transform: none` para que no quede scale(0.98) residual. */
+@keyframes slideUpSafe {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.modal-bg.open .modal {
+  animation: slideUpSafe 0.25s ease-out forwards !important;
+  transform: none !important;
+  will-change: auto !important;
+}
+
+/* 5) Los íconos de Tabler son una fuente; en elementos con
+      `transform` de ancestros a veces se ven mal. Forzar el ícono a
+      su propia capa estable lo arregla sin afectar el layout. */
+.btn i.ti, .hbtn i.ti, .btn-filter i.ti, .btn-session i.ti, .btn-bell i.ti {
+  display: inline-block;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* 6) Evitar que `will-change` residual en botones/hover mantenga
+      capas GPU abiertas innecesariamente. */
+.btn, .btn-filter, .hbtn, .btn-session, .btn-bell {
+  will-change: auto;
+}

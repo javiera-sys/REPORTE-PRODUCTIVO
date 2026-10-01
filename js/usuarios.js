@@ -434,7 +434,7 @@ function deleteAdminUsuario(idx) {
 }
 
 async function crearUsuarioAdmin() {
-  // 🔒 Solo el admin principal
+  // Solo el admin principal
   if (!soyAdminPrincipal()) {
     alert('🔒 Solo la cuenta principal puede crear usuarios.');
     return;
@@ -460,9 +460,28 @@ async function crearUsuarioAdmin() {
   document.getElementById('nu-nombre').value = '';
   document.getElementById('nu-username').value = '';
   document.getElementById('nu-password').value = '';
-  usuariosDBChanged = true; // 🔽 marcar para que se suba a GitHub
+  usuariosDBChanged = true;
   renderAdminUsuarios();
-  alert('✅ Usuario creado. Recuerda guardar en GitHub para que sea permanente.\n\nEl nuevo usuario debe configurar SU PROPIO Token de GitHub (ícono de engranaje junto a "Guardar en GitHub") la primera vez que entre.');
+
+  // NUEVO: intentar subir automáticamente a GitHub
+  let subidoOk = false;
+  try {
+    if (typeof quickSaveGithub === 'function') {
+      const cfg = (typeof loadGithubConfig === 'function') ? loadGithubConfig() : null;
+      if (cfg && cfg.repo && cfg.token) {
+        await quickSaveGithub();
+        subidoOk = true;
+      }
+    }
+  } catch (err) {
+    console.warn('No se pudo subir el nuevo usuario a GitHub automáticamente:', err);
+  }
+
+  if (subidoOk) {
+    alert('✅ Usuario creado y subido a GitHub correctamente.\n\nEl nuevo usuario ya puede iniciar sesión desde cualquier navegador o dispositivo.');
+  } else {
+    alert('✅ Usuario creado.\n\n⚠️ NO se pudo subir automáticamente a GitHub. Presiona "Guardar en GitHub" en el menú lateral para que el usuario quede permanente y funcione en otros dispositivos.');
+  }
 }
 
 function getUsuariosParaGuardar() {

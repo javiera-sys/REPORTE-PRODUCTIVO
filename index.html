@@ -9,14 +9,14 @@
 <link rel="apple-touch-icon" href="icons/icon.svg">
 <link rel="stylesheet" href="css/styles.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-messaging-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="stylesheet" href="vendor/fonts.googleapis.com/css2">
+<link rel="stylesheet" href="vendor/cdn.jsdelivr.net/tabler-icons.min.css">
+<script src="vendor/cdnjs.cloudflare.com/html2pdf.bundle.min.js"></script>
+<script src="vendor/cdnjs.cloudflare.com/xlsx.full.min.js"></script>
+<script src="vendor/www.gstatic.com/firebase-app-compat.js"></script>
+<script src="vendor/www.gstatic.com/firebase-messaging-compat.js"></script>
+<script src="vendor/cdn.jsdelivr.net/echarts.min.js"></script>
+<script src="vendor/cdnjs.cloudflare.com/jszip.min.js"></script>
 
 <style>
   .contenedor-adjuntos { display: inline-flex; gap: 8px; margin-left: 8px; vertical-align: middle; }
@@ -163,7 +163,7 @@
   .pg-adjunto-add-label { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; cursor: pointer; color: var(--accent); font-size: 18px; }
   .pg-adjunto-add-label i { font-size: 22px; }
 </style>
-</head>
+<link rel="stylesheet" href="chrome-extension://ajbghephkehcmphjmenfpkmjiolhjalk/app/content-style.css"></head>
 <body class="is-locked">
 
 <div class="app">
@@ -172,7 +172,7 @@
       <div class="top-bar-left">
         <div>
           <h1 style="display: flex; align-items: center;">Errores y Mejoras de Producción <span class="version-badge">ISO 1.5</span></h1>
-          <p>Fecha: <span id="current-date">30/09/2026</span></p>
+          <p>Fecha: <span id="current-date">01/10/2026</span></p>
           <p style="font-size: 11px; margin-top: 4px; color: var(--color-text-secondary);">
             ✔️ = Correcto (no requiere cambios). &nbsp;|&nbsp; ❌ = Cambiar el plano, habilitado o etiqueta.
           </p>
@@ -201,7 +201,7 @@
     <div class="search-bar-row" style="position:relative;">
       <i class="ti ti-search"></i>
       <input type="text" id="search-input" placeholder="Buscar por código de modelo, título o palabra clave..." oninput="filterItems(); mostrarSugerenciasBuscador();" onfocus="mostrarSugerenciasBuscador()" onblur="setTimeout(ocultarSugerenciasBuscador, 150)" autocomplete="off">
-      <button class="search-clear-btn" id="search-clear-btn" style="display: flex;" onclick="clearSearch()" title="Limpiar búsqueda"><i class="ti ti-x"></i></button>
+      <button class="search-clear-btn" id="search-clear-btn" style="display: none;" onclick="clearSearch()" title="Limpiar búsqueda"><i class="ti ti-x"></i></button>
       <div class="autocomplete-list" id="search-autocomplete"></div>
     </div>
 
@@ -230,7 +230,7 @@
         <span class="filter-label"><i class="ti ti-file-text"></i> Fichas:</span>
         <button class="btn-filter" id="fichas-menu-btn" onclick="toggleFichasMenu(event)">Catálogo <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
         <div class="dropdown-menu" id="fichas-menu" style="min-width: 280px; max-width: 90vw; max-height: 350px; overflow-y: auto; z-index: 1000; box-sizing: border-box;">
-          <div id="fichas-list"></div>
+          <div id="fichas-list"><div style="padding: 12px; font-size: 12px; color: var(--color-text-secondary); text-align: center;">No hay fichas técnicas disponibles.</div></div>
           <div class="only-editable" style="padding: 8px; border-top: 1px solid var(--color-border-secondary);">
             <button class="btn btn-sm btn-purple" style="width:100%" onclick="document.getElementById('ficha-input').click()"><i class="ti ti-upload"></i> Subir Ficha (PDF/JPG)</button>
           </div>
@@ -243,7 +243,7 @@
         <div class="pg-title">
           <i class="ti ti-alert-triangle" style="font-size: 16px;"></i> 
           Pendientes Generales 
-          <span id="pg-counter" class="pg-counter" style="display: none;">0</span>
+          <span id="pg-counter" class="pg-counter" style="display: inline-block;">5</span>
         </div>
         <i class="ti ti-chevron-down" id="pg-chevron"></i>
       </div>
@@ -251,7 +251,137 @@
         <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;" class="only-editable">
           <button class="btn btn-sm btn-purple" onclick="openAddPG()"><i class="ti ti-plus"></i> Nuevo Pendiente General</button>
         </div>
-        <div id="pg-list"></div>
+        <div id="pg-list">
+      <div class="pg-item">
+          <div class="pg-item-header">
+              <div style="display:flex; align-items:flex-start; flex:1;">
+                  <div class="pg-item-title">ELIMINAR MOÑOS DE LA NATURAL PAROTA 8681</div>
+                  <div title="Registro nuevo (últimas 72h)" style="color:#f59e0b; display:flex; align-items:center; justify-content:center; width:20px; height:20px; margin-left:4px;"><i class="ti ti-star-filled" style="font-size:16px"></i></div>
+              </div>
+              <div class="pg-item-date">30/09/2026</div>
+          </div>
+          <div class="pg-item-desc">Se eliminan los moños de los planos 8681 y se coloca una nota especificando que solo se tendra que utilizar moños si viene con algun detalle el tablero.</div>
+    <div class="pg-adjuntos-row">
+      <div class="pg-adjunto-item pg-adjunto-add only-editable">
+        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" id="pg-adj-x0h60fm9" class="input-oculto" onchange="subirAdjuntoPG(event, 'x0h60fm9')">
+        <label for="pg-adj-x0h60fm9" class="pg-adjunto-add-label" title="Agregar archivo (imagen o PDF)">
+          <i class="ti ti-plus"></i>
+        </label>
+      </div>
+    </div>
+    <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:4px;">0 archivos adjuntos</div>
+  
+    <div class="pg-actions-row only-editable">
+        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('x0h60fm9')"><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('x0h60fm9')"><i class="ti ti-trash"></i></button>
+    </div>
+      </div>
+      
+      <div class="pg-item">
+          <div class="pg-item-header">
+              <div style="display:flex; align-items:flex-start; flex:1;">
+                  <div class="pg-item-title">CAMBIO EN CORREDERA DE 35 CM</div>
+                  
+              </div>
+              <div class="pg-item-date">07/09/2026</div>
+          </div>
+          <div class="pg-item-desc">Se sustituye la corredera de 35 cm que tienen muchos de los Tv-stand y buros por corredera de 30 cm, esto por que ya se termino el stok que habia de la corredera de 35 cm.</div>
+    <div class="pg-adjuntos-row">
+      <div class="pg-adjunto-item pg-adjunto-add only-editable">
+        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" id="pg-adj-x4ee2y9y" class="input-oculto" onchange="subirAdjuntoPG(event, 'x4ee2y9y')">
+        <label for="pg-adj-x4ee2y9y" class="pg-adjunto-add-label" title="Agregar archivo (imagen o PDF)">
+          <i class="ti ti-plus"></i>
+        </label>
+      </div>
+    </div>
+    <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:4px;">0 archivos adjuntos</div>
+  
+    <div class="pg-actions-row only-editable">
+        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('x4ee2y9y')"><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('x4ee2y9y')"><i class="ti ti-trash"></i></button>
+    </div>
+      </div>
+      
+      <div class="pg-item">
+          <div class="pg-item-header">
+              <div style="display:flex; align-items:flex-start; flex:1;">
+                  <div class="pg-item-title">CAMBIO TOLERANCIA VISTAS ENTREPAÑO</div>
+                  
+              </div>
+              <div class="pg-item-date">02/09/2026</div>
+          </div>
+          <div class="pg-item-desc">Cambiar la tolerancia de todas las vistas de entrepaño a +2 cm. esto se realiza debido a que en la nave 4 no se logra controlar de manera consistente el grueso de postes y crece el hueco interno del mueble, lo que ha generado múltiples reprocesos. al agregar la tolerancia se busca compensar esta variación y evitar tener que fabricar nuevamente la pieza.</div>
+    <div class="pg-adjuntos-row">
+      <div class="pg-adjunto-item pg-adjunto-add only-editable">
+        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" id="pg-adj-xkur139l" class="input-oculto" onchange="subirAdjuntoPG(event, 'xkur139l')">
+        <label for="pg-adj-xkur139l" class="pg-adjunto-add-label" title="Agregar archivo (imagen o PDF)">
+          <i class="ti ti-plus"></i>
+        </label>
+      </div>
+    </div>
+    <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:4px;">0 archivos adjuntos</div>
+  
+    <div class="pg-actions-row only-editable">
+        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('xkur139l')"><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('xkur139l')"><i class="ti ti-trash"></i></button>
+    </div>
+      </div>
+      
+      <div class="pg-item">
+          <div class="pg-item-header">
+              <div style="display:flex; align-items:flex-start; flex:1;">
+                  <div class="pg-item-title">CAMBIO EN CARDA</div>
+                  
+              </div>
+              <div class="pg-item-date">14/08/2026</div>
+          </div>
+          <div class="pg-item-desc">Se define que las colecciones que llevan carda fina se dividirán en dos versiones:
+Carda fina normal: versión estándar.
+Carda fina marcada: se utilizará en los colores sólidos y en la Balam Blanca.
+Realizar la actualización correspondiente en planos y habilitados para identificar correctamente cada versión.</div>
+    <div class="pg-adjuntos-row">
+      <div class="pg-adjunto-item pg-adjunto-add only-editable">
+        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" id="pg-adj-xx72uuf4" class="input-oculto" onchange="subirAdjuntoPG(event, 'xx72uuf4')">
+        <label for="pg-adj-xx72uuf4" class="pg-adjunto-add-label" title="Agregar archivo (imagen o PDF)">
+          <i class="ti ti-plus"></i>
+        </label>
+      </div>
+    </div>
+    <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:4px;">0 archivos adjuntos</div>
+  
+    <div class="pg-actions-row only-editable">
+        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('xx72uuf4')"><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('xx72uuf4')"><i class="ti ti-trash"></i></button>
+    </div>
+      </div>
+      
+      <div class="pg-item">
+          <div class="pg-item-header">
+              <div style="display:flex; align-items:flex-start; flex:1;">
+                  <div class="pg-item-title">COSTADOS DE CAJON</div>
+                  
+              </div>
+              <div class="pg-item-date">14/08/2026</div>
+          </div>
+          <div class="pg-item-desc">Cambiar la medida de todos los cajones de acuerdo con lo indicado en la ficha técnica.
+Actualmente, la distancia de la guía de corredera al costado del mueble es de 27 mm (13.5 mm por lado). La ficha técnica indica que debe ser de 26 mm (13 mm por lado).
+Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (13 mm por lado).</div>
+    <div class="pg-adjuntos-row">
+      <div class="pg-adjunto-item pg-adjunto-add only-editable">
+        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" id="pg-adj-xtrcy6w8" class="input-oculto" onchange="subirAdjuntoPG(event, 'xtrcy6w8')">
+        <label for="pg-adj-xtrcy6w8" class="pg-adjunto-add-label" title="Agregar archivo (imagen o PDF)">
+          <i class="ti ti-plus"></i>
+        </label>
+      </div>
+    </div>
+    <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:4px;">0 archivos adjuntos</div>
+  
+    <div class="pg-actions-row only-editable">
+        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('xtrcy6w8')"><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('xtrcy6w8')"><i class="ti ti-trash"></i></button>
+    </div>
+      </div>
+      </div>
       </div>
     </div>
 
@@ -265,15 +395,15 @@
       </div>
       <div class="marcador-grid">
         <div class="week-stat-card week-stat-pending">
-          <div class="week-stat-count" id="marcador-count-pendiente">0</div>
+          <div class="week-stat-count" id="marcador-count-pendiente">25</div>
           <div class="week-stat-label"><i class="ti ti-hourglass"></i> Pendientes</div>
         </div>
         <div class="week-stat-card week-stat-done">
-          <div class="week-stat-count" id="marcador-count-terminado">0</div>
+          <div class="week-stat-count" id="marcador-count-terminado">101</div>
           <div class="week-stat-label"><i class="ti ti-circle-check"></i> Terminados</div>
         </div>
         <div class="week-stat-card week-stat-cancelled">
-          <div class="week-stat-count" id="marcador-count-cancelado">0</div>
+          <div class="week-stat-count" id="marcador-count-cancelado">4</div>
           <div class="week-stat-label"><i class="ti ti-ban"></i> Cancelados</div>
         </div>
       </div>
@@ -309,11 +439,11 @@
       <button class="btn btn-navy" onclick="closeSideMenu(); openExport('pdf')" title="Exporta un documento limpio listo para imprimir"><i class="ti ti-file-text" aria-hidden="true"></i> Exportar PDF Final</button>
       <button class="btn" id="btn-download-offline" onclick="closeSideMenu(); downloadOfflineVersion()" title="Guarda el cascarón de la app (HTML/CSS/JS) para poder abrirla sin conexión" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-cloud-download" aria-hidden="true"></i> Descargar versión offline</button>
       <button class="btn btn-navy" onclick="closeSideMenu(); openProcesosDiseno()" title="Módulo independiente de procesos de diseño (Excel)"><i class="ti ti-clipboard-list" aria-hidden="true"></i> Procesos de diseño</button>
-      <button class="btn btn-purple admin-principal-only" onclick="closeSideMenu(); openAdminUsuarios()" title="Administración de usuarios (solo cuenta principal)" style="display:none;"><i class="ti ti-users" aria-hidden="true"></i> Administración → Usuarios</button>
+      <button class="btn btn-purple admin-principal-only" onclick="closeSideMenu(); openAdminUsuarios()" title="Administración de usuarios (solo cuenta principal)" style=""><i class="ti ti-users" aria-hidden="true"></i> Administración → Usuarios</button>
     </div>
 </div>
 
-<button class="scroll-top-btn" id="scroll-top-btn" title="Navegar" aria-label="Navegar"><i class="ti ti-arrow-down"></i></button>
+<button class="scroll-top-btn visible" id="scroll-top-btn" title="Navegar" aria-label="Navegar"><i class="ti ti-arrow-down"></i></button>
 
 <!-- Modal de Autenticación (candado de edición) -->
 <div class="modal-bg" id="modal-auth">
@@ -941,5 +1071,6 @@
 
 <script src="js/usuarios.js"></script>
 <script src="js/app.js"></script>
+
 
 </body></html>

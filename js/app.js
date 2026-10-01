@@ -230,6 +230,15 @@ function toggleProceso(naveId, itemId, field, el, event) {
   if(item) {
     if(!item.proceso) item.proceso = { habilitado: false, planos: false, etiquetas: false, planoTerminado: false };
     item.proceso[field] = !item.proceso[field];
+
+    // NUEVO: registrar quién hizo esta modificación
+    const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+    if (_user) {
+      item.modifiedBy = _user.username;
+      item.modifiedByName = _user.nombre;
+      item.modifiedAt = Date.now();
+    }
+
     render();
   }
 }
@@ -248,6 +257,15 @@ function toggleCancelado(naveId, itemId, event) {
   } else {
     item.cancelado = false;
   }
+
+  // NUEVO: registrar quién canceló o reactivó
+  const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  if (_user) {
+    item.modifiedBy = _user.username;
+    item.modifiedByName = _user.nombre;
+    item.modifiedAt = Date.now();
+  }
+
   render();
 }
 
@@ -293,23 +311,40 @@ function subirAdjunto(event, naveId, itemId, idx) {
       if(item) {
         if(!item.adjuntos) item.adjuntos = ["","","","",""];
         item.adjuntos[idx] = await compressImageDataUrl(e.target.result);
-        render(); 
+
+        // NUEVO: registrar quién subió la imagen
+        const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+        if (_user) {
+          item.modifiedBy = _user.username;
+          item.modifiedByName = _user.nombre;
+          item.modifiedAt = Date.now();
+        }
+
+        render();
       }
     }
   };
   reader.readAsDataURL(file);
   event.target.value = '';
 }
-
 function eliminarAdjunto(event, naveId, itemId, idx) {
-  event.stopPropagation(); 
+  event.stopPropagation();
   if (!isEditableMode) return;
   const nave = data.naves.find(n => n.id === naveId);
   if(nave) {
     const item = nave.items.find(i => i.id === itemId);
     if(item && item.adjuntos) {
       item.adjuntos[idx] = "";
-      render(); 
+
+      // NUEVO: registrar quién eliminó la imagen
+      const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+      if (_user) {
+        item.modifiedBy = _user.username;
+        item.modifiedByName = _user.nombre;
+        item.modifiedAt = Date.now();
+      }
+
+      render();
     }
   }
 }

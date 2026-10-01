@@ -466,7 +466,7 @@ async function eliminarAdjuntoPG(event, pgId, idx) {
       if (cfg && cfg.repo && cfg.token) {
         const branch = cfg.branch || 'main';
         const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
-        await deleteFileFromGithub(cfg.repo, adj, branch, headers, `Eliminar adjunto de pendiente general "${pg.title}"`);
+        await deleteFileFromGithub(cfg.repo, adj, branch, headers, ghCommitMessage(`Eliminar adjunto de pendiente general "${pg.title}"`));
       }
     } catch (err) {
       console.error('No se pudo borrar el archivo del repositorio:', err);
@@ -1725,7 +1725,7 @@ async function deletePdSubmodule(id) {
       if (!cfg || !cfg.repo || !cfg.token) throw new Error('No hay una conexión de GitHub configurada; no se puede borrar el archivo del repositorio desde aquí.');
       const branch = cfg.branch || 'main';
       const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
-      await deleteFileFromGithub(cfg.repo, sm.pdfContent, branch, headers, `Eliminar apartado "${sm.label}"`);
+      await deleteFileFromGithub(cfg.repo, sm.pdfContent, branch, headers, ghCommitMessage(`Eliminar apartado "${sm.label}"`));
     } catch (err) {
       console.error('No se pudo borrar el PDF del apartado:', err);
       alert('❌ No se pudo eliminar el apartado: ' + (err.message || err) + '\n\nSe conservó sin cambios.');
@@ -1844,7 +1844,7 @@ function handlePdImport(e) {
             if (cfg && cfg.repo && cfg.token) {
               const branch = cfg.branch || 'main';
               const hdrs = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
-              await deleteFileFromGithub(cfg.repo, oldExcelPath, branch, hdrs, `Sustituir Excel del apartado "${sm.label}"`);
+              await deleteFileFromGithub(cfg.repo, oldExcelPath, branch, hdrs, ghCommitMessage(`Sustituir Excel del apartado "${sm.label}"`));
             }
           } catch (delErr) {
             console.warn('No se pudo borrar el Excel original anterior:', delErr);
@@ -1958,7 +1958,7 @@ function handlePdPdfUpload(e) {
         if (cfg && cfg.repo && cfg.token) {
           const branch = cfg.branch || 'main';
           const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
-          await deleteFileFromGithub(cfg.repo, oldRemotePath, branch, headers, `Sustituir PDF del apartado "${sm.label}"`);
+          await deleteFileFromGithub(cfg.repo, oldRemotePath, branch, headers, ghCommitMessage(`Sustituir PDF del apartado "${sm.label}"`));
         }
       } catch (err) {
         console.error('No se pudo borrar el PDF anterior antes de sustituirlo:', err);
@@ -2019,7 +2019,7 @@ async function deletePdPdf() {
       if (!cfg || !cfg.repo || !cfg.token) throw new Error('No hay una conexión de GitHub configurada; no se puede borrar el archivo del repositorio desde aquí.');
       const branch = cfg.branch || 'main';
       const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
-      await deleteFileFromGithub(cfg.repo, sm.pdfContent, branch, headers, `Eliminar PDF del apartado "${sm.label}"`);
+      await deleteFileFromGithub(cfg.repo, sm.pdfContent, branch, headers, ghCommitMessage(`Eliminar PDF del apartado "${sm.label}"`));
     }
   } catch (err) {
     console.error('No se pudo borrar el PDF:', err);
@@ -2733,30 +2733,24 @@ function exportPDFStatic(name) {
 }
 
 /* ============================================================
-   ⬅️ CORREGIDO: CONFIGURACIÓN DE GITHUB POR USUARIO
+   CONFIGURACIÓN DE GITHUB POR USUARIO
    ============================================================
-   Antes: una sola clave global "reporte_produccion_gh_config".
-          Todos los usuarios compartían el mismo token/repo/ruta/rama,
-          y se sobrescribían entre sí.
-
-   Ahora: la clave incluye el username del usuario logueado:
-          "reporte_produccion_gh_config::<username>"
-          Si no hay sesión (anónimo), se usa "__anon__".
-
-   Migración: si existía la clave vieja global, se copia a la clave
-          del usuario que esté logueado al momento de actualizar.
+   La configuración (token, repo, ruta, rama) se guarda en
+   localStorage bajo una clave que incluye el username:
+      "reporte_produccion_gh_config::<username>"
+   Si no hay sesión, se usa "__anon__".
+   Cada usuario tiene SU propio Token; no se comparten.
    ============================================================ */
 
 const GH_CONFIG_KEY_PREFIX = 'reporte_produccion_gh_config';
 const GH_CONFIG_LEGACY_KEY = 'reporte_produccion_gh_config';
-let _ghConfigActiveUsername = null; // username actualmente activo para la config
+let _ghConfigActiveUsername = null;
 
 function getGhConfigKey(username) {
   const u = (username && String(username).trim()) ? String(username).trim() : '__anon__';
   return `${GH_CONFIG_KEY_PREFIX}::${u}`;
 }
 
-// Devuelve el username de la sesión actual (o null si es anónimo)
 function getGhConfigActiveUsername() {
   if (typeof getCurrentUser === 'function') {
     const u = getCurrentUser();
@@ -2765,19 +2759,22 @@ function getGhConfigActiveUsername() {
   return null;
 }
 
-// 🔽 NUEVO: hook que usuarios.js llama al iniciar/cerrar sesión
+// ⬅️ NUEVA: construye el mensaje de commit etiquetado con el usuario activo.
+// Si no hay sesión, devuelve el mensaje limpio (sin sufijo).
+function ghCommitMessage(base) {
+  const u = getGhConfigActiveUsername();
+  if (!u) return base;
+  return `${base} [${u}]`;
+}
+
 window.onUserSessionChanged = function(username) {
   _ghConfigActiveUsername = username || null;
   console.log('[GitHub Config] Usuario activo cambiado a:', _ghConfigActiveUsername || '(anónimo)');
 
-  // Si hay una clave vieja global y el usuario actual no tiene config todavía,
-  // se la "hereda" una sola vez (típicamente será javier.c, el primero que
-  // abra la app después de esta actualización). Así no se pierde su setup.
   if (_ghConfigActiveUsername) {
     migrarConfigGlobalSiHaceFalta(_ghConfigActiveUsername);
   }
 
-  // Refrescar el modal de GitHub si estaba abierto con la config del usuario anterior
   const modal = document.getElementById('modal-github');
   if (modal && modal.classList.contains('open')) {
     const cfg = loadGithubConfig();
@@ -2803,39 +2800,28 @@ window.onUserSessionChanged = function(username) {
 function migrarConfigGlobalSiHaceFalta(username) {
   try {
     const legacyRaw = localStorage.getItem(GH_CONFIG_LEGACY_KEY);
-    if (!legacyRaw) return; // nada que migrar
-    // ¿Es la clave vieja? Ojo: si ya migramos, la clave legacy puede
-    // coincidir con la del prefijo nuevo. Comparamos explícitamente.
-    // La clave legacy es exactamente "reporte_produccion_gh_config" sin sufijo "::".
     if (legacyRaw === null) return;
 
     const newKey = getGhConfigKey(username);
     if (localStorage.getItem(newKey)) {
-      // El usuario ya tiene su propia config, no tocamos nada.
-      // (Igual limpiamos el legacy para que no se siga propagando.)
       localStorage.removeItem(GH_CONFIG_LEGACY_KEY);
       return;
     }
-    // Parsear y validar antes de copiar
     let parsed;
     try { parsed = JSON.parse(legacyRaw); } catch (e) { parsed = null; }
     if (parsed && (parsed.repo || parsed.token || parsed.path)) {
       localStorage.setItem(newKey, JSON.stringify(parsed));
       console.log('[GitHub Config] Migrada config global a la cuenta:', username);
     }
-    // Una vez migrada, eliminamos la clave global para evitar que otro
-    // usuario sin config la herede silenciosamente.
     localStorage.removeItem(GH_CONFIG_LEGACY_KEY);
   } catch (e) {
     console.warn('No se pudo migrar la config global de GitHub:', e);
   }
 }
 
-// ⬅️ AHORA: lee la config del USUARIO ACTUAL, no una global.
 function loadGithubConfig() {
   try {
     const username = getGhConfigActiveUsername();
-    // Si nunca se notificó el cambio de sesión (arranque frío), lo calculamos.
     if (_ghConfigActiveUsername === null) {
       _ghConfigActiveUsername = username || null;
       if (_ghConfigActiveUsername) migrarConfigGlobalSiHaceFalta(_ghConfigActiveUsername);
@@ -2923,7 +2909,6 @@ function githubApiUrl(repo, repoPath) {
 const ghShaCache = {};
 function ghCacheKey(repo, repoPath, branch) { return `${repo}|${repoPath}|${branch}`; }
 
-// ⬅️ MEJORADO: mensajes de error detallados según el código HTTP.
 function describeGithubError(status, action, detail) {
   const map = {
     401: 'Autenticación fallida (401). El Token de GitHub es inválido, expiró o no fue enviado correctamente.',
@@ -3028,7 +3013,6 @@ function extFromDataUri(uri) {
   return fmt === 'jpeg' ? 'jpg' : fmt;
 }
 
-// ⬅️ NUEVO: verifica que haya sesión y config propia antes de subir.
 async function ensureSessionForGithub() {
   const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
   if (!user) {
@@ -3062,10 +3046,8 @@ async function ensureSessionForGithub() {
 async function pushToGithub() {
   commitPendingEditsBeforePush();
 
-  // ⬅️ Verificar sesión y config propia
   const sessionUser = await ensureSessionForGithub();
   if (sessionUser === null) {
-    // No hay sesión o no hay config: abortamos con mensaje claro.
     return;
   }
 
@@ -3093,7 +3075,6 @@ async function pushToGithub() {
   }
 
   if (remember) {
-    // ⬅️ Guardar SIEMPRE bajo la clave del usuario actual
     saveGithubConfig({ repo, path, branch, token });
     setGithubStatus(`🔐 Configuración guardada para el usuario: ${sessionUser}`, 'info');
   } else {
@@ -3145,7 +3126,7 @@ async function pushToGithub() {
               label: `Imagen general de "${nave.nave || nave.consola || 'mueble'}"`,
               run: () => createNewFileOnGithub(
                 repo, imagesRepoPrefix + fileName, branch, headers, b64,
-                `Nueva imagen de mueble (${new Date().toLocaleString('es-MX')})`
+                ghCommitMessage(`Nueva imagen de mueble (${new Date().toLocaleString('es-MX')})`)
               ),
               apply: () => { nave.images[i] = 'data/images/' + fileName; }
             });
@@ -3165,7 +3146,7 @@ async function pushToGithub() {
                   label: `Foto adjunta de "${item.title || 'un cambio'}"`,
                   run: () => createNewFileOnGithub(
                     repo, imagesRepoPrefix + fileName, branch, headers, b64,
-                    `Nueva imagen de reporte (${new Date().toLocaleString('es-MX')})`
+                    ghCommitMessage(`Nueva imagen de reporte (${new Date().toLocaleString('es-MX')})`)
                   ),
                   apply: () => { item.adjuntos[j] = 'data/images/' + fileName; }
                 });
@@ -3188,7 +3169,7 @@ async function pushToGithub() {
             label: `Ficha técnica "${f.name}"`,
             run: () => createNewFileOnGithub(
               repo, imagesRepoPrefix + fileName, branch, headers, b64,
-              `Nueva ficha técnica (${f.name})`
+              ghCommitMessage(`Nueva ficha técnica (${f.name})`)
             ),
             apply: () => { f.content = 'data/images/' + fileName; }
           });
@@ -3214,7 +3195,7 @@ async function pushToGithub() {
               label: `Adjunto de pendiente "${pg.title || 'general'}"`,
               run: () => createNewFileOnGithub(
                 repo, imagesRepoPrefix + fileName, branch, headers, b64,
-                `Nuevo adjunto de pendiente general (${new Date().toLocaleString('es-MX')})`
+                ghCommitMessage(`Nuevo adjunto de pendiente general (${new Date().toLocaleString('es-MX')})`)
               ),
               apply: () => { pg.adjuntos[k] = 'data/images/' + fileName; }
             });
@@ -3235,7 +3216,7 @@ async function pushToGithub() {
             label: `Apartado "${sm.label}" (PDF)`,
             run: () => createNewFileOnGithub(
               repo, imagesRepoPrefix + fileName, branch, headers, b64,
-              `Actualizar PDF del apartado "${sm.label}"`
+              ghCommitMessage(`Actualizar PDF del apartado "${sm.label}"`)
             ),
             apply: () => { sm.pdfContent = 'data/images/' + fileName; }
           });
@@ -3248,7 +3229,7 @@ async function pushToGithub() {
             label: `Apartado "${sm.label}" (Excel original)`,
             run: () => createNewFileOnGithub(
               repo, imagesRepoPrefix + fileName, branch, headers, b64,
-              `Actualizar Excel original del apartado "${sm.label}"`
+              ghCommitMessage(`Actualizar Excel original del apartado "${sm.label}"`)
             ),
             apply: () => { sm.excelOriginal = 'data/images/' + fileName; }
           });
@@ -3292,7 +3273,7 @@ async function pushToGithub() {
     const dataString = JSON.stringify(data);
     const dataPutResult = await putFileToGithubCached(
       repo, dataRepoPath, branch, headers, utf8ToBase64(dataString),
-      `Actualización del reporte desde la app (${new Date().toLocaleString('es-MX')}) [${sessionUser}]`
+      ghCommitMessage(`Actualización del reporte desde la app (${new Date().toLocaleString('es-MX')})`)
     );
     mark('datos_cambios_json', tData);
 
@@ -3302,7 +3283,7 @@ async function pushToGithub() {
       const modelosRepoPath = baseDir + 'data/modelos.json';
       await putFileToGithubCached(
         repo, modelosRepoPath, branch, headers, utf8ToBase64(JSON.stringify(modelosDB)),
-        `Actualización de base de datos de modelos (${new Date().toLocaleString('es-MX')}) [${sessionUser}]`
+        ghCommitMessage(`Actualización de base de datos de modelos (${new Date().toLocaleString('es-MX')})`)
       );
       modelosDBChanged = false;
     }
@@ -3316,7 +3297,7 @@ async function pushToGithub() {
         : { usuarios: usuariosDB };
       await putFileToGithubCached(
         repo, usuariosRepoPath, branch, headers, utf8ToBase64(JSON.stringify(usuariosData, null, 2)),
-        `Actualización de usuarios (${new Date().toLocaleString('es-MX')}) [${sessionUser}]`
+        ghCommitMessage(`Actualización de usuarios (${new Date().toLocaleString('es-MX')})`)
       );
       usuariosDBChanged = false;
     }
@@ -3356,7 +3337,6 @@ async function pushToGithub() {
         'error'
       );
     } else {
-      // ⬅️ MEJORADO: mensaje real, no genérico
       const detalle = err.message || 'Error desconocido.';
       const pista = (() => {
         if (/401/.test(detalle)) return '\n\n👉 Causa probable: TU Token de GitHub es inválido, expiró o está mal copiado. Vuelve a generarlo en GitHub → Settings → Developer settings → Personal access tokens y pégalo en la configuración.';
@@ -3401,7 +3381,6 @@ function quickRevertGithub() {
 async function revertToLastCommit() {
       if (!isAdminSafe()) { alert('🔒 Solo un administrador puede restaurar versiones.'); return; }
 
-      // ⬅️ Verificar sesión y config propia
       const sessionUser = await ensureSessionForGithub();
       if (sessionUser === null) return;
 
@@ -3917,7 +3896,6 @@ async function attemptOfflineSync() {
   if (!pending) { setSyncStatusUI('hidden'); return; }
   if (!navigator.onLine) { setSyncStatusUI('pending'); return; }
 
-  // ⬅️ Ahora usa la config del USUARIO ACTUAL, no una global
   const cfg = loadGithubConfig();
   if (!cfg || !cfg.repo || !cfg.path || !cfg.token) {
     setSyncStatusUI('pending');
@@ -3938,7 +3916,7 @@ async function attemptOfflineSync() {
 
     await putFileToGithubCached(
       cfg.repo, dataRepoPath, branch, headers, utf8ToBase64(JSON.stringify(data)),
-      `Sincronización automática de cambios guardados sin conexión (${new Date().toLocaleString('es-MX')}) [${sessionUser}]`
+      ghCommitMessage(`Sincronización automática de cambios guardados sin conexión (${new Date().toLocaleString('es-MX')})`)
     );
 
     await clearOfflineSnapshot();
@@ -4214,7 +4192,7 @@ async function deleteFicha(id) {
       }
       const branch = cfg.branch || 'main';
       const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
-      await deleteFileFromGithub(cfg.repo, f.content, branch, headers, `Eliminar ficha técnica "${f.name}"`);
+      await deleteFileFromGithub(cfg.repo, f.content, branch, headers, ghCommitMessage(`Eliminar ficha técnica "${f.name}"`));
     }
   } catch (err) {
     console.error('Error al borrar el archivo de la ficha técnica:', err);
@@ -4287,7 +4265,7 @@ async function replaceFichaContent(id, newName, newContentBase64) {
       }
       const branch = cfg.branch || 'main';
       const headers = { 'Authorization': `Bearer ${cfg.token}`, 'Accept': 'application/vnd.github+json' };
-      await deleteFileFromGithub(cfg.repo, oldRemotePath, branch, headers, `Reemplazar ficha técnica "${f.name}"`);
+      await deleteFileFromGithub(cfg.repo, oldRemotePath, branch, headers, ghCommitMessage(`Reemplazar ficha técnica "${f.name}"`));
     }
   } catch (err) {
     console.error('No se pudo borrar el archivo viejo antes de reemplazarlo:', err);
@@ -5056,9 +5034,7 @@ function iupAddSelected() {
     closeModal('modal-iup');
 }
 
-// ⬅️ CORREGIDO: quickSaveGithub ahora pide sesión si no hay, y usa la config del usuario actual.
 async function quickSaveGithub() {
-  // Verificar sesión
   const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
   if (!user) {
     const loginAhora = confirm(
@@ -5070,7 +5046,6 @@ async function quickSaveGithub() {
     return;
   }
 
-  // Verificar config propia
   const cfg = loadGithubConfig();
   if (cfg && cfg.repo && cfg.path && cfg.token) {
     document.getElementById('gh-repo').value = cfg.repo;
@@ -5080,7 +5055,6 @@ async function quickSaveGithub() {
     document.getElementById('gh-remember').checked = true;
     return pushToGithub();
   } else {
-    // No tiene config propia: abrir el modal con el mensaje correcto
     setGithubStatus(
       `👤 Usuario activo: ${user.nombre || user.username} (${user.username})\n\n` +
       'Todavía NO has configurado TU Token de GitHub en este navegador.\n' +

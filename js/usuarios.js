@@ -17,6 +17,12 @@
      cambiar contraseña, activar/desactivar), se activa la bandera global
      "usuariosDBChanged" que app.js lee al subir a GitHub para incluir
      data/usuarios.json en el commit.
+
+   IMPORTANTE (v2):
+   - Cada usuario tiene SU PROPIA configuración de GitHub (token, repo,
+     ruta, rama), guardada en localStorage bajo una clave que incluye
+     su username. Al iniciar/cerrar sesión, se notifica a app.js
+     (onUserSessionChanged) para que refresque su config activa.
    ============================================================ */
 
 const USUARIOS_FILE = 'data/usuarios.json';
@@ -125,7 +131,10 @@ function restaurarSesion() {
     const user = usuariosDB.find(u => u.username === sess.username && u.activo);
     if (user) {
       currentUser = { username: user.username, nombre: user.nombre, rol: user.rol };
-      setTimeout(activarModoEdicion, 500);
+      setTimeout(() => {
+        activarModoEdicion();
+        notificarCambioDeSesion(); // 🔽 refresca config GitHub del usuario restaurado
+      }, 500);
     }
   } catch (e) { }
 }
@@ -135,6 +144,17 @@ function guardarSesion() {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify({ username: currentUser.username }));
   } else {
     sessionStorage.removeItem(SESSION_KEY);
+  }
+}
+
+/* ---------- Notificación a app.js del cambio de sesión ---------- */
+function notificarCambioDeSesion() {
+  if (typeof window.onUserSessionChanged === 'function') {
+    try {
+      window.onUserSessionChanged(currentUser ? currentUser.username : null);
+    } catch (e) {
+      console.warn('onUserSessionChanged lanzó un error:', e);
+    }
   }
 }
 
@@ -150,10 +170,12 @@ async function loginUsuario(username, password) {
   guardarSesion();
   actualizarUISesion();
   activarModoEdicion();
+  notificarCambioDeSesion(); // 🔽 clave: cambia la config de GitHub a la de este usuario
   return { ok: true, user: currentUser };
 }
 
 function logoutUsuario() {
+  const previousUsername = currentUser ? currentUser.username : null;
   currentUser = null;
   guardarSesion();
   actualizarUISesion();
@@ -167,6 +189,8 @@ function logoutUsuario() {
     }
     if (typeof cancelEdit === 'function') cancelEdit();
   }
+  notificarCambioDeSesion(); // 🔽 importante: limpia la config activa al salir
+  console.log('Sesión cerrada. Config GitHub de "' + (previousUsername || 'anónimo') + '" conservada en su propia clave.');
 }
 
 /* ---------- Helpers de rol ---------- */
@@ -438,7 +462,7 @@ async function crearUsuarioAdmin() {
   document.getElementById('nu-password').value = '';
   usuariosDBChanged = true; // 🔽 marcar para que se suba a GitHub
   renderAdminUsuarios();
-  alert('✅ Usuario creado. Recuerda guardar en GitHub para que sea permanente.');
+  alert('✅ Usuario creado. Recuerda guardar en GitHub para que sea permanente.\n\nEl nuevo usuario debe configurar SU PROPIO Token de GitHub (ícono de engranaje junto a "Guardar en GitHub") la primera vez que entre.');
 }
 
 function getUsuariosParaGuardar() {

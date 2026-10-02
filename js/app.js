@@ -1648,6 +1648,7 @@ function renderPdView() {
 }
 
 const pdSubmoduleOpInProgress = new Set();
+
 /* ============================================================
    BUSCADOR DE APARTADOS EN "PROCESOS DE DISEÑO"
    ============================================================ */
@@ -1671,7 +1672,6 @@ function filterPdSubmodules() {
     item.style.display = coincide ? '' : 'none';
   });
 
-  // Si ninguno coincide, mostramos un mensaje temporal
   const visibles = Array.from(items).filter(i => i.style.display !== 'none');
   let emptyMsg = cont.querySelector('.pd-search-empty');
   if (items.length > 0 && visibles.length === 0) {
@@ -1692,6 +1692,7 @@ function clearPdSearch() {
   if (inp) inp.value = '';
   filterPdSubmodules();
 }
+
 function renderPdSubmoduleList() {
   const cont = document.getElementById('pd-submodule-list');
   if (!cont) return;
@@ -3137,7 +3138,7 @@ async function pushToGithub() {
   document.getElementById('gh-repo').value = repo;
   const path = document.getElementById('gh-path').value.trim().replace(/^\/+/, '');
   const branch = document.getElementById('gh-branch').value.trim() || 'main';
-  const token = document.getElementById('gh-token').value.trim();
+  const token = (document.getElementById('gh-token').value || '').replace(/\s+/g, '').trim();
   const remember = document.getElementById('gh-remember').checked;
 
   if (!repo || !path || !token) {
@@ -3498,7 +3499,7 @@ async function revertToLastCommit() {
   document.getElementById('gh-repo').value = repo;
   const path = document.getElementById('gh-path').value.trim().replace(/^\/+/, '');
   const branch = document.getElementById('gh-branch').value.trim() || 'main';
-  const token = document.getElementById('gh-token').value.trim();
+  const token = (document.getElementById('gh-token').value || '').replace(/\s+/g, '').trim();
 
   if (!repo || !path || !token) {
     setGithubStatus('Completa repositorio, ruta del archivo y token antes de restaurar.', 'error');

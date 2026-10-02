@@ -455,7 +455,7 @@ function renderPG() {
               </div>
               ${dateStr ? `<div class="pg-item-date">${dateStr}</div>` : ''}
           </div>
-          <div class="pg-item-desc">${escHtml(pg.desc)}</div>
+          <div class="pg-item-desc">${renderDescripcion(pg.desc)}</div>
     ${renderAdjuntosPG(pg)}
     <div class="pg-actions-row only-editable">
         <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('${pg.id}')"><i class="ti ti-pencil"></i></button>
@@ -471,7 +471,7 @@ function openAddPG() {
   if (!isEditableMode) return;
   document.getElementById('pg-edit-id').value = '';
   document.getElementById('pg-title').value = '';
-  document.getElementById('pg-desc').value = '';
+  setEditorContent('pg-desc', '');
   document.getElementById('modal-pg-h').textContent = 'Agregar Pendiente General';
   document.getElementById('modal-pg').classList.add('open');
   setTimeout(() => document.getElementById('pg-title').focus(), 100);
@@ -587,7 +587,7 @@ function savePG() {
   if (!isEditableMode) return;
   const id = document.getElementById('pg-edit-id').value;
   const title = document.getElementById('pg-title').value.trim();
-  const desc = document.getElementById('pg-desc').value.trim();
+   const desc = getEditorContent('pg-desc');
   
   if (!title || !desc) {
       alert("⚠️ Título y Descripción son obligatorios.");
@@ -622,7 +622,7 @@ function editPG(id) {
   if (!pg) return;
   document.getElementById('pg-edit-id').value = pg.id;
   document.getElementById('pg-title').value = pg.title;
-  document.getElementById('pg-desc').value = pg.desc;
+  setEditorContent('pg-desc', pg.desc);
   document.getElementById('modal-pg-h').textContent = 'Editar Pendiente General';
   document.getElementById('modal-pg').classList.add('open');
 }
@@ -782,27 +782,33 @@ function filterItems(){
 function escRegex(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function highlightText(str, rawQ){
-  const escaped = escHtml(str);
-  if(!rawQ) return escaped;
-  const re = new RegExp('(' + escRegex(escHtml(rawQ)) + ')', 'gi');
-  return escaped.replace(re, '<mark class="search-highlight">$1</mark>');
-}
+     const plain = hasRichHTML(str) ? stripHTML(str) : String(str || '');
+     const escaped = escHtml(plain);
+     if(!rawQ) return escaped;
+     const re = new RegExp('(' + escRegex(escHtml(rawQ)) + ')', 'gi');
+     return escaped.replace(re, '<mark class="search-highlight">$1</mark>');
+   }
 
-function applyHighlight(itemCard, rawQ){
-  ['.item-title-text', '.item-desc-text'].forEach(sel=>{
-    const el = itemCard.querySelector(sel);
-    if(!el) return;
-    if(el.dataset.raw === undefined) el.dataset.raw = el.textContent;
-    el.innerHTML = highlightText(el.dataset.raw, rawQ);
-  });
-}
+ function applyHighlight(itemCard, rawQ){
+     ['.item-title-text', '.item-desc-text'].forEach(sel=>{
+       const el = itemCard.querySelector(sel);
+       if(!el) return;
+       if(el.dataset.rawHtml === undefined){
+         el.dataset.rawHtml = el.innerHTML;
+       }
+       const plain = stripHTML(el.dataset.rawHtml);
+       el.innerHTML = highlightText(plain, rawQ);
+     });
+   }
 
 function clearHighlight(itemCard){
-  ['.item-title-text', '.item-desc-text'].forEach(sel=>{
-    const el = itemCard.querySelector(sel);
-    if(el && el.dataset.raw !== undefined) el.textContent = el.dataset.raw;
-  });
-}
+     ['.item-title-text', '.item-desc-text'].forEach(sel=>{
+       const el = itemCard.querySelector(sel);
+       if(el && el.dataset.rawHtml !== undefined){
+         el.innerHTML = el.dataset.rawHtml;
+       }
+     });
+   }
 
 function clearSearch(){
   document.getElementById('search-input').value='';
@@ -859,7 +865,10 @@ function renderItemCard(item, naveId){
           <input class="edit-title-input" type="text" id="eo-${item.id}" placeholder="Código ODT" value="${escHtml(safeOdt)}" style="width:150px; margin-bottom:0;" title="Código ODT" />
         </div>
         <input class="edit-title-input" id="et-${item.id}" value="${escHtml(item.title)}" />
-        <textarea class="edit-area" id="ed-${item.id}" rows="3">${escHtml(item.desc)}</textarea>
+        <div class="rte-wrap" data-rte-target="ed-${item.id}">
+     <div class="rte-toolbar" role="toolbar" aria-label="Formato de texto"></div>
+     <div class="rte-editor" id="ed-${item.id}" contenteditable="true" data-placeholder="Descripción del cambio..." spellcheck="true" lang="es-MX">${renderDescripcion(item.desc)}</div>
+   </div>
         <div class="edit-actions">
           <button class="btn btn-sm btn-green" onclick="saveEdit('${naveId}','${item.id}')"><i class="ti ti-check"></i> Guardar</button>
           <button class="btn btn-sm" onclick="cancelEdit()"><i class="ti ti-x"></i> Cancelar</button>
@@ -962,7 +971,7 @@ function renderItemCard(item, naveId){
           </div>
         </div>
       </div>
-      <div class="item-desc-text">${escHtml(item.desc)}</div>
+      <div class="item-desc-text">${renderDescripcion(item.desc)}</div>
       <div class="item-footer">
         ${procesoHtml}
         ${starIndicatorHtml}
@@ -1451,13 +1460,14 @@ function exportarExcel(){
       data.pendientesGenerales.forEach(pg => {
           let dateStr = '';
           if (pg.createdAt) dateStr = new Date(pg.createdAt).toLocaleDateString('es-MX');
-          filas.push({
-              'FECHA': dateStr,
-              'ITEM': 'PENDIENTE GENERAL',
-              'ODT': '',
-              'CAMBIO': pg.title + (pg.desc ? (' - ' + pg.desc) : ''),
-              'ESTATUS': 'GENERAL'
-          });
+          const descPlano = stripHTML(pg.desc || '');
+   filas.push({
+       'FECHA': dateStr,
+       'ITEM': 'PENDIENTE GENERAL',
+       'ODT': '',
+       'CAMBIO': pg.title + (descPlano ? (' - ' + descPlano) : ''),
+       'ESTATUS': 'GENERAL'
+   });
       });
   }
 
@@ -1467,9 +1477,10 @@ function exportarExcel(){
     const modelos = (nave.models && nave.models.length) ? nave.models : [{name:''}];
 
     [...errores, ...mejoras].forEach(item=>{
-      const proc = item.proceso || {};
-      const cambio = item.title + (item.desc ? (' - ' + item.desc) : '');
-      const estatus = proc.planoTerminado ? 'TERMINADO' : 'PENDIENTE';
+     const proc = item.proceso || {};
+     const descPlano = stripHTML(item.desc || '');
+     const cambio = item.title + (descPlano ? (' - ' + descPlano) : '');
+     const estatus = proc.planoTerminado ? 'TERMINADO' : 'PENDIENTE';
 
       modelos.forEach(m=>{
         filas.push({
@@ -2427,10 +2438,12 @@ function mergeData(importedData) {
 }
 
 function startEdit(itemId){
-  if (!isEditableMode) return;
-  editingItemId=itemId;
-  render();
-}
+     if (!isEditableMode) return;
+     editingItemId=itemId;
+     render();
+     if (typeof initAllRichEditors === 'function') initAllRichEditors();
+   }
+
 function cancelEdit(){
   editingItemId=null;
   pendingFechaUnlockItemId=null;
@@ -2477,7 +2490,7 @@ function validateFechaAuth() {
 function saveEdit(naveId,itemId){
   if (!isEditableMode) return;
   const t=document.getElementById('et-'+itemId).value.trim();
-  const d=document.getElementById('ed-'+itemId).value.trim();
+  const d = getEditorContent('ed-' + itemId);
   const f=document.getElementById('ef-'+itemId).value.trim();
   const o=document.getElementById('eo-'+itemId).value.trim();
   const c=document.getElementById('ec-'+itemId).value;
@@ -2513,7 +2526,7 @@ function openAddItem(naveId,defaultCat){
   if (!isEditableMode) return;
   currentNaveId=naveId;
   document.getElementById('new-item-title').value='';
-  document.getElementById('new-item-desc').value='';
+  setEditorContent('new-item-desc', '');
   document.getElementById('new-item-odt').value='';
   
   const today = new Date();
@@ -2542,7 +2555,7 @@ function selectCat(el,val){
 function saveItem(){
   if (!isEditableMode) return;
   const title=document.getElementById('new-item-title').value.trim();
-  const desc=document.getElementById('new-item-desc').value.trim();
+  const desc = getEditorContent('new-item-desc');
   const fecha=document.getElementById('new-item-fecha').value.trim();
   const odt=document.getElementById('new-item-odt').value.trim();
   const subType=document.getElementById('new-item-subcat').value;
@@ -5169,3 +5182,340 @@ async function quickSaveGithub() {
     openGithubModal();
   }
 }
+/* ============================================================
+   EDITOR DE TEXTO ENRIQUECIDO (RTE)
+   ============================================================ */
+
+const RTE_ALLOWED_TAGS = new Set(['STRONG', 'B', 'EM', 'I', 'U', 'BR', 'DIV', 'P']);
+const RTE_TAG_MAP = { 'B': 'strong', 'I': 'em' };
+
+function sanitizeRichHTML(html) {
+  if (html == null) return '';
+  const src = String(html);
+  if (!/[<>]/.test(src)) return src;
+  try {
+    const doc = new DOMParser().parseFromString('<div>' + src + '</div>', 'text/html');
+    const root = doc.body.firstChild;
+
+    const walk = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.nodeValue);
+      if (node.nodeType !== Node.ELEMENT_NODE) return null;
+      const tag = node.tagName.toUpperCase();
+      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'IFRAME' ||
+          tag === 'OBJECT' || tag === 'EMBED' || tag === 'LINK' ||
+          tag === 'META' || tag === 'HEAD' || tag === 'TITLE') return null;
+      if (tag === 'BR') return document.createElement('br');
+      if (tag === 'DIV' || tag === 'P') {
+        const el = document.createElement('div');
+        node.childNodes.forEach(ch => {
+          const clean = walk(ch);
+          if (clean) el.appendChild(clean);
+        });
+        return el;
+      }
+      if (RTE_ALLOWED_TAGS.has(tag)) {
+        const outTag = RTE_TAG_MAP[tag] || tag.toLowerCase();
+        const el = document.createElement(outTag);
+        node.childNodes.forEach(ch => {
+          const clean = walk(ch);
+          if (clean) el.appendChild(clean);
+        });
+        return el;
+      }
+      const frag = document.createDocumentFragment();
+      node.childNodes.forEach(ch => {
+        const clean = walk(ch);
+        if (clean) frag.appendChild(clean);
+      });
+      return frag;
+    };
+
+    const out = document.createElement('div');
+    root.childNodes.forEach(ch => {
+      const clean = walk(ch);
+      if (clean) out.appendChild(clean);
+    });
+    return out.innerHTML;
+  } catch (e) {
+    console.warn('sanitizeRichHTML error:', e);
+    return String(src).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+}
+
+function hasRichHTML(str) {
+  if (!str) return false;
+  return /<(strong|b|em|i|u|br|div)[\s>]/i.test(String(str));
+}
+
+function stripHTML(html) {
+  if (!html) return '';
+  if (!hasRichHTML(html)) return String(html);
+  try {
+    const doc = new DOMParser().parseFromString(
+      '<div>' + String(html).replace(/<br\s*\/?>/gi, '\n').replace(/<\/(div|p)>/gi, '\n') + '</div>',
+      'text/html'
+    );
+    let text = doc.body.textContent || '';
+    return text.replace(/\n{3,}/g, '\n\n').trim();
+  } catch (e) {
+    return String(html).replace(/<[^>]*>/g, '');
+  }
+}
+
+function renderDescripcion(desc) {
+  if (desc == null) return '';
+  const s = String(desc);
+  if (!s) return '';
+  if (hasRichHTML(s)) {
+    return sanitizeRichHTML(s);
+  }
+  return escHtml(s).replace(/\n/g, '<br>');
+}
+
+let _rteCaseMenuEl = null;
+let _rteCaseTarget = null;
+
+function _rteEnsureCaseMenu() {
+  if (_rteCaseMenuEl) return _rteCaseMenuEl;
+  const menu = document.createElement('div');
+  menu.className = 'rte-case-menu';
+  menu.innerHTML = `
+    <button type="button" data-case="upper"><i class="ti ti-letter-case-upper"></i> MAYÚSCULAS</button>
+    <button type="button" data-case="lower"><i class="ti ti-letter-case-lower"></i> minúsculas</button>
+    <button type="button" data-case="sentence"><i class="ti ti-letter-case"></i> Tipo oración</button>
+  `;
+  menu.addEventListener('mousedown', (e) => e.preventDefault());
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-case]');
+    if (!btn) return;
+    const mode = btn.getAttribute('data-case');
+    if (_rteCaseTarget) aplicarCaseAlEditor(_rteCaseTarget, mode);
+    menu.classList.remove('open');
+    _rteCaseTarget = null;
+  });
+  document.body.appendChild(menu);
+  _rteCaseMenuEl = menu;
+  return menu;
+}
+
+function _rteAbrirCaseMenu(anchorBtn, editorEl) {
+  const menu = _rteEnsureCaseMenu();
+  const rect = anchorBtn.getBoundingClientRect();
+  menu.classList.add('open');
+  const menuRect = menu.getBoundingClientRect();
+  let left = rect.left;
+  let top = rect.bottom + 4;
+  if (left + menuRect.width > window.innerWidth - 8) {
+    left = window.innerWidth - menuRect.width - 8;
+  }
+  if (top + menuRect.height > window.innerHeight - 8) {
+    top = rect.top - menuRect.height - 4;
+  }
+  menu.style.left = Math.max(8, left) + 'px';
+  menu.style.top = Math.max(8, top) + 'px';
+  _rteCaseTarget = editorEl;
+}
+
+document.addEventListener('click', (e) => {
+  if (!_rteCaseMenuEl) return;
+  if (!_rteCaseMenuEl.classList.contains('open')) return;
+  if (_rteCaseMenuEl.contains(e.target)) return;
+  if (e.target.closest('.rte-btn[data-action="case"]')) return;
+  _rteCaseMenuEl.classList.remove('open');
+  _rteCaseTarget = null;
+});
+window.addEventListener('scroll', () => {
+  if (_rteCaseMenuEl && _rteCaseMenuEl.classList.contains('open')) {
+    _rteCaseMenuEl.classList.remove('open');
+    _rteCaseTarget = null;
+  }
+}, true);
+
+function aplicarCaseAlEditor(editor, mode) {
+  if (!editor) return;
+  editor.focus();
+  const sel = window.getSelection();
+  const hasSel = sel && sel.rangeCount > 0 && !sel.isCollapsed &&
+                 editor.contains(sel.getRangeAt(0).commonAncestorContainer);
+
+  const transform = (t) => {
+    if (mode === 'upper') return t.toLocaleUpperCase('es-MX');
+    if (mode === 'lower') return t.toLocaleLowerCase('es-MX');
+    if (mode === 'sentence') {
+      const lower = t.toLocaleLowerCase('es-MX');
+      return lower.replace(/(^\s*[a-záéíóúñü]|(?:[.!?]\s+)[a-záéíóúñü])/g,
+        (m) => m.toLocaleUpperCase('es-MX'));
+    }
+    return t;
+  };
+
+  if (hasSel) {
+    const range = sel.getRangeAt(0);
+    const texto = range.toString();
+    if (!texto) return;
+    const nuevo = transform(texto);
+    range.deleteContents();
+    range.insertNode(document.createTextNode(nuevo));
+    sel.removeAllRanges();
+    const newRange = document.createRange();
+    newRange.selectNodeContents(editor);
+    newRange.collapse(false);
+    sel.addRange(newRange);
+  } else {
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null);
+    let n;
+    while ((n = walker.nextNode())) {
+      n.nodeValue = transform(n.nodeValue);
+    }
+  }
+  editor.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function _rteSyncToolbarState(editor, toolbar) {
+  if (!editor || !toolbar) return;
+  const tryState = (cmd) => {
+    try { return document.queryCommandState(cmd); } catch (e) { return false; }
+  };
+  toolbar.querySelectorAll('.rte-btn[data-cmd]').forEach(btn => {
+    const cmd = btn.getAttribute('data-cmd');
+    btn.classList.toggle('rte-btn-active', tryState(cmd));
+  });
+}
+
+function _rteExec(editor, cmd, value) {
+  if (!editor) return;
+  editor.focus();
+  try {
+    document.execCommand('styleWithCSS', false, false);
+  } catch (e) {}
+  document.execCommand(cmd, false, value || null);
+  editor.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function _rteCleanPaste(editor, htmlOrText, isHTML) {
+  let htmlLimpio = '';
+  if (isHTML) {
+    htmlLimpio = sanitizeRichHTML(htmlOrText);
+  } else {
+    htmlLimpio = escHtml(htmlOrText).replace(/\n/g, '<br>');
+  }
+  document.execCommand('insertHTML', false, htmlLimpio);
+  editor.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function _rteBuildToolbar(editor, toolbar) {
+  if (!toolbar) return;
+  toolbar.innerHTML = '';
+
+  const btn = (title, iconClass, opts) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'rte-btn';
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    b.innerHTML = `<i class="${iconClass}"></i>`;
+    if (opts && opts.cmd) b.setAttribute('data-cmd', opts.cmd);
+    if (opts && opts.action) b.setAttribute('data-action', opts.action);
+    b.addEventListener('mousedown', (e) => e.preventDefault());
+    return b;
+  };
+
+  const sep = () => {
+    const s = document.createElement('span');
+    s.className = 'rte-sep';
+    return s;
+  };
+
+  const bB = btn('Negrita (Ctrl+B)', 'ti ti-bold', { cmd: 'bold' });
+  const bI = btn('Cursiva (Ctrl+I)', 'ti ti-italic', { cmd: 'italic' });
+  const bU = btn('Subrayado (Ctrl+U)', 'ti ti-underline', { cmd: 'underline' });
+
+  bB.addEventListener('click', () => _rteExec(editor, 'bold'));
+  bI.addEventListener('click', () => _rteExec(editor, 'italic'));
+  bU.addEventListener('click', () => _rteExec(editor, 'underline'));
+
+  toolbar.appendChild(bB);
+  toolbar.appendChild(bI);
+  toolbar.appendChild(bU);
+  toolbar.appendChild(sep());
+
+  const bCase = btn('Cambiar mayúsculas/minúsculas', 'ti ti-letter-case', { action: 'case' });
+  bCase.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    _rteAbrirCaseMenu(bCase, editor);
+  });
+  toolbar.appendChild(bCase);
+  toolbar.appendChild(sep());
+
+  const bUndo = btn('Deshacer (Ctrl+Z)', 'ti ti-arrow-back-up', { action: 'undo' });
+  const bRedo = btn('Rehacer (Ctrl+Y)', 'ti ti-arrow-forward-up', { action: 'redo' });
+  bUndo.addEventListener('click', () => _rteExec(editor, 'undo'));
+  bRedo.addEventListener('click', () => _rteExec(editor, 'redo'));
+  toolbar.appendChild(bUndo);
+  toolbar.appendChild(bRedo);
+
+  const sync = () => _rteSyncToolbarState(editor, toolbar);
+  editor.addEventListener('keyup', sync);
+  editor.addEventListener('mouseup', sync);
+  editor.addEventListener('focus', sync);
+  editor.addEventListener('input', sync);
+  document.addEventListener('selectionchange', () => {
+    if (document.activeElement === editor) sync();
+  });
+
+  editor.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const cd = e.clipboardData || window.clipboardData;
+    if (!cd) return;
+    const html = cd.getData('text/html');
+    const text = cd.getData('text/plain');
+    if (html) {
+      _rteCleanPaste(editor, html, true);
+    } else {
+      _rteCleanPaste(editor, text || '', false);
+    }
+  });
+
+  editor.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const text = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || '';
+    if (text) _rteCleanPaste(editor, text, false);
+  });
+  editor.addEventListener('dragover', (e) => e.preventDefault());
+}
+
+function attachRichEditor(editor, toolbar) {
+  if (!editor || editor.dataset.rteReady === '1') return;
+  editor.dataset.rteReady = '1';
+  _rteBuildToolbar(editor, toolbar);
+}
+
+function initAllRichEditors() {
+  document.querySelectorAll('.rte-wrap').forEach(wrap => {
+    const toolbar = wrap.querySelector('.rte-toolbar');
+    const editor = wrap.querySelector('.rte-editor');
+    if (toolbar && editor) attachRichEditor(editor, toolbar);
+  });
+}
+
+function setEditorContent(editorId, value) {
+  const editor = document.getElementById(editorId);
+  if (!editor) return;
+  const html = renderDescripcion(value);
+  editor.innerHTML = html || '';
+}
+
+function getEditorContent(editorId) {
+  const editor = document.getElementById(editorId);
+  if (!editor) return '';
+  const raw = editor.innerHTML || '';
+  return sanitizeRichHTML(raw).trim();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAllRichEditors);
+} else {
+  initAllRichEditors();
+}
+

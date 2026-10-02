@@ -132,6 +132,62 @@ function formatDateEs(s){
   const p=String(s).split('-');
   return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:s;
 }
+/* ============================================================
+   NOTIFICACIÓN FLOTANTE (TOAST)
+   ============================================================ */
+function showToast(message, type) {
+  try {
+    if (!document.body) return;
+
+    let container = document.getElementById('rpi-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'rpi-toast-container';
+      container.className = 'rpi-toast-container';
+      document.body.appendChild(container);
+    }
+
+    let cls = 'rpi-toast-info';
+    let icon = 'ti-info-circle';
+    if (type === 'success' || type === 'ok') { cls = 'rpi-toast-success'; icon = 'ti-circle-check'; }
+    else if (type === 'error') { cls = 'rpi-toast-error'; icon = 'ti-alert-circle'; }
+    else if (type === 'warning' || type === 'warn') { cls = 'rpi-toast-warning'; icon = 'ti-alert-triangle'; }
+    else if (type === 'info') { cls = 'rpi-toast-info'; icon = 'ti-info-circle'; }
+
+    const toast = document.createElement('div');
+    toast.className = 'rpi-toast ' + cls;
+    toast.innerHTML =
+      '<i class="ti ' + icon + '"></i>' +
+      '<div class="rpi-toast-text"></div>' +
+      '<button class="rpi-toast-close" title="Cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button>';
+
+    toast.querySelector('.rpi-toast-text').textContent = message;
+
+    const removeToast = () => {
+      toast.classList.remove('rpi-toast-visible');
+      setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+        if (container && container.children.length === 0 && container.parentNode) {
+          container.parentNode.removeChild(container);
+        }
+      }, 300);
+    };
+
+    toast.querySelector('.rpi-toast-close').addEventListener('click', removeToast);
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => toast.classList.add('rpi-toast-visible'));
+    });
+
+    const timeout = (type === 'error') ? 5000 : 4000;
+    setTimeout(removeToast, timeout);
+
+    console.log('[Toast ' + type + ']', message);
+  } catch (err) {
+    console.warn('showToast error:', err);
+  }
+}
 
 function handleLockToggle() {
   if (isEditableMode) {
@@ -3297,13 +3353,19 @@ async function pushToGithub() {
     const etiqueta = sessionUser ? `"${sessionUser}"` : '(sin sesión)';
     if (fallosImagenes.length > 0) {
       const detalle = fallosImagenes.map(f => `• ${f.label}: ${f.message}`).join('\n');
+      const msg = `⚠️ Guardado con advertencias: ${fallosImagenes.length} imagen(es) no se pudieron subir. Vuelve a presionar "Guardar en GitHub".`;
       setGithubStatus(
         `⚠️ El cambio se guardó${commitMsg} como ${etiqueta}, pero ${fallosImagenes.length} imagen(es) no se pudieron subir tras reintentar. ` +
         `Las fotos no se perdieron (quedaron guardadas dentro del registro); vuelve a darle "Guardar en GitHub" cuando tengas mejor conexión para reintentarlas.\n${detalle}`,
         'error'
       );
+      showToast(msg, 'warning');
     } else {
       setGithubStatus(`✅ Cambios subidos correctamente a GitHub como ${etiqueta}${nuevasImagenes ? ` (${nuevasImagenes} imagen(es) nueva(s))` : ''}${commitMsg}.`, 'ok');
+      showToast(
+        `Cambios guardados correctamente${commitSha ? ' (commit ' + commitSha + ')' : ''}`,
+        'success'
+      );
     }
     mark('actualizar_ui', tUI);
 
@@ -3314,7 +3376,7 @@ async function pushToGithub() {
     timings.total = Math.round(performance.now() - t0);
     console.log('[GitHub Save] Usuario:', sessionUser, '| Tiempos hasta el error (ms):', timings);
 
-    const pareceFalloDeRed = (err instanceof TypeError) || !navigator.onLine;
+   const pareceFalloDeRed = (err instanceof TypeError) || !navigator.onLine;
     if (pareceFalloDeRed) {
       await saveOfflineSnapshot(data);
       setSyncStatusUI('pending');
@@ -3323,6 +3385,7 @@ async function pushToGithub() {
         `Tu cambio quedó respaldado en este dispositivo y se sincronizará automáticamente en cuanto vuelva el internet.`,
         'error'
       );
+      showToast('Sin conexión. El cambio quedó guardado localmente y se subirá al volver el internet.', 'info');
     } else {
       const detalle = err.message || 'Error desconocido.';
       const pista = (() => {
@@ -3334,6 +3397,15 @@ async function pushToGithub() {
         return '';
       })();
       setGithubStatus(`❌ No se pudo guardar.\n\n${detalle}${pista}`, 'error');
+
+      // Cartel corto para que se vea arriba sin obligarte a leer todo el modal
+      let shortMsg = 'No se pudo guardar en GitHub.';
+      if (/401/.test(detalle)) shortMsg = 'Token de GitHub inválido o expirado (401).';
+      else if (/403/.test(detalle)) shortMsg = 'El token no tiene permisos suficientes (403).';
+      else if (/404/.test(detalle)) shortMsg = 'Repositorio, rama o ruta no encontrados (404).';
+      else if (/409/.test(detalle)) shortMsg = 'El archivo cambió en GitHub (409). Reintenta.';
+      else if (/422/.test(detalle)) shortMsg = 'Datos rechazados por GitHub (422). Revisa la rama.';
+      showToast(shortMsg, 'error');
     }
   } finally {
     btn.innerHTML = originalHtml;

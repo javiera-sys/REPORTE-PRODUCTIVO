@@ -744,7 +744,26 @@ function togglePGPanel() {
       panel.style.display = 'none';
       chev.classList.replace('ti-chevron-up', 'ti-chevron-down');
   }
+  try {
+    localStorage.setItem('rpi_pg_panel_open', isPGPanelOpen ? '1' : '0');
+  } catch (e) {}
 }
+
+// Restaurar el estado guardado al cargar la página
+window.addEventListener('DOMContentLoaded', function() {
+  try {
+    if (localStorage.getItem('rpi_pg_panel_open') === '1') {
+      isPGPanelOpen = true;
+      const panel = document.getElementById('pg-panel');
+      const chev = document.getElementById('pg-chevron');
+      if (panel) panel.style.display = 'block';
+      if (chev) {
+        chev.classList.remove('ti-chevron-down');
+        chev.classList.add('ti-chevron-up');
+      }
+    }
+  } catch (e) {}
+});
 
 function renderPG() {
   if (!data.pendientesGenerales) data.pendientesGenerales = [];

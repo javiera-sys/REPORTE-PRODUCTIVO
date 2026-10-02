@@ -249,7 +249,7 @@
     .rte-editor { padding: 10px; font-size: 14px; min-height: 110px; }
   }
 </style>
-<link rel="stylesheet" href="chrome-extension://ajbghephkehcmphjmenfpkmjiolhjalk/app/content-style.css"></head>
+</head>
 <body class="is-locked">
 
 <div class="app">
@@ -315,7 +315,7 @@
       <div class="filter-group dropdown-wrap">
         <span class="filter-label"><i class="ti ti-file-text"></i> Fichas:</span>
         <button class="btn-filter" id="fichas-menu-btn" onclick="toggleFichasMenu(event)">Catálogo <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
-        <div class="dropdown-menu" id="fichas-menu" style="min-width: 280px; max-width: 90vw; max-height: 350px; overflow-y: auto; z-index: 1000; box-sizing: border-box; inset: 218px auto auto 1499px;">
+        <div class="dropdown-menu" id="fichas-menu" style="min-width: 280px; max-width: 90vw; max-height: 350px; overflow-y: auto; z-index: 1000; box-sizing: border-box;">
           <div id="fichas-list"><div style="padding: 12px; font-size: 12px; color: var(--color-text-secondary); text-align: center;">No hay fichas técnicas disponibles.</div></div>
           <div class="only-editable" style="padding: 8px; border-top: 1px solid var(--color-border-secondary);">
             <button class="btn btn-sm btn-purple" style="width:100%" onclick="document.getElementById('ficha-input').click()"><i class="ti ti-upload"></i> Subir Ficha (PDF/JPG)</button>
@@ -337,137 +337,7 @@
         <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;" class="only-editable">
           <button class="btn btn-sm btn-purple" onclick="openAddPG()"><i class="ti ti-plus"></i> Nuevo Pendiente General</button>
         </div>
-        <div id="pg-list">
-      <div class="pg-item">
-          <div class="pg-item-header">
-              <div style="display:flex; align-items:flex-start; flex:1;">
-                  <div class="pg-item-title">ELIMINAR MOÑOS DE LA NATURAL PAROTA 8681</div>
-                  <div title="Registro nuevo (últimas 72h)" style="color:#f59e0b; display:flex; align-items:center; justify-content:center; width:20px; height:20px; margin-left:4px;"><i class="ti ti-star-filled" style="font-size:16px"></i></div>
-              </div>
-              <div class="pg-item-date">30/09/2026</div>
-          </div>
-          <div class="pg-item-desc">Se eliminan los moños de los planos 8681 y se coloca una nota especificando que solo se tendra que utilizar moños si viene con algun detalle el tablero.</div>
-    <div class="pg-adjuntos-row">
-      <div class="pg-adjunto-item pg-adjunto-add only-editable">
-        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" id="pg-adj-x0h60fm9" class="input-oculto" onchange="subirAdjuntoPG(event, 'x0h60fm9')">
-        <label for="pg-adj-x0h60fm9" class="pg-adjunto-add-label" title="Agregar archivo (imagen o PDF)">
-          <i class="ti ti-plus"></i>
-        </label>
-      </div>
-    </div>
-    <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:4px;">0 archivos adjuntos</div>
-  
-    <div class="pg-actions-row only-editable">
-        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('x0h60fm9')"><i class="ti ti-pencil"></i></button>
-        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('x0h60fm9')"><i class="ti ti-trash"></i></button>
-    </div>
-      </div>
-      
-      <div class="pg-item">
-          <div class="pg-item-header">
-              <div style="display:flex; align-items:flex-start; flex:1;">
-                  <div class="pg-item-title">CAMBIO EN CORREDERA DE 35 CM</div>
-                  
-              </div>
-              <div class="pg-item-date">07/09/2026</div>
-          </div>
-          <div class="pg-item-desc">Se sustituye la corredera de 35 cm que tienen muchos de los Tv-stand y buros por corredera de 30 cm, esto por que ya se termino el stok que habia de la corredera de 35 cm.</div>
-    <div class="pg-adjuntos-row">
-      <div class="pg-adjunto-item pg-adjunto-add only-editable">
-        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" id="pg-adj-x4ee2y9y" class="input-oculto" onchange="subirAdjuntoPG(event, 'x4ee2y9y')">
-        <label for="pg-adj-x4ee2y9y" class="pg-adjunto-add-label" title="Agregar archivo (imagen o PDF)">
-          <i class="ti ti-plus"></i>
-        </label>
-      </div>
-    </div>
-    <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:4px;">0 archivos adjuntos</div>
-  
-    <div class="pg-actions-row only-editable">
-        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('x4ee2y9y')"><i class="ti ti-pencil"></i></button>
-        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('x4ee2y9y')"><i class="ti ti-trash"></i></button>
-    </div>
-      </div>
-      
-      <div class="pg-item">
-          <div class="pg-item-header">
-              <div style="display:flex; align-items:flex-start; flex:1;">
-                  <div class="pg-item-title">CAMBIO TOLERANCIA VISTAS ENTREPAÑO</div>
-                  
-              </div>
-              <div class="pg-item-date">02/09/2026</div>
-          </div>
-          <div class="pg-item-desc">Cambiar la tolerancia de todas las vistas de entrepaño a +2 cm. esto se realiza debido a que en la nave 4 no se logra controlar de manera consistente el grueso de postes y crece el hueco interno del mueble, lo que ha generado múltiples reprocesos. al agregar la tolerancia se busca compensar esta variación y evitar tener que fabricar nuevamente la pieza.</div>
-    <div class="pg-adjuntos-row">
-      <div class="pg-adjunto-item pg-adjunto-add only-editable">
-        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" id="pg-adj-xkur139l" class="input-oculto" onchange="subirAdjuntoPG(event, 'xkur139l')">
-        <label for="pg-adj-xkur139l" class="pg-adjunto-add-label" title="Agregar archivo (imagen o PDF)">
-          <i class="ti ti-plus"></i>
-        </label>
-      </div>
-    </div>
-    <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:4px;">0 archivos adjuntos</div>
-  
-    <div class="pg-actions-row only-editable">
-        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('xkur139l')"><i class="ti ti-pencil"></i></button>
-        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('xkur139l')"><i class="ti ti-trash"></i></button>
-    </div>
-      </div>
-      
-      <div class="pg-item">
-          <div class="pg-item-header">
-              <div style="display:flex; align-items:flex-start; flex:1;">
-                  <div class="pg-item-title">CAMBIO EN CARDA</div>
-                  
-              </div>
-              <div class="pg-item-date">14/08/2026</div>
-          </div>
-          <div class="pg-item-desc">Se define que las colecciones que llevan carda fina se dividirán en dos versiones:
-Carda fina normal: versión estándar.
-Carda fina marcada: se utilizará en los colores sólidos y en la Balam Blanca.
-Realizar la actualización correspondiente en planos y habilitados para identificar correctamente cada versión.</div>
-    <div class="pg-adjuntos-row">
-      <div class="pg-adjunto-item pg-adjunto-add only-editable">
-        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" id="pg-adj-xx72uuf4" class="input-oculto" onchange="subirAdjuntoPG(event, 'xx72uuf4')">
-        <label for="pg-adj-xx72uuf4" class="pg-adjunto-add-label" title="Agregar archivo (imagen o PDF)">
-          <i class="ti ti-plus"></i>
-        </label>
-      </div>
-    </div>
-    <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:4px;">0 archivos adjuntos</div>
-  
-    <div class="pg-actions-row only-editable">
-        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('xx72uuf4')"><i class="ti ti-pencil"></i></button>
-        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('xx72uuf4')"><i class="ti ti-trash"></i></button>
-    </div>
-      </div>
-      
-      <div class="pg-item">
-          <div class="pg-item-header">
-              <div style="display:flex; align-items:flex-start; flex:1;">
-                  <div class="pg-item-title">COSTADOS DE CAJON</div>
-                  
-              </div>
-              <div class="pg-item-date">14/08/2026</div>
-          </div>
-          <div class="pg-item-desc">Cambiar la medida de todos los cajones de acuerdo con lo indicado en la ficha técnica.
-Actualmente, la distancia de la guía de corredera al costado del mueble es de 27 mm (13.5 mm por lado). La ficha técnica indica que debe ser de 26 mm (13 mm por lado).
-Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (13 mm por lado).</div>
-    <div class="pg-adjuntos-row">
-      <div class="pg-adjunto-item pg-adjunto-add only-editable">
-        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" id="pg-adj-xtrcy6w8" class="input-oculto" onchange="subirAdjuntoPG(event, 'xtrcy6w8')">
-        <label for="pg-adj-xtrcy6w8" class="pg-adjunto-add-label" title="Agregar archivo (imagen o PDF)">
-          <i class="ti ti-plus"></i>
-        </label>
-      </div>
-    </div>
-    <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:4px;">0 archivos adjuntos</div>
-  
-    <div class="pg-actions-row only-editable">
-        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('xtrcy6w8')"><i class="ti ti-pencil"></i></button>
-        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('xtrcy6w8')"><i class="ti ti-trash"></i></button>
-    </div>
-      </div>
-      </div>
+        <div id="pg-list"></div>
       </div>
     </div>
 
@@ -481,15 +351,15 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
       </div>
       <div class="marcador-grid">
         <div class="week-stat-card week-stat-pending">
-          <div class="week-stat-count" id="marcador-count-pendiente">23</div>
+          <div class="week-stat-count" id="marcador-count-pendiente">0</div>
           <div class="week-stat-label"><i class="ti ti-hourglass"></i> Pendientes</div>
         </div>
         <div class="week-stat-card week-stat-done">
-          <div class="week-stat-count" id="marcador-count-terminado">107</div>
+          <div class="week-stat-count" id="marcador-count-terminado">0</div>
           <div class="week-stat-label"><i class="ti ti-circle-check"></i> Terminados</div>
         </div>
         <div class="week-stat-card week-stat-cancelled">
-          <div class="week-stat-count" id="marcador-count-cancelado">4</div>
+          <div class="week-stat-count" id="marcador-count-cancelado">0</div>
           <div class="week-stat-label"><i class="ti ti-ban"></i> Cancelados</div>
         </div>
       </div>
@@ -531,7 +401,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
 
 <button class="scroll-top-btn visible" id="scroll-top-btn" title="Navegar" aria-label="Navegar"><i class="ti ti-arrow-down"></i></button>
 
-<!-- Modal de Autenticación (candado de edición) -->
+<!-- Modal de Autenticación -->
 <div class="modal-bg" id="modal-auth">
   <div class="modal">
     <div class="modal-header">
@@ -552,7 +422,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
-<!-- Modal de Login de Usuario -->
+<!-- Modal de Login -->
 <div class="modal-bg" id="modal-session">
   <div class="modal" style="width: 400px;">
     <div class="modal-header">
@@ -578,7 +448,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
-<!-- Modal de Administración de Usuarios (solo admin principal) -->
+<!-- Modal Administración de Usuarios -->
 <div class="modal-bg" id="modal-admin-usuarios">
   <div class="modal">
     <div class="modal-header">
@@ -646,7 +516,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
-<!-- Modal Oculto: Gestión de Accesos (contraseñas del candado general) -->
+<!-- Modal Gestión de Accesos -->
 <div class="modal-bg" id="modal-manage-access">
   <div class="modal">
     <div class="modal-header">
@@ -670,6 +540,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
+<!-- Modal Nuevo Mueble -->
 <div class="modal-bg" id="modal-nave">
   <div class="modal">
     <div class="modal-header">
@@ -710,7 +581,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
-<!-- Modal: Dashboard -->
+<!-- Modal Dashboard -->
 <div class="modal-bg" id="modal-dashboard">
   <div class="modal dashboard-modal">
     <div class="dash-header">
@@ -803,7 +674,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
-<!-- Módulo independiente: PROCESOS DE DISEÑO -->
+<!-- Módulo PROCESOS DE DISEÑO -->
 <div class="modal-bg" id="modal-procesos-diseno">
   <div class="modal dashboard-modal">
     <div class="dash-header">
@@ -827,159 +698,9 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
         <div style="position:relative; margin-bottom:12px;">
           <i class="ti ti-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-text-secondary); font-size:15px; pointer-events:none;"></i>
           <input type="text" id="pd-search-input" placeholder="Buscar apartado por nombre..." autocomplete="off" oninput="filterPdSubmodules()" style="width:100%; padding:10px 38px 10px 38px; border-radius:10px; border:1px solid var(--color-border-secondary); background:var(--color-background-secondary); font-size:13px; font-family:var(--font-sans); color:var(--color-text-primary);">
-          <button type="button" id="pd-search-clear" onclick="clearPdSearch()" title="Limpiar búsqueda" style="display: flex; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; cursor: pointer; color: var(--color-text-secondary); padding: 5px; border-radius: 6px;"><i class="ti ti-x"></i></button>
+          <button type="button" id="pd-search-clear" onclick="clearPdSearch()" title="Limpiar búsqueda" style="display: none; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--color-text-secondary); padding: 5px; border-radius: 6px;"><i class="ti ti-x"></i></button>
         </div>
-        <div id="pd-submodule-list" style="display:flex; flex-direction:column; gap:8px;">
-    <div data-pd-submodule-id="ficha_tolerancias" data-pd-search-text="FICHA TECNICA DE TOLERANCIAS" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('ficha_tolerancias')">
-        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA DE TOLERANCIAS</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 12 registro(s) · 18 columna(s)</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_xpr1wvdw" data-pd-search-text="FICHA TECNICA DE TORNILLERIA" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xpr1wvdw')">
-        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA DE TORNILLERIA</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 62 registro(s) · 3 columna(s)</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_xu9ftogj" data-pd-search-text="FICHA TECNICA DE MADERA ANCHOS" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xu9ftogj')">
-        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA DE MADERA ANCHOS</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 12 registro(s) · 5 columna(s)</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_xqrann9l" data-pd-search-text="FICHA TECNICA DE MADERA GRUESOS" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xqrann9l')">
-        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA DE MADERA GRUESOS</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 14 registro(s) · 5 columna(s)</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_xjyo597q" data-pd-search-text="FICHA TECNICA DE CORREDERA CIERRE LENTO 30 cm" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xjyo597q')">
-        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA DE CORREDERA CIERRE LENTO 30 cm</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · CORREDERA CIERRE LENTO 30 CM (1).pdf</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_xkeh9ah7" data-pd-search-text="FICHA TECNICA DE CORREDERA CIERRE NORMAL 30 cm" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xkeh9ah7')">
-        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA DE CORREDERA CIERRE NORMAL 30 cm</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · CORREDERA CIERRE NORMAL 30 CM (1).pdf</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_xtyfrglm" data-pd-search-text="FICHA TECNICA EN RANURAS" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xtyfrglm')">
-        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA EN RANURAS</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · FICAH TECNICA EN RANURAS.pdf</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_xbfo08aq" data-pd-search-text="FICHA TECNICA DE MADERA LARGOS" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xbfo08aq')">
-        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA DE MADERA LARGOS</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 13 registro(s) · 5 columna(s)</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_xo3rqzmy" data-pd-search-text="FICHA TECNICA BISAGRA BIDIMENSIONAL RECTA" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xo3rqzmy')">
-        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA BISAGRA BIDIMENSIONAL RECTA</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · FICHA TECNICA BISAGRA BIDIMENSIONAL RECTA.pdf</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_xt4uvxj0" data-pd-search-text="FICHA TECNICA DE SOLERAS T" style="align-items: stretch; gap: 6px;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xt4uvxj0')">
-        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA DE SOLERAS T</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 42 registro(s) · 6 columna(s)</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_xd04fbyj" data-pd-search-text="MATERIALES DE HERRERIA" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xd04fbyj')">
-        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">MATERIALES DE HERRERIA</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 70 registro(s) · 9 columna(s)</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_xxmzmn6e" data-pd-search-text="TALADRO MULTIPLOS" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xxmzmn6e')">
-        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">TALADRO MULTIPLOS</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 34 registro(s) · 3 columna(s)</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_x413fsgb" data-pd-search-text="NOMENCLATURA DE MATERIALES" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_x413fsgb')">
-        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">NOMENCLATURA DE MATERIALES</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 39 registro(s) · 4 columna(s)</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_x30ec00p" data-pd-search-text="FICHA TECNICA PEGAMENTO RESINA" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_x30ec00p')">
-        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA PEGAMENTO RESINA</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · FICHA TECNICA PEGAMENTO RESINA.pdf</span>
-        </span>
-      </button>
-      
-    </div>
-    <div data-pd-submodule-id="sm_x9usj31y" data-pd-search-text="FICHA TECNICA CORR INF CIERRE LENTO" style="align-items: stretch; gap: 6px; display: none;">
-      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_x9usj31y')">
-        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
-        <span style="display:flex; flex-direction:column; align-items:flex-start;">
-          <span style="font-weight:700;">FICHA TECNICA CORR INF CIERRE LENTO</span>
-          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · FICHA TECNICA CORR INF CIERRE LENTO.pdf</span>
-        </span>
-      </button>
-      
-    </div></div>
+        <div id="pd-submodule-list" style="display:flex; flex-direction:column; gap:8px;"></div>
       </div>
 
       <div id="pd-table-view" style="display:none;">
@@ -1040,7 +761,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
-<!-- Crear/editar apartado de Procesos de Diseño -->
+<!-- Modal Crear/editar apartado -->
 <div class="modal-bg" id="modal-pd-submodule">
   <div class="modal">
     <div class="modal-header">
@@ -1066,7 +787,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
-<!-- Modal: Variantes IUP -->
+<!-- Modal Variantes IUP -->
 <div class="modal-bg" id="modal-iup">
   <div class="modal" style="width:400px">
     <div class="modal-header">
@@ -1098,7 +819,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
-<!-- PDF Report Container (Hidden) -->
+<!-- PDF Report Container -->
 <div id="pdf-report-container"></div>
 
 <!-- Modal Editar Cabecera de Nave -->
@@ -1128,7 +849,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
-<!-- MODAL: Pendientes Generales -->
+<!-- MODAL Pendientes Generales -->
 <div class="modal-bg" id="modal-pg">
   <div class="modal">
     <div class="modal-header">
@@ -1154,6 +875,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
+<!-- Modal Item -->
 <div class="modal-bg" id="modal-item">
   <div class="modal">
     <div class="modal-header">
@@ -1257,7 +979,7 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
   </div>
 </div>
 
-<!-- Modal: Guardar en GitHub -->
+<!-- Modal Guardar en GitHub -->
 <div class="modal-bg" id="modal-github">
   <div class="modal" style="width:460px">
     <div class="modal-header">

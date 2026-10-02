@@ -1703,7 +1703,8 @@ function renderPdSubmoduleList() {
     const subtitle = isExcel
       ? `Excel · ${sm.rows.length} registro(s) · ${sm.headers.length} columna(s)`
       : `PDF · ${sm.pdfContent ? (sm.pdfName || 'archivo cargado') : 'sin archivo todavía'}`;
-   <div data-pd-submodule-id="${sm.id}" data-pd-search-text="${escHtml(sm.label)}" style="display:flex; align-items:stretch; gap:6px; ${busy ? 'opacity:0.55;' : ''}">
+    return `
+    <div data-pd-submodule-id="${sm.id}" data-pd-search-text="${escHtml(sm.label)}" style="display:flex; align-items:stretch; gap:6px; ${busy ? 'opacity:0.55;' : ''}">
       <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('${sm.id}')" ${busy ? 'disabled' : ''}>
         <i class="ti ${icon}" style="font-size:18px; margin-right:6px;"></i>
         <span style="display:flex; flex-direction:column; align-items:flex-start;">
@@ -1717,7 +1718,8 @@ function renderPdSubmoduleList() {
       ` : ''}
     </div>`;
   }).join('');
-// Refrescar el filtro del buscador (si hay texto escrito)
+
+  // Refrescar el filtro del buscador (si hay texto escrito)
   try { filterPdSubmodules(); } catch (e) {}
 }
 

@@ -1,6 +1,6 @@
 function isAdminSafe() {
-      return (typeof isAdmin === 'function') && isAdmin();
-    }
+  return (typeof isAdmin === 'function') && isAdmin();
+}
 
 document.getElementById('current-date').textContent = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
@@ -132,6 +132,338 @@ function formatDateEs(s){
   const p=String(s).split('-');
   return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:s;
 }
+
+/* ============================================================
+   EDITOR DE TEXTO ENRIQUECIDO (RTE)
+   ============================================================ */
+
+const RTE_ALLOWED_TAGS = new Set(['STRONG', 'B', 'EM', 'I', 'U', 'BR', 'DIV', 'P']);
+const RTE_TAG_MAP = { 'B': 'strong', 'I': 'em' };
+
+function sanitizeRichHTML(html) {
+  if (html == null) return '';
+  const src = String(html);
+  if (!/[<>]/.test(src)) return src;
+  try {
+    const doc = new DOMParser().parseFromString('<div>' + src + '</div>', 'text/html');
+    const root = doc.body.firstChild;
+
+    const walk = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.nodeValue);
+      if (node.nodeType !== Node.ELEMENT_NODE) return null;
+      const tag = node.tagName.toUpperCase();
+      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'IFRAME' ||
+          tag === 'OBJECT' || tag === 'EMBED' || tag === 'LINK' ||
+          tag === 'META' || tag === 'HEAD' || tag === 'TITLE') return null;
+      if (tag === 'BR') return document.createElement('br');
+      if (tag === 'DIV' || tag === 'P') {
+        const el = document.createElement('div');
+        node.childNodes.forEach(ch => {
+          const clean = walk(ch);
+          if (clean) el.appendChild(clean);
+        });
+        return el;
+      }
+      if (RTE_ALLOWED_TAGS.has(tag)) {
+        const outTag = RTE_TAG_MAP[tag] || tag.toLowerCase();
+        const el = document.createElement(outTag);
+        node.childNodes.forEach(ch => {
+          const clean = walk(ch);
+          if (clean) el.appendChild(clean);
+        });
+        return el;
+      }
+      const frag = document.createDocumentFragment();
+      node.childNodes.forEach(ch => {
+        const clean = walk(ch);
+        if (clean) frag.appendChild(clean);
+      });
+      return frag;
+    };
+
+    const out = document.createElement('div');
+    root.childNodes.forEach(ch => {
+      const clean = walk(ch);
+      if (clean) out.appendChild(clean);
+    });
+    return out.innerHTML;
+  } catch (e) {
+    console.warn('sanitizeRichHTML error:', e);
+    return String(src).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+}
+
+function hasRichHTML(str) {
+  if (!str) return false;
+  return /<(strong|b|em|i|u|br|div)[\s>]/i.test(String(str));
+}
+
+function stripHTML(html) {
+  if (!html) return '';
+  if (!hasRichHTML(html)) return String(html);
+  try {
+    const doc = new DOMParser().parseFromString(
+      '<div>' + String(html).replace(/<br\s*\/?>/gi, '\n').replace(/<\/(div|p)>/gi, '\n') + '</div>',
+      'text/html'
+    );
+    let text = doc.body.textContent || '';
+    return text.replace(/\n{3,}/g, '\n\n').trim();
+  } catch (e) {
+    return String(html).replace(/<[^>]*>/g, '');
+  }
+}
+
+function renderDescripcion(desc) {
+  if (desc == null) return '';
+  const s = String(desc);
+  if (!s) return '';
+  if (hasRichHTML(s)) {
+    return sanitizeRichHTML(s);
+  }
+  return escHtml(s).replace(/\n/g, '<br>');
+}
+
+let _rteCaseMenuEl = null;
+let _rteCaseTarget = null;
+
+function _rteEnsureCaseMenu() {
+  if (_rteCaseMenuEl) return _rteCaseMenuEl;
+  const menu = document.createElement('div');
+  menu.className = 'rte-case-menu';
+  menu.innerHTML = `
+    <button type="button" data-case="upper"><i class="ti ti-letter-case-upper"></i> MAYÚSCULAS</button>
+    <button type="button" data-case="lower"><i class="ti ti-letter-case-lower"></i> minúsculas</button>
+    <button type="button" data-case="sentence"><i class="ti ti-letter-case"></i> Tipo oración</button>
+  `;
+  menu.addEventListener('mousedown', (e) => e.preventDefault());
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-case]');
+    if (!btn) return;
+    const mode = btn.getAttribute('data-case');
+    if (_rteCaseTarget) aplicarCaseAlEditor(_rteCaseTarget, mode);
+    menu.classList.remove('open');
+    _rteCaseTarget = null;
+  });
+  document.body.appendChild(menu);
+  _rteCaseMenuEl = menu;
+  return menu;
+}
+
+function _rteAbrirCaseMenu(anchorBtn, editorEl) {
+  const menu = _rteEnsureCaseMenu();
+  const rect = anchorBtn.getBoundingClientRect();
+  menu.classList.add('open');
+  const menuRect = menu.getBoundingClientRect();
+  let left = rect.left;
+  let top = rect.bottom + 4;
+  if (left + menuRect.width > window.innerWidth - 8) {
+    left = window.innerWidth - menuRect.width - 8;
+  }
+  if (top + menuRect.height > window.innerHeight - 8) {
+    top = rect.top - menuRect.height - 4;
+  }
+  menu.style.left = Math.max(8, left) + 'px';
+  menu.style.top = Math.max(8, top) + 'px';
+  _rteCaseTarget = editorEl;
+}
+
+document.addEventListener('click', (e) => {
+  if (!_rteCaseMenuEl) return;
+  if (!_rteCaseMenuEl.classList.contains('open')) return;
+  if (_rteCaseMenuEl.contains(e.target)) return;
+  if (e.target.closest('.rte-btn[data-action="case"]')) return;
+  _rteCaseMenuEl.classList.remove('open');
+  _rteCaseTarget = null;
+});
+window.addEventListener('scroll', () => {
+  if (_rteCaseMenuEl && _rteCaseMenuEl.classList.contains('open')) {
+    _rteCaseMenuEl.classList.remove('open');
+    _rteCaseTarget = null;
+  }
+}, true);
+
+function aplicarCaseAlEditor(editor, mode) {
+  if (!editor) return;
+  editor.focus();
+  const sel = window.getSelection();
+  const hasSel = sel && sel.rangeCount > 0 && !sel.isCollapsed &&
+                 editor.contains(sel.getRangeAt(0).commonAncestorContainer);
+
+  const transform = (t) => {
+    if (mode === 'upper') return t.toLocaleUpperCase('es-MX');
+    if (mode === 'lower') return t.toLocaleLowerCase('es-MX');
+    if (mode === 'sentence') {
+      const lower = t.toLocaleLowerCase('es-MX');
+      return lower.replace(/(^\s*[a-záéíóúñü]|(?:[.!?]\s+)[a-záéíóúñü])/g,
+        (m) => m.toLocaleUpperCase('es-MX'));
+    }
+    return t;
+  };
+
+  if (hasSel) {
+    const range = sel.getRangeAt(0);
+    const texto = range.toString();
+    if (!texto) return;
+    const nuevo = transform(texto);
+    range.deleteContents();
+    range.insertNode(document.createTextNode(nuevo));
+    sel.removeAllRanges();
+    const newRange = document.createRange();
+    newRange.selectNodeContents(editor);
+    newRange.collapse(false);
+    sel.addRange(newRange);
+  } else {
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null);
+    let n;
+    while ((n = walker.nextNode())) {
+      n.nodeValue = transform(n.nodeValue);
+    }
+  }
+  editor.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function _rteSyncToolbarState(editor, toolbar) {
+  if (!editor || !toolbar) return;
+  const tryState = (cmd) => {
+    try { return document.queryCommandState(cmd); } catch (e) { return false; }
+  };
+  toolbar.querySelectorAll('.rte-btn[data-cmd]').forEach(btn => {
+    const cmd = btn.getAttribute('data-cmd');
+    btn.classList.toggle('rte-btn-active', tryState(cmd));
+  });
+}
+
+function _rteExec(editor, cmd, value) {
+  if (!editor) return;
+  editor.focus();
+  try {
+    document.execCommand('styleWithCSS', false, false);
+  } catch (e) {}
+  document.execCommand(cmd, false, value || null);
+  editor.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function _rteCleanPaste(editor, htmlOrText, isHTML) {
+  let htmlLimpio = '';
+  if (isHTML) {
+    htmlLimpio = sanitizeRichHTML(htmlOrText);
+  } else {
+    htmlLimpio = escHtml(htmlOrText).replace(/\n/g, '<br>');
+  }
+  document.execCommand('insertHTML', false, htmlLimpio);
+  editor.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function _rteBuildToolbar(editor, toolbar) {
+  if (!toolbar) return;
+  toolbar.innerHTML = '';
+
+  const btn = (title, iconClass, opts) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'rte-btn';
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    b.innerHTML = `<i class="${iconClass}"></i>`;
+    if (opts && opts.cmd) b.setAttribute('data-cmd', opts.cmd);
+    if (opts && opts.action) b.setAttribute('data-action', opts.action);
+    b.addEventListener('mousedown', (e) => e.preventDefault());
+    return b;
+  };
+
+  const sep = () => {
+    const s = document.createElement('span');
+    s.className = 'rte-sep';
+    return s;
+  };
+
+  const bB = btn('Negrita (Ctrl+B)', 'ti ti-bold', { cmd: 'bold' });
+  const bI = btn('Cursiva (Ctrl+I)', 'ti ti-italic', { cmd: 'italic' });
+  const bU = btn('Subrayado (Ctrl+U)', 'ti ti-underline', { cmd: 'underline' });
+
+  bB.addEventListener('click', () => _rteExec(editor, 'bold'));
+  bI.addEventListener('click', () => _rteExec(editor, 'italic'));
+  bU.addEventListener('click', () => _rteExec(editor, 'underline'));
+
+  toolbar.appendChild(bB);
+  toolbar.appendChild(bI);
+  toolbar.appendChild(bU);
+  toolbar.appendChild(sep());
+
+  const bCase = btn('Cambiar mayúsculas/minúsculas', 'ti ti-letter-case', { action: 'case' });
+  bCase.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    _rteAbrirCaseMenu(bCase, editor);
+  });
+  toolbar.appendChild(bCase);
+  toolbar.appendChild(sep());
+
+  const bUndo = btn('Deshacer (Ctrl+Z)', 'ti ti-arrow-back-up', { action: 'undo' });
+  const bRedo = btn('Rehacer (Ctrl+Y)', 'ti ti-arrow-forward-up', { action: 'redo' });
+  bUndo.addEventListener('click', () => _rteExec(editor, 'undo'));
+  bRedo.addEventListener('click', () => _rteExec(editor, 'redo'));
+  toolbar.appendChild(bUndo);
+  toolbar.appendChild(bRedo);
+
+  const sync = () => _rteSyncToolbarState(editor, toolbar);
+  editor.addEventListener('keyup', sync);
+  editor.addEventListener('mouseup', sync);
+  editor.addEventListener('focus', sync);
+  editor.addEventListener('input', sync);
+  document.addEventListener('selectionchange', () => {
+    if (document.activeElement === editor) sync();
+  });
+
+  editor.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const cd = e.clipboardData || window.clipboardData;
+    if (!cd) return;
+    const html = cd.getData('text/html');
+    const text = cd.getData('text/plain');
+    if (html) {
+      _rteCleanPaste(editor, html, true);
+    } else {
+      _rteCleanPaste(editor, text || '', false);
+    }
+  });
+
+  editor.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const text = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || '';
+    if (text) _rteCleanPaste(editor, text, false);
+  });
+  editor.addEventListener('dragover', (e) => e.preventDefault());
+}
+
+function attachRichEditor(editor, toolbar) {
+  if (!editor || editor.dataset.rteReady === '1') return;
+  editor.dataset.rteReady = '1';
+  _rteBuildToolbar(editor, toolbar);
+}
+
+function initAllRichEditors() {
+  document.querySelectorAll('.rte-wrap').forEach(wrap => {
+    const toolbar = wrap.querySelector('.rte-toolbar');
+    const editor = wrap.querySelector('.rte-editor');
+    if (toolbar && editor) attachRichEditor(editor, toolbar);
+  });
+}
+
+function setEditorContent(editorId, value) {
+  const editor = document.getElementById(editorId);
+  if (!editor) return;
+  const html = renderDescripcion(value);
+  editor.innerHTML = html || '';
+}
+
+function getEditorContent(editorId) {
+  const editor = document.getElementById(editorId);
+  if (!editor) return '';
+  const raw = editor.innerHTML || '';
+  return sanitizeRichHTML(raw).trim();
+}
+
 /* ============================================================
    NOTIFICACIÓN FLOTANTE (TOAST)
    ============================================================ */
@@ -231,9 +563,9 @@ function validatePassword() {
 }
 
 function openManageAccess() {
-      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede administrar accesos.'); return; }
-      ensureAccessPasswords();
-      renderAccessList();
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede administrar accesos.'); return; }
+  ensureAccessPasswords();
+  renderAccessList();
   document.getElementById('new-access-password').value = '';
   document.getElementById('modal-manage-access').classList.add('open');
 }
@@ -287,7 +619,6 @@ function toggleProceso(naveId, itemId, field, el, event) {
     if(!item.proceso) item.proceso = { habilitado: false, planos: false, etiquetas: false, planoTerminado: false };
     item.proceso[field] = !item.proceso[field];
 
-    // NUEVO: registrar quién hizo esta modificación
     const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
     if (_user) {
       item.modifiedBy = _user.username;
@@ -314,7 +645,6 @@ function toggleCancelado(naveId, itemId, event) {
     item.cancelado = false;
   }
 
-  // NUEVO: registrar quién canceló o reactivó
   const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
   if (_user) {
     item.modifiedBy = _user.username;
@@ -368,7 +698,6 @@ function subirAdjunto(event, naveId, itemId, idx) {
         if(!item.adjuntos) item.adjuntos = ["","","","",""];
         item.adjuntos[idx] = await compressImageDataUrl(e.target.result);
 
-        // NUEVO: registrar quién subió la imagen
         const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
         if (_user) {
           item.modifiedBy = _user.username;
@@ -392,7 +721,6 @@ function eliminarAdjunto(event, naveId, itemId, idx) {
     if(item && item.adjuntos) {
       item.adjuntos[idx] = "";
 
-      // NUEVO: registrar quién eliminó la imagen
       const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
       if (_user) {
         item.modifiedBy = _user.username;
@@ -474,7 +802,10 @@ function openAddPG() {
   setEditorContent('pg-desc', '');
   document.getElementById('modal-pg-h').textContent = 'Agregar Pendiente General';
   document.getElementById('modal-pg').classList.add('open');
-  setTimeout(() => document.getElementById('pg-title').focus(), 100);
+  setTimeout(() => {
+    document.getElementById('pg-title').focus();
+    if (typeof initAllRichEditors === 'function') initAllRichEditors();
+  }, 100);
 }
 
 function renderAdjuntosPG(pg) {
@@ -587,7 +918,7 @@ function savePG() {
   if (!isEditableMode) return;
   const id = document.getElementById('pg-edit-id').value;
   const title = document.getElementById('pg-title').value.trim();
-   const desc = getEditorContent('pg-desc');
+  const desc = getEditorContent('pg-desc');
   
   if (!title || !desc) {
       alert("⚠️ Título y Descripción son obligatorios.");
@@ -625,12 +956,15 @@ function editPG(id) {
   setEditorContent('pg-desc', pg.desc);
   document.getElementById('modal-pg-h').textContent = 'Editar Pendiente General';
   document.getElementById('modal-pg').classList.add('open');
+  setTimeout(() => {
+    if (typeof initAllRichEditors === 'function') initAllRichEditors();
+  }, 100);
 }
 
 function deletePG(id) {
-      if (!isEditableMode) return;
-      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar pendientes generales.'); return; }
-      if (!confirm('¿Eliminar este pendiente general permanentemente?')) return;
+  if (!isEditableMode) return;
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar pendientes generales.'); return; }
+  if (!confirm('¿Eliminar este pendiente general permanentemente?')) return;
   data.pendientesGenerales = data.pendientesGenerales.filter(p => p.id !== id);
   renderPG();
 }
@@ -782,33 +1116,33 @@ function filterItems(){
 function escRegex(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function highlightText(str, rawQ){
-     const plain = hasRichHTML(str) ? stripHTML(str) : String(str || '');
-     const escaped = escHtml(plain);
-     if(!rawQ) return escaped;
-     const re = new RegExp('(' + escRegex(escHtml(rawQ)) + ')', 'gi');
-     return escaped.replace(re, '<mark class="search-highlight">$1</mark>');
-   }
+  const plain = hasRichHTML(str) ? stripHTML(str) : String(str || '');
+  const escaped = escHtml(plain);
+  if(!rawQ) return escaped;
+  const re = new RegExp('(' + escRegex(escHtml(rawQ)) + ')', 'gi');
+  return escaped.replace(re, '<mark class="search-highlight">$1</mark>');
+}
 
- function applyHighlight(itemCard, rawQ){
-     ['.item-title-text', '.item-desc-text'].forEach(sel=>{
-       const el = itemCard.querySelector(sel);
-       if(!el) return;
-       if(el.dataset.rawHtml === undefined){
-         el.dataset.rawHtml = el.innerHTML;
-       }
-       const plain = stripHTML(el.dataset.rawHtml);
-       el.innerHTML = highlightText(plain, rawQ);
-     });
-   }
+function applyHighlight(itemCard, rawQ){
+  ['.item-title-text', '.item-desc-text'].forEach(sel=>{
+    const el = itemCard.querySelector(sel);
+    if(!el) return;
+    if(el.dataset.rawHtml === undefined){
+      el.dataset.rawHtml = el.innerHTML;
+    }
+    const plain = stripHTML(el.dataset.rawHtml);
+    el.innerHTML = highlightText(plain, rawQ);
+  });
+}
 
 function clearHighlight(itemCard){
-     ['.item-title-text', '.item-desc-text'].forEach(sel=>{
-       const el = itemCard.querySelector(sel);
-       if(el && el.dataset.rawHtml !== undefined){
-         el.innerHTML = el.dataset.rawHtml;
-       }
-     });
-   }
+  ['.item-title-text', '.item-desc-text'].forEach(sel=>{
+    const el = itemCard.querySelector(sel);
+    if(el && el.dataset.rawHtml !== undefined){
+      el.innerHTML = el.dataset.rawHtml;
+    }
+  });
+}
 
 function clearSearch(){
   document.getElementById('search-input').value='';
@@ -866,9 +1200,9 @@ function renderItemCard(item, naveId){
         </div>
         <input class="edit-title-input" id="et-${item.id}" value="${escHtml(item.title)}" />
         <div class="rte-wrap" data-rte-target="ed-${item.id}">
-     <div class="rte-toolbar" role="toolbar" aria-label="Formato de texto"></div>
-     <div class="rte-editor" id="ed-${item.id}" contenteditable="true" data-placeholder="Descripción del cambio..." spellcheck="true" lang="es-MX">${renderDescripcion(item.desc)}</div>
-   </div>
+          <div class="rte-toolbar" role="toolbar" aria-label="Formato de texto"></div>
+          <div class="rte-editor" id="ed-${item.id}" contenteditable="true" data-placeholder="Descripción del cambio..." spellcheck="true" lang="es-MX">${renderDescripcion(item.desc)}</div>
+        </div>
         <div class="edit-actions">
           <button class="btn btn-sm btn-green" onclick="saveEdit('${naveId}','${item.id}')"><i class="ti ti-check"></i> Guardar</button>
           <button class="btn btn-sm" onclick="cancelEdit()"><i class="ti ti-x"></i> Cancelar</button>
@@ -1028,7 +1362,6 @@ function renderNave(nave, index, total){
   const modelsHtml=nave.models.map((m,idx)=>{
     let linkBtn = '';
     if(m.link) {
-        const rawLink = escHtml(m.link.trim());
         linkBtn = `<button class="model-link-btn" title="Abrir enlace" onclick='abrirEnlaceModelo(${JSON.stringify(m.link.trim())}, event)' style="color:var(--navy); background:none; border:none; cursor:pointer; padding:0; margin-right:4px; display:flex; align-items:center;"><i class="ti ti-link"></i></button>`;
     }
     
@@ -1066,7 +1399,7 @@ function renderNave(nave, index, total){
     <div class="section-block">
       <div class="section-header">
         <span class="section-pill pill-mejora"><i class="ti ti-sparkles" style="font-size:13px"></i> Reporte de mejoras</span>
-        <button class="btn btn-xs btn-ghost scholarly only-editable" onclick="openAddItem('${nave.id}','mejora')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
+        <button class="btn btn-xs btn-ghost only-editable" onclick="openAddItem('${nave.id}','mejora')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
       </div>
       ${mejoras.length?renderItemsRow(mejoras, nave.id):'<div class="empty-section">Sin mejoras registradas.</div>'}
     </div>`:''
@@ -1461,13 +1794,13 @@ function exportarExcel(){
           let dateStr = '';
           if (pg.createdAt) dateStr = new Date(pg.createdAt).toLocaleDateString('es-MX');
           const descPlano = stripHTML(pg.desc || '');
-   filas.push({
-       'FECHA': dateStr,
-       'ITEM': 'PENDIENTE GENERAL',
-       'ODT': '',
-       'CAMBIO': pg.title + (descPlano ? (' - ' + descPlano) : ''),
-       'ESTATUS': 'GENERAL'
-   });
+          filas.push({
+              'FECHA': dateStr,
+              'ITEM': 'PENDIENTE GENERAL',
+              'ODT': '',
+              'CAMBIO': pg.title + (descPlano ? (' - ' + descPlano) : ''),
+              'ESTATUS': 'GENERAL'
+          });
       });
   }
 
@@ -1477,10 +1810,10 @@ function exportarExcel(){
     const modelos = (nave.models && nave.models.length) ? nave.models : [{name:''}];
 
     [...errores, ...mejoras].forEach(item=>{
-     const proc = item.proceso || {};
-     const descPlano = stripHTML(item.desc || '');
-     const cambio = item.title + (descPlano ? (' - ' + descPlano) : '');
-     const estatus = proc.planoTerminado ? 'TERMINADO' : 'PENDIENTE';
+      const proc = item.proceso || {};
+      const descPlano = stripHTML(item.desc || '');
+      const cambio = item.title + (descPlano ? (' - ' + descPlano) : '');
+      const estatus = proc.planoTerminado ? 'TERMINADO' : 'PENDIENTE';
 
       modelos.forEach(m=>{
         filas.push({
@@ -1608,7 +1941,6 @@ function openProcesosDiseno() {
   document.getElementById('modal-procesos-diseno').classList.add('open');
   setPdStatus('');
   pdCurrentSubmoduleId = null;
-  // Resetear el buscador cada vez que se abre el modal
   const inp = document.getElementById('pd-search-input');
   if (inp) inp.value = '';
   const clearBtn = document.getElementById('pd-search-clear');
@@ -1660,9 +1992,6 @@ function renderPdView() {
 
 const pdSubmoduleOpInProgress = new Set();
 
-/* ============================================================
-   BUSCADOR DE APARTADOS EN "PROCESOS DE DISEÑO"
-   ============================================================ */
 function filterPdSubmodules() {
   const inp = document.getElementById('pd-search-input');
   const clearBtn = document.getElementById('pd-search-clear');
@@ -1731,7 +2060,6 @@ function renderPdSubmoduleList() {
     </div>`;
   }).join('');
 
-  // Refrescar el filtro del buscador (si hay texto escrito)
   try { filterPdSubmodules(); } catch (e) {}
 }
 
@@ -1862,11 +2190,11 @@ async function updatePdSubmodule(id, name, type) {
 }
 
 async function deletePdSubmodule(id) {
-      if (!isEditableMode) return;
-      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar apartados.'); return; }
-      if (pdSubmoduleOpInProgress.has(id)) return;
-      const sm = getPdSubmodule(id);
-      if (!sm) return;
+  if (!isEditableMode) return;
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar apartados.'); return; }
+  if (pdSubmoduleOpInProgress.has(id)) return;
+  const sm = getPdSubmodule(id);
+  if (!sm) return;
   const contentDesc = sm.type === 'pdf' ? (sm.pdfContent ? 'su archivo PDF' : 'ningún archivo todavía') : `sus ${sm.rows.length} registro(s)`;
   if (!confirm(`¿ELIMINAR EL APARTADO "${sm.label.toUpperCase()}"? Se perderá ${contentDesc}.`)) return;
 
@@ -2158,9 +2486,9 @@ function downloadPdPdf() {
 }
 
 async function deletePdPdf() {
-      if (!isEditableMode) return;
-      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar PDFs.'); return; }
-      const sm = getPdSubmodule(pdCurrentSubmoduleId);
+  if (!isEditableMode) return;
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar PDFs.'); return; }
+  const sm = getPdSubmodule(pdCurrentSubmoduleId);
 
   if (!sm || !sm.pdfContent) return;
   if (!confirm('¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTE PDF?')) return;
@@ -2438,11 +2766,11 @@ function mergeData(importedData) {
 }
 
 function startEdit(itemId){
-     if (!isEditableMode) return;
-     editingItemId=itemId;
-     render();
-     if (typeof initAllRichEditors === 'function') initAllRichEditors();
-   }
+  if (!isEditableMode) return;
+  editingItemId=itemId;
+  render();
+  if (typeof initAllRichEditors === 'function') initAllRichEditors();
+}
 
 function cancelEdit(){
   editingItemId=null;
@@ -2546,6 +2874,9 @@ function openAddItem(naveId,defaultCat){
   updateSubCatDropdown(newCat, 'new-item-subcat');
   
   document.getElementById('modal-item').classList.add('open');
+  setTimeout(() => {
+    if (typeof initAllRichEditors === 'function') initAllRichEditors();
+  }, 100);
 }
 function selectCat(el,val){
   newCat=val;
@@ -2587,20 +2918,20 @@ function saveItem(){
   closeModal('modal-item');render();
 }
 
- function removeNave(id){
-      if (!isEditableMode) return;
-      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar muebles.'); return; }
-      if(!confirm('¿Eliminar este mueble?'))return;
-      data.naves = data.naves.filter(n => n.id !== id);
-      render();
-    }
+function removeNave(id){
+  if (!isEditableMode) return;
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar muebles.'); return; }
+  if(!confirm('¿Eliminar este mueble?'))return;
+  data.naves = data.naves.filter(n => n.id !== id);
+  render();
+}
 
-    function removeItem(naveId, itemId){
-      if (!isEditableMode) return;
-      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar cambios.'); return; }
-      const nave = data.naves.find(n => n.id === naveId);
-      if(nave) { nave.items = nave.items.filter(i => i.id !== itemId); render(); }
-    }
+function removeItem(naveId, itemId){
+  if (!isEditableMode) return;
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar cambios.'); return; }
+  const nave = data.naves.find(n => n.id === naveId);
+  if(nave) { nave.items = nave.items.filter(i => i.id !== itemId); render(); }
+}
 
 function openAddNave(){
   if (!isEditableMode) return;
@@ -2889,15 +3220,8 @@ function exportPDFStatic(name) {
 }
 
 /* ============================================================
-   CONFIGURACIÓN DE GITHUB (ÚNICA, COMPARTIDA POR TODOS LOS USUARIOS)
-   ============================================================
-   - Hay UN SOLO token/repo/ruta/rama para toda la app.
-   - Se configura una vez con cualquier usuario (típicamente javier.c)
-     y queda disponible para todos los usuarios logueados.
-   - La etiqueta del commit en GitHub usa el USUARIO LOGUEADO en ese
-     momento (no el dueño del token).
+   CONFIGURACIÓN DE GITHUB
    ============================================================ */
-
 const GH_CONFIG_KEY = 'reporte_produccion_gh_config';
 
 function getGhConfigActiveUsername() {
@@ -2908,7 +3232,6 @@ function getGhConfigActiveUsername() {
   return null;
 }
 
-// La config es única y global.
 function loadGithubConfig() {
   try {
     const raw = localStorage.getItem(GH_CONFIG_KEY);
@@ -2927,9 +3250,6 @@ function clearGithubConfig() {
   localStorage.removeItem(GH_CONFIG_KEY);
 }
 
-// Hook que usuarios.js llama al iniciar/cerrar sesión.
-// Solo refresca el modal de GitHub si estaba abierto, para que muestre
-// la config actual. Ya no hay migración ni separación por usuario.
 window.onUserSessionChanged = function(username) {
   console.log('[GitHub Config] Usuario activo cambiado a:', username || '(anónimo)');
   const modal = document.getElementById('modal-github');
@@ -2954,7 +3274,6 @@ window.onUserSessionChanged = function(username) {
   }
 };
 
-// ⬅️ CLAVE: el mensaje de commit lleva el USUARIO LOGUEADO, no el del token.
 function ghCommitMessage(base) {
   const u = getGhConfigActiveUsername();
   if (!u) return base;
@@ -3128,9 +3447,6 @@ function extFromDataUri(uri) {
 async function pushToGithub() {
   commitPendingEditsBeforePush();
 
-  // Ya no se exige token propio. Se usa la config GLOBAL compartida.
-  // Solo se pide que el usuario haya iniciado sesión para poder
-  // etiquetar el commit con su nombre.
   const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
   if (!user) {
     const loginAhora = confirm(
@@ -3171,7 +3487,6 @@ async function pushToGithub() {
   }
 
   if (remember) {
-    // Se guarda en la clave GLOBAL compartida.
     saveGithubConfig({ repo, path, branch, token });
     setGithubStatus(
       sessionUser
@@ -3441,7 +3756,7 @@ async function pushToGithub() {
     timings.total = Math.round(performance.now() - t0);
     console.log('[GitHub Save] Usuario:', sessionUser, '| Tiempos hasta el error (ms):', timings);
 
-   const pareceFalloDeRed = (err instanceof TypeError) || !navigator.onLine;
+    const pareceFalloDeRed = (err instanceof TypeError) || !navigator.onLine;
     if (pareceFalloDeRed) {
       await saveOfflineSnapshot(data);
       setSyncStatusUI('pending');
@@ -3463,7 +3778,6 @@ async function pushToGithub() {
       })();
       setGithubStatus(`❌ No se pudo guardar.\n\n${detalle}${pista}`, 'error');
 
-      // Cartel corto para que se vea arriba sin obligarte a leer todo el modal
       let shortMsg = 'No se pudo guardar en GitHub.';
       if (/401/.test(detalle)) shortMsg = 'Token de GitHub inválido o expirado (401).';
       else if (/403/.test(detalle)) shortMsg = 'El token no tiene permisos suficientes (403).';
@@ -3487,8 +3801,8 @@ function base64ToUtf8(b64) {
 }
 
 function quickRevertGithub() {
-      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede restaurar versiones.'); return; }
-      const cfg = loadGithubConfig();
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede restaurar versiones.'); return; }
+  const cfg = loadGithubConfig();
   if (cfg && cfg.repo && cfg.path && cfg.token) {
     document.getElementById('gh-repo').value = cfg.repo;
     document.getElementById('gh-path').value = cfg.path;
@@ -3503,12 +3817,12 @@ function quickRevertGithub() {
 }
 
 async function revertToLastCommit() {
-      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede restaurar versiones.'); return; }
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede restaurar versiones.'); return; }
 
-      const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
-      const sessionUser = user ? user.username : '(anónimo)';
+  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  const sessionUser = user ? user.username : '(anónimo)';
 
-      const repo = normalizeRepoInput(document.getElementById('gh-repo').value);
+  const repo = normalizeRepoInput(document.getElementById('gh-repo').value);
   document.getElementById('gh-repo').value = repo;
   const path = document.getElementById('gh-path').value.trim().replace(/^\/+/, '');
   const branch = document.getElementById('gh-branch').value.trim() || 'main';
@@ -3617,9 +3931,8 @@ async function revertToLastCommit() {
 }
 
 /* ============================================================
-   EXPORTACIÓN OFFLINE (ZIP) — descubrimiento automático de recursos
+   EXPORTACIÓN OFFLINE (ZIP)
    ============================================================ */
-
 function isLocalAssetRef(url) {
   if (typeof url !== 'string') return false;
   const u = url.trim();
@@ -3782,7 +4095,7 @@ async function fetchRepoFileBlob(repo, branch, path, headers) {
     const rawUrl = `https://raw.githubusercontent.com/${repo}/${branch}/${path.split('/').map(encodeURIComponent).join('/')}`;
     const res = await fetch(rawUrl, { cache: 'no-store' });
     if (res.ok) return await res.blob();
-  } catch (e) { /* sigue al plan B */ }
+  } catch (e) { }
 
   const apiUrl = githubApiUrl(repo, path) + `?ref=${encodeURIComponent(branch)}`;
   const res2 = await fetch(apiUrl, { headers, cache: 'no-store' });
@@ -3820,100 +4133,100 @@ async function exportProjectZipFromRepo(zip, cfg, btn, report) {
 }
 
 async function exportProjectZip(name) {
-      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede descargar el repositorio.'); return; }
-      const btn = document.getElementById('export-btn');
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede descargar el repositorio.'); return; }
+  const btn = document.getElementById('export-btn');
   const originalText = btn.textContent;
   const report = { incluidos: [], faltantes: [], externosNoResueltos: [] };
 
   try {
-      if (typeof JSZip === 'undefined') {
-          alert('La librería JSZip no está cargada. Por favor revisa tu conexión a internet.');
-          return;
+    if (typeof JSZip === 'undefined') {
+      alert('La librería JSZip no está cargada. Por favor revisa tu conexión a internet.');
+      return;
+    }
+    const zip = new JSZip();
+    const clone = document.documentElement.cloneNode(true);
+    const cfg = loadGithubConfig();
+    let usedRepoMirror = false;
+
+    if (cfg && cfg.repo && cfg.token) {
+      try {
+        await exportProjectZipFromRepo(zip, cfg, btn, report);
+        usedRepoMirror = true;
+      } catch (err) {
+        console.error('No se pudo espejar el repositorio, se usa el respaldo por auditoría local:', err);
+        report.externosNoResueltos.push(`No se pudo listar el repositorio completo desde GitHub (${err.message}). Se usó como respaldo la detección automática desde lo que está cargado en este navegador, que puede no incluir archivos no referenciados.`);
       }
-      const zip = new JSZip();
-      const clone = document.documentElement.cloneNode(true);
-      const cfg = loadGithubConfig();
-      let usedRepoMirror = false;
+    }
 
-      if (cfg && cfg.repo && cfg.token) {
-        try {
-          await exportProjectZipFromRepo(zip, cfg, btn, report);
-          usedRepoMirror = true;
-        } catch (err) {
-          console.error('No se pudo espejar el repositorio, se usa el respaldo por auditoría local:', err);
-          report.externosNoResueltos.push(`No se pudo listar el repositorio completo desde GitHub (${err.message}). Se usó como respaldo la detección automática desde lo que está cargado en este navegador, que puede no incluir archivos no referenciados.`);
-        }
+    if (!usedRepoMirror) {
+      btn.textContent = 'Auditando recursos...';
+      const localPaths = new Set([
+        ...collectLocalAssetPathsFromDom(clone),
+        ...collectLocalAssetPathsFromData()
+      ]);
+
+      let cssText = '', jsText = '';
+      try { cssText = await (await fetch('css/styles.css', { cache: 'no-store' })).text(); } catch (e) { report.faltantes.push('css/styles.css: ' + e.message); }
+      try { jsText = await (await fetch('js/app.js', { cache: 'no-store' })).text(); } catch (e) { report.faltantes.push('js/app.js: ' + e.message); }
+      extractCssUrls(cssText).forEach(u => { if (isLocalAssetRef(u)) localPaths.add(normalizeAssetPath(u)); });
+      collectLocalAssetPathsFromJs(jsText).forEach(p => localPaths.add(p));
+
+      localPaths.delete('data/cambios.json');
+      localPaths.delete('data/modelos.json');
+
+      try {
+        const manifestText = await (await fetch('manifest.json', { cache: 'no-store' })).text();
+        const manifestJson = JSON.parse(manifestText);
+        (manifestJson.icons || []).forEach(ic => { if (isLocalAssetRef(ic.src)) localPaths.add(normalizeAssetPath(ic.src)); });
+      } catch (e) { report.faltantes.push('manifest.json: ' + e.message); }
+
+      let i = 0;
+      for (const path of localPaths) {
+        i++;
+        btn.textContent = `Empaquetando (${i}/${localPaths.size})...`;
+        await fetchAssetIntoZip(path, zip, report);
       }
+    }
 
-      if (!usedRepoMirror) {
-        btn.textContent = 'Auditando recursos...';
-        const localPaths = new Set([
-          ...collectLocalAssetPathsFromDom(clone),
-          ...collectLocalAssetPathsFromData()
-        ]);
+    btn.textContent = 'Resolviendo dependencias externas...';
+    await localizeExternalResourcesForZip(clone, zip, report);
 
-        let cssText = '', jsText = '';
-        try { cssText = await (await fetch('css/styles.css', { cache: 'no-store' })).text(); } catch (e) { report.faltantes.push('css/styles.css: ' + e.message); }
-        try { jsText = await (await fetch('js/app.js', { cache: 'no-store' })).text(); } catch (e) { report.faltantes.push('js/app.js: ' + e.message); }
-        extractCssUrls(cssText).forEach(u => { if (isLocalAssetRef(u)) localPaths.add(normalizeAssetPath(u)); });
-        collectLocalAssetPathsFromJs(jsText).forEach(p => localPaths.add(p));
+    const htmlString = buildProjectHTMLString(clone);
+    zip.file('index.html', htmlString);
 
-        localPaths.delete('data/cambios.json');
-        localPaths.delete('data/modelos.json');
+    zip.folder('data').file('cambios.json', JSON.stringify(data, null, 2));
+    zip.folder('data').file('modelos.json', JSON.stringify(modelosDB, null, 2));
+    report.incluidos.push('data/cambios.json (estado actual)', 'data/modelos.json (estado actual)');
 
-        try {
-          const manifestText = await (await fetch('manifest.json', { cache: 'no-store' })).text();
-          const manifestJson = JSON.parse(manifestText);
-          (manifestJson.icons || []).forEach(ic => { if (isLocalAssetRef(ic.src)) localPaths.add(normalizeAssetPath(ic.src)); });
-        } catch (e) { report.faltantes.push('manifest.json: ' + e.message); }
+    const reportTxt = [
+      `Snapshot offline generado: ${new Date().toLocaleString('es-MX')}`,
+      `Modo: ${usedRepoMirror ? 'Espejo completo del repositorio de GitHub' : 'Detección automática por referencias (sin GitHub configurado)'}`,
+      '',
+      `ARCHIVOS INCLUIDOS (${report.incluidos.length}):`,
+      ...report.incluidos.map(x => '  ✔ ' + x),
+      '',
+      `ARCHIVOS FALTANTES / RUTAS ROTAS (${report.faltantes.length}):`,
+      ...(report.faltantes.length ? report.faltantes.map(x => '  ✘ ' + x) : ['  (ninguno)']),
+      '',
+      `DEPENDENCIAS EXTERNAS NO RESUELTAS (${report.externosNoResueltos.length}):`,
+      ...(report.externosNoResueltos.length ? report.externosNoResueltos.map(x => '  ⚠ ' + x) : ['  (ninguna - todo quedó local)'])
+    ].join('\n');
+    zip.file('_reporte_offline.txt', reportTxt);
 
-        let i = 0;
-        for (const path of localPaths) {
-          i++;
-          btn.textContent = `Empaquetando (${i}/${localPaths.size})...`;
-          await fetchAssetIntoZip(path, zip, report);
-        }
-      }
+    btn.textContent = 'Generando ZIP...';
+    const content = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(content, name + '.zip', 'application/zip');
 
-      btn.textContent = 'Resolviendo dependencias externas...';
-      await localizeExternalResourcesForZip(clone, zip, report);
-
-      const htmlString = buildProjectHTMLString(clone);
-      zip.file('index.html', htmlString);
-
-      zip.folder('data').file('cambios.json', JSON.stringify(data, null, 2));
-      zip.folder('data').file('modelos.json', JSON.stringify(modelosDB, null, 2));
-      report.incluidos.push('data/cambios.json (estado actual)', 'data/modelos.json (estado actual)');
-
-      const reportTxt = [
-        `Snapshot offline generado: ${new Date().toLocaleString('es-MX')}`,
-        `Modo: ${usedRepoMirror ? 'Espejo completo del repositorio de GitHub' : 'Detección automática por referencias (sin GitHub configurado)'}`,
-        '',
-        `ARCHIVOS INCLUIDOS (${report.incluidos.length}):`,
-        ...report.incluidos.map(x => '  ✔ ' + x),
-        '',
-        `ARCHIVOS FALTANTES / RUTAS ROTAS (${report.faltantes.length}):`,
-        ...(report.faltantes.length ? report.faltantes.map(x => '  ✘ ' + x) : ['  (ninguno)']),
-        '',
-        `DEPENDENCIAS EXTERNAS NO RESUELTAS (${report.externosNoResueltos.length}):`,
-        ...(report.externosNoResueltos.length ? report.externosNoResueltos.map(x => '  ⚠ ' + x) : ['  (ninguna - todo quedó local)'])
-      ].join('\n');
-      zip.file('_reporte_offline.txt', reportTxt);
-
-      btn.textContent = 'Generando ZIP...';
-      const content = await zip.generateAsync({ type: 'blob' });
-      downloadBlob(content, name + '.zip', 'application/zip');
-
-      const resumen = `✅ Snapshot descargado: ${report.incluidos.length} archivo(s) incluidos.` +
-        (report.faltantes.length ? `\n⚠️ ${report.faltantes.length} archivo(s) no se pudieron incluir (revisa _reporte_offline.txt dentro del ZIP).` : '') +
-        (report.externosNoResueltos.length ? `\n⚠️ ${report.externosNoResueltos.length} dependencia(s) externa(s) no se pudieron volver locales (necesitarán internet la primera vez).` : '\n✔ Todas las dependencias quedaron locales, sin necesitar internet.');
-      alert(resumen);
+    const resumen = `✅ Snapshot descargado: ${report.incluidos.length} archivo(s) incluidos.` +
+      (report.faltantes.length ? `\n⚠️ ${report.faltantes.length} archivo(s) no se pudieron incluir (revisa _reporte_offline.txt dentro del ZIP).` : '') +
+      (report.externosNoResueltos.length ? `\n⚠️ ${report.externosNoResueltos.length} dependencia(s) externa(s) no se pudieron volver locales (necesitarán internet la primera vez).` : '\n✔ Todas las dependencias quedaron locales, sin necesitar internet.');
+    alert(resumen);
 
   } catch(err) {
-      console.error(err);
-      alert('Error al generar el archivo ZIP: ' + (err.message || err));
+    console.error(err);
+    alert('Error al generar el archivo ZIP: ' + (err.message || err));
   } finally {
-      btn.textContent = originalText;
+    btn.textContent = originalText;
   }
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');}
@@ -4169,11 +4482,6 @@ function coleccionParaCodigo(codigo){
   return modelosDBIndex.get(String(codigo||'').trim().toUpperCase()) || '';
 }
 
-// Inicializar datos y Firebase
-cargarDatosIniciales();
-initFirebaseMessaging();
-
-
 /* ---- MÓDULO: FICHAS TÉCNICAS ---- */
 function toggleFichasMenu(event) {
   if(event) event.stopPropagation();
@@ -4295,10 +4603,10 @@ async function deleteFileFromGithub(repo, repoPath, branch, headers, message) {
 }
 
 async function deleteFicha(id) {
-      if (!isEditableMode) return;
-      if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar fichas técnicas.'); return; }
-      if (fichaDeleteInProgress.has(id)) return;
-      const f = getFichaById(id);
+  if (!isEditableMode) return;
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar fichas técnicas.'); return; }
+  if (fichaDeleteInProgress.has(id)) return;
+  const f = getFichaById(id);
   if (!f) return;
 
   if (!confirm('¿ESTÁS SEGURO DE QUE DESEAS ELIMINAR ESTA FICHA TÉCNICA?')) return;
@@ -4483,18 +4791,17 @@ function updateSubCatDropdown(type, selectId) {
 
 document.addEventListener('click', function(e) {
   if (e.target.closest('.btn-ghost[title="Editar"]')) {
-      setTimeout(() => {
-          document.querySelectorAll('select[id^="ec-"]').forEach(sel => {
-              const id = sel.id.replace('ec-', 'esc-');
-              const currentVal = document.getElementById(id).value;
-              updateSubCatDropdown(sel.value, id);
-              const opts = Array.from(document.getElementById(id).options).map(o=>o.value);
-              if(opts.includes(currentVal)) document.getElementById(id).value = currentVal;
-          });
-      }, 50);
+    setTimeout(() => {
+      document.querySelectorAll('select[id^="ec-"]').forEach(sel => {
+        const id = sel.id.replace('ec-', 'esc-');
+        const currentVal = document.getElementById(id).value;
+        updateSubCatDropdown(sel.value, id);
+        const opts = Array.from(document.getElementById(id).options).map(o=>o.value);
+        if(opts.includes(currentVal)) document.getElementById(id).value = currentVal;
+      });
+    }, 50);
   }
 });
-
 
 let chartTipo, chartClasif, chartImpacto;
 
@@ -5159,9 +5466,6 @@ function iupAddSelected() {
 }
 
 async function quickSaveGithub() {
-  // ⬅️ Ya no exige sesión. La config es compartida.
-  //     Si hay config guardada, sube directo.
-  //     Si no, abre el modal para configurarla una sola vez.
   const cfg = loadGithubConfig();
   if (cfg && cfg.repo && cfg.path && cfg.token) {
     document.getElementById('gh-repo').value = cfg.repo;
@@ -5182,340 +5486,7 @@ async function quickSaveGithub() {
     openGithubModal();
   }
 }
-/* ============================================================
-   EDITOR DE TEXTO ENRIQUECIDO (RTE)
-   ============================================================ */
 
-const RTE_ALLOWED_TAGS = new Set(['STRONG', 'B', 'EM', 'I', 'U', 'BR', 'DIV', 'P']);
-const RTE_TAG_MAP = { 'B': 'strong', 'I': 'em' };
-
-function sanitizeRichHTML(html) {
-  if (html == null) return '';
-  const src = String(html);
-  if (!/[<>]/.test(src)) return src;
-  try {
-    const doc = new DOMParser().parseFromString('<div>' + src + '</div>', 'text/html');
-    const root = doc.body.firstChild;
-
-    const walk = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.nodeValue);
-      if (node.nodeType !== Node.ELEMENT_NODE) return null;
-      const tag = node.tagName.toUpperCase();
-      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'IFRAME' ||
-          tag === 'OBJECT' || tag === 'EMBED' || tag === 'LINK' ||
-          tag === 'META' || tag === 'HEAD' || tag === 'TITLE') return null;
-      if (tag === 'BR') return document.createElement('br');
-      if (tag === 'DIV' || tag === 'P') {
-        const el = document.createElement('div');
-        node.childNodes.forEach(ch => {
-          const clean = walk(ch);
-          if (clean) el.appendChild(clean);
-        });
-        return el;
-      }
-      if (RTE_ALLOWED_TAGS.has(tag)) {
-        const outTag = RTE_TAG_MAP[tag] || tag.toLowerCase();
-        const el = document.createElement(outTag);
-        node.childNodes.forEach(ch => {
-          const clean = walk(ch);
-          if (clean) el.appendChild(clean);
-        });
-        return el;
-      }
-      const frag = document.createDocumentFragment();
-      node.childNodes.forEach(ch => {
-        const clean = walk(ch);
-        if (clean) frag.appendChild(clean);
-      });
-      return frag;
-    };
-
-    const out = document.createElement('div');
-    root.childNodes.forEach(ch => {
-      const clean = walk(ch);
-      if (clean) out.appendChild(clean);
-    });
-    return out.innerHTML;
-  } catch (e) {
-    console.warn('sanitizeRichHTML error:', e);
-    return String(src).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-}
-
-function hasRichHTML(str) {
-  if (!str) return false;
-  return /<(strong|b|em|i|u|br|div)[\s>]/i.test(String(str));
-}
-
-function stripHTML(html) {
-  if (!html) return '';
-  if (!hasRichHTML(html)) return String(html);
-  try {
-    const doc = new DOMParser().parseFromString(
-      '<div>' + String(html).replace(/<br\s*\/?>/gi, '\n').replace(/<\/(div|p)>/gi, '\n') + '</div>',
-      'text/html'
-    );
-    let text = doc.body.textContent || '';
-    return text.replace(/\n{3,}/g, '\n\n').trim();
-  } catch (e) {
-    return String(html).replace(/<[^>]*>/g, '');
-  }
-}
-
-function renderDescripcion(desc) {
-  if (desc == null) return '';
-  const s = String(desc);
-  if (!s) return '';
-  if (hasRichHTML(s)) {
-    return sanitizeRichHTML(s);
-  }
-  return escHtml(s).replace(/\n/g, '<br>');
-}
-
-let _rteCaseMenuEl = null;
-let _rteCaseTarget = null;
-
-function _rteEnsureCaseMenu() {
-  if (_rteCaseMenuEl) return _rteCaseMenuEl;
-  const menu = document.createElement('div');
-  menu.className = 'rte-case-menu';
-  menu.innerHTML = `
-    <button type="button" data-case="upper"><i class="ti ti-letter-case-upper"></i> MAYÚSCULAS</button>
-    <button type="button" data-case="lower"><i class="ti ti-letter-case-lower"></i> minúsculas</button>
-    <button type="button" data-case="sentence"><i class="ti ti-letter-case"></i> Tipo oración</button>
-  `;
-  menu.addEventListener('mousedown', (e) => e.preventDefault());
-  menu.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-case]');
-    if (!btn) return;
-    const mode = btn.getAttribute('data-case');
-    if (_rteCaseTarget) aplicarCaseAlEditor(_rteCaseTarget, mode);
-    menu.classList.remove('open');
-    _rteCaseTarget = null;
-  });
-  document.body.appendChild(menu);
-  _rteCaseMenuEl = menu;
-  return menu;
-}
-
-function _rteAbrirCaseMenu(anchorBtn, editorEl) {
-  const menu = _rteEnsureCaseMenu();
-  const rect = anchorBtn.getBoundingClientRect();
-  menu.classList.add('open');
-  const menuRect = menu.getBoundingClientRect();
-  let left = rect.left;
-  let top = rect.bottom + 4;
-  if (left + menuRect.width > window.innerWidth - 8) {
-    left = window.innerWidth - menuRect.width - 8;
-  }
-  if (top + menuRect.height > window.innerHeight - 8) {
-    top = rect.top - menuRect.height - 4;
-  }
-  menu.style.left = Math.max(8, left) + 'px';
-  menu.style.top = Math.max(8, top) + 'px';
-  _rteCaseTarget = editorEl;
-}
-
-document.addEventListener('click', (e) => {
-  if (!_rteCaseMenuEl) return;
-  if (!_rteCaseMenuEl.classList.contains('open')) return;
-  if (_rteCaseMenuEl.contains(e.target)) return;
-  if (e.target.closest('.rte-btn[data-action="case"]')) return;
-  _rteCaseMenuEl.classList.remove('open');
-  _rteCaseTarget = null;
-});
-window.addEventListener('scroll', () => {
-  if (_rteCaseMenuEl && _rteCaseMenuEl.classList.contains('open')) {
-    _rteCaseMenuEl.classList.remove('open');
-    _rteCaseTarget = null;
-  }
-}, true);
-
-function aplicarCaseAlEditor(editor, mode) {
-  if (!editor) return;
-  editor.focus();
-  const sel = window.getSelection();
-  const hasSel = sel && sel.rangeCount > 0 && !sel.isCollapsed &&
-                 editor.contains(sel.getRangeAt(0).commonAncestorContainer);
-
-  const transform = (t) => {
-    if (mode === 'upper') return t.toLocaleUpperCase('es-MX');
-    if (mode === 'lower') return t.toLocaleLowerCase('es-MX');
-    if (mode === 'sentence') {
-      const lower = t.toLocaleLowerCase('es-MX');
-      return lower.replace(/(^\s*[a-záéíóúñü]|(?:[.!?]\s+)[a-záéíóúñü])/g,
-        (m) => m.toLocaleUpperCase('es-MX'));
-    }
-    return t;
-  };
-
-  if (hasSel) {
-    const range = sel.getRangeAt(0);
-    const texto = range.toString();
-    if (!texto) return;
-    const nuevo = transform(texto);
-    range.deleteContents();
-    range.insertNode(document.createTextNode(nuevo));
-    sel.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(editor);
-    newRange.collapse(false);
-    sel.addRange(newRange);
-  } else {
-    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null);
-    let n;
-    while ((n = walker.nextNode())) {
-      n.nodeValue = transform(n.nodeValue);
-    }
-  }
-  editor.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-function _rteSyncToolbarState(editor, toolbar) {
-  if (!editor || !toolbar) return;
-  const tryState = (cmd) => {
-    try { return document.queryCommandState(cmd); } catch (e) { return false; }
-  };
-  toolbar.querySelectorAll('.rte-btn[data-cmd]').forEach(btn => {
-    const cmd = btn.getAttribute('data-cmd');
-    btn.classList.toggle('rte-btn-active', tryState(cmd));
-  });
-}
-
-function _rteExec(editor, cmd, value) {
-  if (!editor) return;
-  editor.focus();
-  try {
-    document.execCommand('styleWithCSS', false, false);
-  } catch (e) {}
-  document.execCommand(cmd, false, value || null);
-  editor.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-function _rteCleanPaste(editor, htmlOrText, isHTML) {
-  let htmlLimpio = '';
-  if (isHTML) {
-    htmlLimpio = sanitizeRichHTML(htmlOrText);
-  } else {
-    htmlLimpio = escHtml(htmlOrText).replace(/\n/g, '<br>');
-  }
-  document.execCommand('insertHTML', false, htmlLimpio);
-  editor.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-function _rteBuildToolbar(editor, toolbar) {
-  if (!toolbar) return;
-  toolbar.innerHTML = '';
-
-  const btn = (title, iconClass, opts) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'rte-btn';
-    b.title = title;
-    b.setAttribute('aria-label', title);
-    b.innerHTML = `<i class="${iconClass}"></i>`;
-    if (opts && opts.cmd) b.setAttribute('data-cmd', opts.cmd);
-    if (opts && opts.action) b.setAttribute('data-action', opts.action);
-    b.addEventListener('mousedown', (e) => e.preventDefault());
-    return b;
-  };
-
-  const sep = () => {
-    const s = document.createElement('span');
-    s.className = 'rte-sep';
-    return s;
-  };
-
-  const bB = btn('Negrita (Ctrl+B)', 'ti ti-bold', { cmd: 'bold' });
-  const bI = btn('Cursiva (Ctrl+I)', 'ti ti-italic', { cmd: 'italic' });
-  const bU = btn('Subrayado (Ctrl+U)', 'ti ti-underline', { cmd: 'underline' });
-
-  bB.addEventListener('click', () => _rteExec(editor, 'bold'));
-  bI.addEventListener('click', () => _rteExec(editor, 'italic'));
-  bU.addEventListener('click', () => _rteExec(editor, 'underline'));
-
-  toolbar.appendChild(bB);
-  toolbar.appendChild(bI);
-  toolbar.appendChild(bU);
-  toolbar.appendChild(sep());
-
-  const bCase = btn('Cambiar mayúsculas/minúsculas', 'ti ti-letter-case', { action: 'case' });
-  bCase.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    _rteAbrirCaseMenu(bCase, editor);
-  });
-  toolbar.appendChild(bCase);
-  toolbar.appendChild(sep());
-
-  const bUndo = btn('Deshacer (Ctrl+Z)', 'ti ti-arrow-back-up', { action: 'undo' });
-  const bRedo = btn('Rehacer (Ctrl+Y)', 'ti ti-arrow-forward-up', { action: 'redo' });
-  bUndo.addEventListener('click', () => _rteExec(editor, 'undo'));
-  bRedo.addEventListener('click', () => _rteExec(editor, 'redo'));
-  toolbar.appendChild(bUndo);
-  toolbar.appendChild(bRedo);
-
-  const sync = () => _rteSyncToolbarState(editor, toolbar);
-  editor.addEventListener('keyup', sync);
-  editor.addEventListener('mouseup', sync);
-  editor.addEventListener('focus', sync);
-  editor.addEventListener('input', sync);
-  document.addEventListener('selectionchange', () => {
-    if (document.activeElement === editor) sync();
-  });
-
-  editor.addEventListener('paste', (e) => {
-    e.preventDefault();
-    const cd = e.clipboardData || window.clipboardData;
-    if (!cd) return;
-    const html = cd.getData('text/html');
-    const text = cd.getData('text/plain');
-    if (html) {
-      _rteCleanPaste(editor, html, true);
-    } else {
-      _rteCleanPaste(editor, text || '', false);
-    }
-  });
-
-  editor.addEventListener('drop', (e) => {
-    e.preventDefault();
-    const text = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || '';
-    if (text) _rteCleanPaste(editor, text, false);
-  });
-  editor.addEventListener('dragover', (e) => e.preventDefault());
-}
-
-function attachRichEditor(editor, toolbar) {
-  if (!editor || editor.dataset.rteReady === '1') return;
-  editor.dataset.rteReady = '1';
-  _rteBuildToolbar(editor, toolbar);
-}
-
-function initAllRichEditors() {
-  document.querySelectorAll('.rte-wrap').forEach(wrap => {
-    const toolbar = wrap.querySelector('.rte-toolbar');
-    const editor = wrap.querySelector('.rte-editor');
-    if (toolbar && editor) attachRichEditor(editor, toolbar);
-  });
-}
-
-function setEditorContent(editorId, value) {
-  const editor = document.getElementById(editorId);
-  if (!editor) return;
-  const html = renderDescripcion(value);
-  editor.innerHTML = html || '';
-}
-
-function getEditorContent(editorId) {
-  const editor = document.getElementById(editorId);
-  if (!editor) return '';
-  const raw = editor.innerHTML || '';
-  return sanitizeRichHTML(raw).trim();
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initAllRichEditors);
-} else {
-  initAllRichEditors();
-}
-
+// Inicializar
+cargarDatosIniciales();
+initFirebaseMessaging();

@@ -1597,6 +1597,11 @@ function openProcesosDiseno() {
   document.getElementById('modal-procesos-diseno').classList.add('open');
   setPdStatus('');
   pdCurrentSubmoduleId = null;
+  // Resetear el buscador cada vez que se abre el modal
+  const inp = document.getElementById('pd-search-input');
+  if (inp) inp.value = '';
+  const clearBtn = document.getElementById('pd-search-clear');
+  if (clearBtn) clearBtn.style.display = 'none';
   renderPdView();
 }
 
@@ -1643,7 +1648,50 @@ function renderPdView() {
 }
 
 const pdSubmoduleOpInProgress = new Set();
+/* ============================================================
+   BUSCADOR DE APARTADOS EN "PROCESOS DE DISEÑO"
+   ============================================================ */
+function filterPdSubmodules() {
+  const inp = document.getElementById('pd-search-input');
+  const clearBtn = document.getElementById('pd-search-clear');
+  if (!inp) return;
 
+  const rawQ = (inp.value || '').trim();
+  const q = rawQ.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  if (clearBtn) clearBtn.style.display = rawQ ? 'flex' : 'none';
+
+  const cont = document.getElementById('pd-submodule-list');
+  if (!cont) return;
+
+  const items = cont.querySelectorAll('[data-pd-submodule-id]');
+  items.forEach(item => {
+    const nombre = (item.getAttribute('data-pd-search-text') || '').toLowerCase();
+    const coincide = !q || nombre.includes(q);
+    item.style.display = coincide ? '' : 'none';
+  });
+
+  // Si ninguno coincide, mostramos un mensaje temporal
+  const visibles = Array.from(items).filter(i => i.style.display !== 'none');
+  let emptyMsg = cont.querySelector('.pd-search-empty');
+  if (items.length > 0 && visibles.length === 0) {
+    if (!emptyMsg) {
+      emptyMsg = document.createElement('div');
+      emptyMsg.className = 'pd-search-empty';
+      emptyMsg.style.cssText = 'padding:20px; text-align:center; color:var(--color-text-secondary); font-size:13px;';
+      emptyMsg.textContent = 'No se encontraron apartados con ese nombre.';
+      cont.appendChild(emptyMsg);
+    }
+  } else if (emptyMsg) {
+    emptyMsg.remove();
+  }
+}
+
+function clearPdSearch() {
+  const inp = document.getElementById('pd-search-input');
+  if (inp) inp.value = '';
+  filterPdSubmodules();
+}
 function renderPdSubmoduleList() {
   const cont = document.getElementById('pd-submodule-list');
   if (!cont) return;
@@ -1655,8 +1703,7 @@ function renderPdSubmoduleList() {
     const subtitle = isExcel
       ? `Excel · ${sm.rows.length} registro(s) · ${sm.headers.length} columna(s)`
       : `PDF · ${sm.pdfContent ? (sm.pdfName || 'archivo cargado') : 'sin archivo todavía'}`;
-    return `
-    <div style="display:flex; align-items:stretch; gap:6px; ${busy ? 'opacity:0.55;' : ''}">
+   <div data-pd-submodule-id="${sm.id}" data-pd-search-text="${escHtml(sm.label)}" style="display:flex; align-items:stretch; gap:6px; ${busy ? 'opacity:0.55;' : ''}">
       <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('${sm.id}')" ${busy ? 'disabled' : ''}>
         <i class="ti ${icon}" style="font-size:18px; margin-right:6px;"></i>
         <span style="display:flex; flex-direction:column; align-items:flex-start;">
@@ -1670,6 +1717,8 @@ function renderPdSubmoduleList() {
       ` : ''}
     </div>`;
   }).join('');
+// Refrescar el filtro del buscador (si hay texto escrito)
+  try { filterPdSubmodules(); } catch (e) {}
 }
 
 let pdSubmoduleModalMode = 'create';

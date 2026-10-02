@@ -9,18 +9,14 @@
 <link rel="apple-touch-icon" href="icons/icon.svg">
 <link rel="stylesheet" href="css/styles.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<!-- CORREGIDO: fuente de íconos Tabler desde el CDN oficial.
-     Antes apuntaba a "vendor/cdn.jsdelivr.net/tabler-icons.min.css", que
-     estaba roto (no incluía el @font-face real), por eso los botones e
-     íconos se veían como círculos vacíos. -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" crossorigin="anonymous">
- <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-messaging-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="vendor/fonts.googleapis.com/css2">
+<link rel="stylesheet" href="vendor/cdn.jsdelivr.net/tabler-icons.min.css" crossorigin="anonymous">
+<script src="vendor/cdnjs.cloudflare.com/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+<script src="vendor/cdnjs.cloudflare.com/xlsx.full.min.js" crossorigin="anonymous"></script>
+<script src="vendor/www.gstatic.com/firebase-app-compat.js"></script>
+<script src="vendor/www.gstatic.com/firebase-messaging-compat.js"></script>
+<script src="vendor/cdn.jsdelivr.net/echarts.min.js" crossorigin="anonymous"></script>
+<script src="vendor/cdnjs.cloudflare.com/jszip.min.js" crossorigin="anonymous"></script>
 
 <style>
   .contenedor-adjuntos { display: inline-flex; gap: 8px; margin-left: 8px; vertical-align: middle; }
@@ -130,13 +126,11 @@
   #modal-admin-usuarios h3 { font-size: 14px; font-weight: 800; color: var(--color-text-primary); margin: 14px 0 8px; display: flex; align-items: center; gap: 6px; }
   #modal-admin-usuarios textarea { font-family: monospace; font-size: 12px; }
 
-  /* Switch de modo de marcador: CAMBIOS / GLOBAL */
   .marcador-mode-switch { display: inline-flex; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); border-radius: 999px; padding: 2px; gap: 2px; }
   .marcador-mode-btn { background: transparent; border: none; padding: 4px 12px; font-size: 11px; font-weight: 700; color: var(--color-text-secondary); border-radius: 999px; cursor: pointer; font-family: var(--font-sans); transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px; }
   .marcador-mode-btn:hover { color: var(--navy); }
   .marcador-mode-btn.active { background: var(--color-background-primary); color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 
-  /* Adjuntos de Pendientes Generales (imágenes + PDFs) */
   .pg-adjuntos-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
   .pg-adjunto-item { position: relative; width: 52px; height: 52px; flex-shrink: 0; }
   .pg-adjunto-thumb {
@@ -166,8 +160,96 @@
   .pg-adjunto-add:hover { background: #ccfbf1; border-color: var(--accent); }
   .pg-adjunto-add-label { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; cursor: pointer; color: var(--accent); font-size: 18px; }
   .pg-adjunto-add-label i { font-size: 22px; }
+
+  /* ============================================================
+     EDITOR DE TEXTO ENRIQUECIDO — estilos base
+     ============================================================ */
+  .rte-wrap {
+    border: 1px solid var(--color-border-secondary, #d7e2e1);
+    border-radius: 10px;
+    background: var(--color-background-primary, #fff);
+    overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .rte-wrap:focus-within {
+    border-color: var(--accent, #0d9488);
+    box-shadow: 0 0 0 3px rgba(13,148,136,0.15);
+  }
+  .rte-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 4px 6px;
+    background: var(--color-background-secondary, #f1f5f6);
+    border-bottom: 1px solid var(--color-border-tertiary, #e6eeed);
+    align-items: center;
+  }
+  .rte-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 30px;
+    padding: 0 6px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-secondary, #66787c);
+    font-family: var(--font-sans, sans-serif);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    user-select: none;
+    touch-action: manipulation;
+    flex-shrink: 0;
+  }
+  .rte-btn:hover { background: #e0f2f1; color: var(--navy, #0f6e8c); }
+  .rte-btn:active { transform: scale(0.95); }
+  .rte-btn.rte-btn-active { background: #ccfbf1; color: var(--accent, #0d9488); border-color: var(--accent, #0d9488); }
+  .rte-btn i { font-size: 15px; pointer-events: none; }
+  .rte-sep {
+    width: 1px; height: 20px;
+    background: var(--color-border-secondary, #d7e2e1);
+    margin: 0 3px;
+    flex-shrink: 0;
+  }
+  .rte-editor {
+    padding: 10px 12px;
+    min-height: 96px;
+    max-height: 260px;
+    overflow-y: auto;
+    font-family: var(--font-sans, sans-serif);
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--color-text-primary, #172428);
+    background: var(--color-background-primary, #fff);
+    outline: none;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    box-sizing: border-box;
+  }
+  .rte-editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--color-text-secondary, #66787c);
+    pointer-events: none;
+    display: block;
+  }
+  .rte-editor strong, .rte-editor b { font-weight: 800; }
+  .rte-editor em, .rte-editor i { font-style: italic; }
+  .rte-editor u { text-decoration: underline; }
+
+  @media (max-width: 640px) {
+    .rte-btn { min-width: 36px; height: 36px; }
+    .rte-toolbar { padding: 6px; gap: 3px; }
+    .rte-editor { padding: 10px; font-size: 14px; min-height: 110px; }
+  }
 </style>
-</head>
+<link rel="stylesheet" href="chrome-extension://ajbghephkehcmphjmenfpkmjiolhjalk/app/content-style.css"></head>
 <body class="is-locked">
 
 <div class="app">
@@ -176,7 +258,7 @@
       <div class="top-bar-left">
         <div>
           <h1 style="display: flex; align-items: center;">Errores y Mejoras de Producción <span class="version-badge">ISO 1.5</span></h1>
-          <p>Fecha: <span id="current-date">01/10/2026</span></p>
+          <p>Fecha: <span id="current-date">02/10/2026</span></p>
           <p style="font-size: 11px; margin-top: 4px; color: var(--color-text-secondary);">
             ✔️ = Correcto (no requiere cambios). &nbsp;|&nbsp; ❌ = Cambiar el plano, habilitado o etiqueta.
           </p>
@@ -194,9 +276,9 @@
         <button class="btn-bell" id="btn-notify" onclick="requestNotificationPermission()" title="Activar/Desactivar Notificaciones en Tiempo Real">
           <i class="ti ti-bell"></i> <span id="notify-label">Notificaciones</span>
         </button>
-        <button class="btn-session" id="btn-session" onclick="openSessionModal()" title="Iniciar sesión">
+        <button class="btn-session logged-in is-admin" id="btn-session" onclick="openSessionModal()" title="Sesión: JAVIER C (admin) - Clic para cerrar sesión">
           <i class="ti ti-user" aria-hidden="true"></i>
-          <span id="session-label">Iniciar sesión</span>
+          <span id="session-label">👑 JAVIER C</span>
         </button>
         <button class="btn btn-amber" id="btn-lock-toggle" onclick="handleLockToggle()" title="Controlar modo de edición"><i class="ti ti-lock"></i> MODO LECTURA 🔒</button>
       </div>
@@ -233,7 +315,7 @@
       <div class="filter-group dropdown-wrap">
         <span class="filter-label"><i class="ti ti-file-text"></i> Fichas:</span>
         <button class="btn-filter" id="fichas-menu-btn" onclick="toggleFichasMenu(event)">Catálogo <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
-        <div class="dropdown-menu" id="fichas-menu" style="min-width: 280px; max-width: 90vw; max-height: 350px; overflow-y: auto; z-index: 1000; box-sizing: border-box;">
+        <div class="dropdown-menu" id="fichas-menu" style="min-width: 280px; max-width: 90vw; max-height: 350px; overflow-y: auto; z-index: 1000; box-sizing: border-box; inset: 218px auto auto 1499px;">
           <div id="fichas-list"><div style="padding: 12px; font-size: 12px; color: var(--color-text-secondary); text-align: center;">No hay fichas técnicas disponibles.</div></div>
           <div class="only-editable" style="padding: 8px; border-top: 1px solid var(--color-border-secondary);">
             <button class="btn btn-sm btn-purple" style="width:100%" onclick="document.getElementById('ficha-input').click()"><i class="ti ti-upload"></i> Subir Ficha (PDF/JPG)</button>
@@ -249,9 +331,9 @@
           Pendientes Generales 
           <span id="pg-counter" class="pg-counter" style="display: inline-block;">5</span>
         </div>
-        <i class="ti ti-chevron-down" id="pg-chevron"></i>
+        <i class="ti ti-chevron-up" id="pg-chevron"></i>
       </div>
-      <div id="pg-panel" class="pg-panel" style="display:none;">
+      <div id="pg-panel" class="pg-panel" style="display: block;">
         <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;" class="only-editable">
           <button class="btn btn-sm btn-purple" onclick="openAddPG()"><i class="ti ti-plus"></i> Nuevo Pendiente General</button>
         </div>
@@ -399,11 +481,11 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
       </div>
       <div class="marcador-grid">
         <div class="week-stat-card week-stat-pending">
-          <div class="week-stat-count" id="marcador-count-pendiente">25</div>
+          <div class="week-stat-count" id="marcador-count-pendiente">23</div>
           <div class="week-stat-label"><i class="ti ti-hourglass"></i> Pendientes</div>
         </div>
         <div class="week-stat-card week-stat-done">
-          <div class="week-stat-count" id="marcador-count-terminado">101</div>
+          <div class="week-stat-count" id="marcador-count-terminado">107</div>
           <div class="week-stat-label"><i class="ti ti-circle-check"></i> Terminados</div>
         </div>
         <div class="week-stat-card week-stat-cancelled">
@@ -737,30 +819,167 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
     <div style="padding:16px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; flex:1;">
       <p id="pd-status" style="font-size:12px;margin:0;line-height:1.4;display:none"></p>
 
-      <div id="pd-list-view">
+      <div id="pd-list-view" style="display: block;">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
           <p style="font-size:12.5px; color:var(--color-text-secondary); margin:0; flex:1;">Elige un apartado:</p>
           <button class="btn btn-green only-editable" id="pd-add-submodule-btn" onclick="addPdSubmodule()"><i class="ti ti-plus"></i> Agregar apartado</button>
         </div>
         <div style="position:relative; margin-bottom:12px;">
           <i class="ti ti-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-text-secondary); font-size:15px; pointer-events:none;"></i>
-          <input
-            type="text"
-            id="pd-search-input"
-            placeholder="Buscar apartado por nombre..."
-            autocomplete="off"
-            oninput="filterPdSubmodules()"
-            style="width:100%; padding:10px 38px 10px 38px; border-radius:10px; border:1px solid var(--color-border-secondary); background:var(--color-background-secondary); font-size:13px; font-family:var(--font-sans); color:var(--color-text-primary);"
-          >
-          <button
-            type="button"
-            id="pd-search-clear"
-            onclick="clearPdSearch()"
-            title="Limpiar búsqueda"
-            style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--color-text-secondary); padding:5px; border-radius:6px;"
-          ><i class="ti ti-x"></i></button>
+          <input type="text" id="pd-search-input" placeholder="Buscar apartado por nombre..." autocomplete="off" oninput="filterPdSubmodules()" style="width:100%; padding:10px 38px 10px 38px; border-radius:10px; border:1px solid var(--color-border-secondary); background:var(--color-background-secondary); font-size:13px; font-family:var(--font-sans); color:var(--color-text-primary);">
+          <button type="button" id="pd-search-clear" onclick="clearPdSearch()" title="Limpiar búsqueda" style="display: flex; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; cursor: pointer; color: var(--color-text-secondary); padding: 5px; border-radius: 6px;"><i class="ti ti-x"></i></button>
         </div>
-        <div id="pd-submodule-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <div id="pd-submodule-list" style="display:flex; flex-direction:column; gap:8px;">
+    <div data-pd-submodule-id="ficha_tolerancias" data-pd-search-text="FICHA TECNICA DE TOLERANCIAS" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('ficha_tolerancias')">
+        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA DE TOLERANCIAS</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 12 registro(s) · 18 columna(s)</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_xpr1wvdw" data-pd-search-text="FICHA TECNICA DE TORNILLERIA" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xpr1wvdw')">
+        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA DE TORNILLERIA</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 62 registro(s) · 3 columna(s)</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_xu9ftogj" data-pd-search-text="FICHA TECNICA DE MADERA ANCHOS" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xu9ftogj')">
+        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA DE MADERA ANCHOS</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 12 registro(s) · 5 columna(s)</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_xqrann9l" data-pd-search-text="FICHA TECNICA DE MADERA GRUESOS" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xqrann9l')">
+        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA DE MADERA GRUESOS</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 14 registro(s) · 5 columna(s)</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_xjyo597q" data-pd-search-text="FICHA TECNICA DE CORREDERA CIERRE LENTO 30 cm" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xjyo597q')">
+        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA DE CORREDERA CIERRE LENTO 30 cm</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · CORREDERA CIERRE LENTO 30 CM (1).pdf</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_xkeh9ah7" data-pd-search-text="FICHA TECNICA DE CORREDERA CIERRE NORMAL 30 cm" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xkeh9ah7')">
+        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA DE CORREDERA CIERRE NORMAL 30 cm</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · CORREDERA CIERRE NORMAL 30 CM (1).pdf</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_xtyfrglm" data-pd-search-text="FICHA TECNICA EN RANURAS" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xtyfrglm')">
+        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA EN RANURAS</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · FICAH TECNICA EN RANURAS.pdf</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_xbfo08aq" data-pd-search-text="FICHA TECNICA DE MADERA LARGOS" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xbfo08aq')">
+        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA DE MADERA LARGOS</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 13 registro(s) · 5 columna(s)</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_xo3rqzmy" data-pd-search-text="FICHA TECNICA BISAGRA BIDIMENSIONAL RECTA" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xo3rqzmy')">
+        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA BISAGRA BIDIMENSIONAL RECTA</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · FICHA TECNICA BISAGRA BIDIMENSIONAL RECTA.pdf</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_xt4uvxj0" data-pd-search-text="FICHA TECNICA DE SOLERAS T" style="align-items: stretch; gap: 6px;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xt4uvxj0')">
+        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA DE SOLERAS T</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 42 registro(s) · 6 columna(s)</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_xd04fbyj" data-pd-search-text="MATERIALES DE HERRERIA" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xd04fbyj')">
+        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">MATERIALES DE HERRERIA</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 70 registro(s) · 9 columna(s)</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_xxmzmn6e" data-pd-search-text="TALADRO MULTIPLOS" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_xxmzmn6e')">
+        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">TALADRO MULTIPLOS</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 34 registro(s) · 3 columna(s)</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_x413fsgb" data-pd-search-text="NOMENCLATURA DE MATERIALES" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_x413fsgb')">
+        <i class="ti ti-file-spreadsheet" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">NOMENCLATURA DE MATERIALES</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">Excel · 39 registro(s) · 4 columna(s)</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_x30ec00p" data-pd-search-text="FICHA TECNICA PEGAMENTO RESINA" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_x30ec00p')">
+        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA PEGAMENTO RESINA</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · FICHA TECNICA PEGAMENTO RESINA.pdf</span>
+        </span>
+      </button>
+      
+    </div>
+    <div data-pd-submodule-id="sm_x9usj31y" data-pd-search-text="FICHA TECNICA CORR INF CIERRE LENTO" style="align-items: stretch; gap: 6px; display: none;">
+      <button class="btn" style="justify-content:flex-start; flex:1; min-height:56px; text-align:left;" onclick="openPdSubmodule('sm_x9usj31y')">
+        <i class="ti ti-file-type-pdf" style="font-size:18px; margin-right:6px;"></i>
+        <span style="display:flex; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:700;">FICHA TECNICA CORR INF CIERRE LENTO</span>
+          <span style="font-weight:400; font-size:11px; color:var(--color-text-secondary);">PDF · FICHA TECNICA CORR INF CIERRE LENTO.pdf</span>
+        </span>
+      </button>
+      
+    </div></div>
       </div>
 
       <div id="pd-table-view" style="display:none;">
@@ -923,7 +1142,10 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
     </div>
     <div class="form-group">
       <label class="form-label">Descripción <span style="color:var(--red)">*</span></label>
-      <textarea class="form-input" id="pg-desc" rows="4" placeholder="Detalles de la instrucción o pendiente..."></textarea>
+      <div class="rte-wrap" data-rte-target="pg-desc">
+        <div class="rte-toolbar" role="toolbar" aria-label="Formato de texto"></div>
+        <div class="rte-editor" id="pg-desc" contenteditable="true" data-placeholder="Detalles de la instrucción o pendiente..." spellcheck="true" lang="es-MX"></div>
+      </div>
     </div>
     <div class="form-footer">
       <button class="btn" onclick="closeModal('modal-pg')">Cancelar</button>
@@ -973,7 +1195,10 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
     </div>
     <div class="form-group">
       <label class="form-label">Descripción</label>
-      <textarea class="form-input" id="new-item-desc" rows="3" placeholder="Descripción detallada..."></textarea>
+      <div class="rte-wrap" data-rte-target="new-item-desc">
+        <div class="rte-toolbar" role="toolbar" aria-label="Formato de texto"></div>
+        <div class="rte-editor" id="new-item-desc" contenteditable="true" data-placeholder="Descripción detallada..." spellcheck="true" lang="es-MX"></div>
+      </div>
     </div>
     <div class="form-footer">
       <button class="btn" onclick="closeModal('modal-item')">Cancelar</button>
@@ -1093,6 +1318,5 @@ Ajustar todos los cajones a la medida especificada en la ficha técnica: 26 mm (
 
 <script src="js/usuarios.js"></script>
 <script src="js/app.js"></script>
-
 
 </body></html>

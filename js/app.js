@@ -1097,11 +1097,19 @@ function filterItems(){
       const textMatch = !q || naveMatches || itemText.includes(q);
       
       const isDone = itemCard.classList.contains('plano-done');
-      const isCancelado = itemCard.classList.contains('item-cancelado');
-      let statusMatch = true;
-      if (filterStatus === 'pending' && isDone) statusMatch = false;
-      if (filterStatus === 'done' && !isDone) statusMatch = false;
-      if (filterStatus === 'cancelado' && !isCancelado) statusMatch = false;
+   const isCancelado = itemCard.classList.contains('item-cancelado');
+   let statusMatch = true;
+   // Los 3 estados son mutuamente excluyentes:
+   //   - Terminado = tiene clase 'plano-done' (y no está cancelado)
+   //   - Cancelado = tiene clase 'item-cancelado'
+   //   - Pendiente = no es terminado NI cancelado
+   if (filterStatus === 'pending') {
+     statusMatch = !isDone && !isCancelado;
+   } else if (filterStatus === 'done') {
+     statusMatch = isDone && !isCancelado;
+   } else if (filterStatus === 'cancelado') {
+     statusMatch = isCancelado;
+   }
 
       const itemMatches = textMatch && statusMatch;
 

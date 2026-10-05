@@ -1562,6 +1562,11 @@ html,body{
   .del-img-btn{opacity: 1; width: 26px; height: 26px;}
 
   .modal-bg{align-items: flex-end; padding: 0;}
+  /* El modal de vista ampliada de imagen NO debe ir abajo: se queda centrado.
+     Los modales tipo formulario sí van abajo (bottom sheet), pero el de
+     imagen debe quedar centrado tanto vertical como horizontalmente. */
+  #modal-view-img { align-items: center; padding: 12px; }
+
   .modal{
     width: 100% !important;
     max-width: 100% !important;
@@ -1632,36 +1637,6 @@ html,body{
 
   #pdf-report-container{padding: 20px;}
   .pdf-chart-row{flex-direction: column;}
-
-  /* ============================================================
-     NUEVO: Reordenar las imágenes en móvil.
-     ------------------------------------------------------------
-     En PC, las imágenes quedan dentro de .item-footer, junto a
-     los badges Habilitado/Planos/Etiquetas (alineados a la derecha).
-     Eso funciona bien y NO se toca.
-
-     En móvil, el .item-footer se apila en columna y, por defecto,
-     los badges aparecen primero y las imágenes después (al final).
-     Con estas reglas, las imágenes suben ANTES de los badges:
-       1) .item-footer pasa a column (apilado vertical)
-       2) .contenedor-adjuntos recibe order:1 (arriba) y se centra
-       3) .proceso-item recibe order:2 (abajo)
-     PC no se ve afectado porque está dentro de esta media query.
-     ============================================================ */
-  .item-card .item-footer {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .item-card .proceso-container .contenedor-adjuntos {
-    order: 1;
-    justify-content: center;
-    width: 100%;
-    margin-left: 0;
-  }
-  .item-card .proceso-container .proceso-item {
-    order: 2;
-  }
 }
 
 @media (max-width: 480px){

@@ -120,6 +120,11 @@ let modelosDB = [];
 let modelosDBIndex = new Map(); 
 let modelosDBChanged = false; 
 
+// --- NUEVO: sistema de guardado agrupado ---
+// Cuando el usuario agregue varios cambios con fotos y presione "Guardar en GitHub",
+// todo se sube en UNA SOLA operación (1 commit). No hay guardados automáticos ocultos.
+let guardadoEnProgreso = false;
+
 function uid(){return 'x'+Math.random().toString(36).slice(2,9)}
 
 function escHtml(s){
@@ -712,6 +717,7 @@ function subirAdjunto(event, naveId, itemId, idx) {
   reader.readAsDataURL(file);
   event.target.value = '';
 }
+
 function eliminarAdjunto(event, naveId, itemId, idx) {
   event.stopPropagation();
   if (!isEditableMode) return;
@@ -748,22 +754,6 @@ function togglePGPanel() {
     localStorage.setItem('rpi_pg_panel_open', isPGPanelOpen ? '1' : '0');
   } catch (e) {}
 }
-
-// Restaurar el estado guardado al cargar la página
-window.addEventListener('DOMContentLoaded', function() {
-  try {
-    if (localStorage.getItem('rpi_pg_panel_open') === '1') {
-      isPGPanelOpen = true;
-      const panel = document.getElementById('pg-panel');
-      const chev = document.getElementById('pg-chevron');
-      if (panel) panel.style.display = 'block';
-      if (chev) {
-        chev.classList.remove('ti-chevron-down');
-        chev.classList.add('ti-chevron-up');
-      }
-    }
-  } catch (e) {}
-});
 
 function renderPG() {
   if (!data.pendientesGenerales) data.pendientesGenerales = [];
@@ -892,6 +882,8 @@ function subirAdjuntoPG(event, pgId) {
   reader.readAsDataURL(file);
 }
 
+// --- ELIMINADO: guardado automático al eliminar adjunto PG ---
+// El usuario debe presionar "Guardar en GitHub" para aplicar el cambio.
 async function eliminarAdjuntoPG(event, pgId, idx) {
   if (event) event.stopPropagation();
   if (!isEditableMode) return;
@@ -901,6 +893,8 @@ async function eliminarAdjuntoPG(event, pgId, idx) {
 
   const adj = pg.adjuntos[idx];
 
+  // Si el archivo ya está en GitHub (no es data:), lo borramos del repo.
+  // Si es data: (nunca se subió), solo lo quitamos de memoria.
   if (typeof adj === 'string' && !adj.startsWith('data:')) {
     try {
       const cfg = loadGithubConfig();
@@ -916,15 +910,8 @@ async function eliminarAdjuntoPG(event, pgId, idx) {
 
   pg.adjuntos.splice(idx, 1);
   renderPG();
-
-  try {
-    const cfg = loadGithubConfig();
-    if (cfg && cfg.repo && cfg.token) {
-      await quickSaveGithub();
-    }
-  } catch (err) {
-    console.warn('El adjunto se eliminó localmente pero no se pudo guardar en GitHub todavía:', err);
-  }
+  // OJO: Ya NO se llama quickSaveGithub() aquí.
+  // El usuario debe presionar "Guardar en GitHub" para que el cambio quede permanente.
 }
 
 function abrirPdfPG(pgId, idx) {
@@ -2155,6 +2142,7 @@ async function confirmPdSubmoduleModal() {
   }
 }
 
+// --- ELIMINADO: guardado automático al crear apartado ---
 async function createPdSubmodule(name, type) {
   if (pdSubmoduleOpInProgress.has('new')) return;
   pdSubmoduleOpInProgress.add('new');
@@ -2164,19 +2152,12 @@ async function createPdSubmodule(name, type) {
   const newSm = { id: 'sm_' + uid(), label: name, type, headers: [], rows: [], pdfContent: null, pdfName: null, createdAt: now, updatedAt: now };
   data.procesosDiseno.submodules.push(newSm);
 
-  try {
-    const cfg = loadGithubConfig();
-    if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
-    setPdStatus(`✅ Apartado "${name}" (${type === 'pdf' ? 'PDF' : 'Excel'}) creado y guardado.`, 'ok');
-  } catch (err) {
-    console.error('No se pudo guardar el nuevo apartado:', err);
-    setPdStatus('⚠️ El apartado se creó, pero no se pudo guardar en GitHub todavía. Vuelve a intentar guardar.', 'error');
-  } finally {
-    pdSubmoduleOpInProgress.delete('new');
-    renderPdSubmoduleList();
-  }
+  pdSubmoduleOpInProgress.delete('new');
+  renderPdSubmoduleList();
+  setPdStatus(`✅ Apartado "${name}" (${type === 'pdf' ? 'PDF' : 'Excel'}) creado. Presiona "Guardar en GitHub" para subirlo.`, 'ok');
 }
 
+// --- ELIMINADO: guardado automático al actualizar apartado ---
 async function updatePdSubmodule(id, name, type) {
   if (pdSubmoduleOpInProgress.has(id)) return;
   const sm = getPdSubmodule(id);
@@ -2186,28 +2167,16 @@ async function updatePdSubmodule(id, name, type) {
   const oldType = sm.type;
   if (name === oldName && type === oldType) return;
 
-  pdSubmoduleOpInProgress.add(id);
-  renderPdSubmoduleList();
-
   sm.label = name;
   if (!hasData) sm.type = type;
   sm.updatedAt = Date.now();
 
-  try {
-    const cfg = loadGithubConfig();
-    if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
-    setPdStatus(`✅ Apartado actualizado.`, 'ok');
-  } catch (err) {
-    console.error('No se pudo guardar el cambio del apartado:', err);
-    sm.label = oldName; sm.type = oldType;
-    setPdStatus('❌ No se pudo guardar el cambio. Se conservó el apartado original.', 'error');
-  } finally {
-    pdSubmoduleOpInProgress.delete(id);
-    renderPdSubmoduleList();
-    if (pdCurrentSubmoduleId === id) renderPdView();
-  }
+  renderPdSubmoduleList();
+  if (pdCurrentSubmoduleId === id) renderPdView();
+  setPdStatus(`✅ Apartado actualizado. Presiona "Guardar en GitHub" para subirlo.`, 'ok');
 }
 
+// --- ELIMINADO: guardado automático al eliminar apartado ---
 async function deletePdSubmodule(id) {
   if (!isEditableMode) return;
   if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar apartados.'); return; }
@@ -2239,17 +2208,9 @@ async function deletePdSubmodule(id) {
   const idx = data.procesosDiseno.submodules.findIndex(s => s.id === id);
   const removed = data.procesosDiseno.submodules.splice(idx, 1)[0];
 
-  try {
-    if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
-    setPdStatus(`✅ Apartado "${removed.label}" eliminado.`, 'ok');
-  } catch (err) {
-    console.error('No se pudo guardar la eliminación del apartado:', err);
-    data.procesosDiseno.submodules.splice(idx, 0, removed);
-    setPdStatus('❌ No se pudo guardar la eliminación. Se conservó el apartado.', 'error');
-  } finally {
-    pdSubmoduleOpInProgress.delete(id);
-    renderPdSubmoduleList();
-  }
+  pdSubmoduleOpInProgress.delete(id);
+  renderPdSubmoduleList();
+  setPdStatus(`✅ Apartado "${removed.label}" eliminado. Presiona "Guardar en GitHub" para aplicarlo.`, 'ok');
 }
 
 function openPdSubmodule(id) {
@@ -2354,7 +2315,7 @@ function handlePdImport(e) {
       }
 
       renderPdTable();
-      setPdStatus(`✅ Se importaron ${dataRows.length} registro(s) con ${headers.length} columna(s) en "${sm.label}". Para dejarlo guardado de forma permanente, activa "Editar datos" y luego "Guardar cambios del Excel".`, 'ok');
+      setPdStatus(`✅ Se importaron ${dataRows.length} registro(s) con ${headers.length} columna(s) en "${sm.label}". Presiona "Guardar cambios del Excel" para dejarlo permanente.`, 'ok');
     } catch (err) {
       console.error('Error al importar Procesos de Diseño:', err);
       setPdStatus('❌ No se pudo leer el archivo. Verifica que sea un .xlsx/.xls válido.', 'error');
@@ -2443,6 +2404,7 @@ function triggerPdPdfUpload() {
   document.getElementById('pd-pdf-input').click();
 }
 
+// --- ELIMINADO: guardado automático al subir PDF ---
 function handlePdPdfUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -2452,7 +2414,7 @@ function handlePdPdfUpload(e) {
 
   const reader = new FileReader();
   reader.onload = async (ev) => {
-    setPdStatus('Subiendo PDF...', 'info');
+    setPdStatus('Cargando PDF...', 'info');
     if (oldRemotePath) {
       try {
         const cfg = loadGithubConfig();
@@ -2474,19 +2436,7 @@ function handlePdPdfUpload(e) {
     sm.updatedAt = Date.now();
     renderPdPdfView();
     renderPdSubmoduleList();
-
-    try {
-      const cfg = loadGithubConfig();
-      if (cfg && cfg.repo && cfg.token) {
-        await quickSaveGithub();
-        setPdStatus('✅ PDF guardado correctamente.', 'ok');
-      } else {
-        setPdStatus('✅ PDF cargado. Configura GitHub y guarda para dejarlo permanente.', 'ok');
-      }
-    } catch (err) {
-      console.error('El PDF se cargó pero no se pudo guardar en GitHub:', err);
-      setPdStatus('⚠️ El PDF se cargó, pero no se pudo guardar en GitHub todavía.', 'error');
-    }
+    setPdStatus('✅ PDF cargado. Presiona "Guardar en GitHub" para subirlo.', 'ok');
     e.target.value = '';
   };
   reader.onerror = () => { setPdStatus('❌ No se pudo leer el archivo.', 'error'); e.target.value = ''; };
@@ -2533,15 +2483,7 @@ async function deletePdPdf() {
   sm.updatedAt = Date.now();
   renderPdPdfView();
   renderPdSubmoduleList();
-
-  try {
-    const cfg = loadGithubConfig();
-    if (cfg && cfg.repo && cfg.token) await quickSaveGithub();
-    setPdStatus('✅ PDF eliminado.', 'ok');
-  } catch (err) {
-    console.error('El PDF se borró pero no se pudo actualizar el guardado:', err);
-    alert('⚠️ El archivo se eliminó, pero no se pudo actualizar el guardado en GitHub. Usa "Guardar en GitHub" para terminar de sincronizarlo.');
-  }
+  setPdStatus('✅ PDF eliminado. Presiona "Guardar en GitHub" para aplicarlo.', 'ok');
 }
 
 function editPdCell(rowIdx, header, value) {
@@ -2594,6 +2536,7 @@ function deletePdColumn(colIdx) {
   renderPdTable();
 }
 
+// --- MODIFICADO: solo borra la hoja original si se va a subir de inmediato ---
 async function savePdChanges() {
   if (!isEditableMode) return;
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
@@ -3463,7 +3406,137 @@ function extFromDataUri(uri) {
   return fmt === 'jpeg' ? 'jpg' : fmt;
 }
 
+/* ============================================================
+   NUEVA API: guardado agrupado en 1 sola operación (1 commit)
+   ============================================================
+   Usa la API de Git Data de GitHub:
+   1. Obtener el commit actual de la rama → tree base.
+   2. Crear un blob por cada archivo nuevo (imágenes, PDFs, Excel).
+   3. Crear un tree nuevo con TODOS los blobs + los archivos JSON.
+   4. Crear un commit nuevo con ese tree.
+   5. Actualizar la rama para que apunte al nuevo commit.
+
+   Todo en UNA SOLA operación → 1 commit en lugar de N commits.
+   ============================================================ */
+
+async function getBranchHead(repo, branch, headers) {
+  const url = `https://api.github.com/repos/${repo}/git/ref/heads/${encodeURIComponent(branch)}`;
+  const resp = await fetch(url, { headers, cache: 'no-store' });
+  if (!resp.ok) {
+    const errBody = await resp.json().catch(() => ({}));
+    throw new Error(describeGithubError(resp.status, `Al consultar la rama "${branch}".`, errBody.message));
+  }
+  const json = await resp.json();
+  return json.object.sha;
+}
+
+async function getCommitTree(repo, commitSha, headers) {
+  const url = `https://api.github.com/repos/${repo}/git/commits/${commitSha}`;
+  const resp = await fetch(url, { headers, cache: 'no-store' });
+  if (!resp.ok) {
+    const errBody = await resp.json().catch(() => ({}));
+    throw new Error(describeGithubError(resp.status, `Al consultar el commit base.`, errBody.message));
+  }
+  const json = await resp.json();
+  return json.tree.sha;
+}
+
+async function createBlob(repo, contentBase64, headers) {
+  const url = `https://api.github.com/repos/${repo}/git/blobs`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: contentBase64, encoding: 'base64' })
+  });
+  if (!resp.ok) {
+    const errBody = await resp.json().catch(() => ({}));
+    throw new Error(describeGithubError(resp.status, `Al crear un blob.`, errBody.message));
+  }
+  const json = await resp.json();
+  return json.sha;
+}
+
+async function createTree(repo, baseTreeSha, entries, headers) {
+  const url = `https://api.github.com/repos/${repo}/git/trees`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base_tree: baseTreeSha, tree: entries })
+  });
+  if (!resp.ok) {
+    const errBody = await resp.json().catch(() => ({}));
+    throw new Error(describeGithubError(resp.status, `Al crear el árbol de archivos.`, errBody.message));
+  }
+  const json = await resp.json();
+  return json.sha;
+}
+
+async function createCommit(repo, message, treeSha, parentSha, headers) {
+  const url = `https://api.github.com/repos/${repo}/git/commits`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, tree: treeSha, parents: [parentSha] })
+  });
+  if (!resp.ok) {
+    const errBody = await resp.json().catch(() => ({}));
+    throw new Error(describeGithubError(resp.status, `Al crear el commit.`, errBody.message));
+  }
+  const json = await resp.json();
+  return json.sha;
+}
+
+async function updateBranchRef(repo, branch, newCommitSha, headers) {
+  const url = `https://api.github.com/repos/${repo}/git/refs/heads/${encodeURIComponent(branch)}`;
+  const resp = await fetch(url, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sha: newCommitSha, force: false })
+  });
+  if (!resp.ok) {
+    const errBody = await resp.json().catch(() => ({}));
+    const e = new Error(describeGithubError(resp.status, `Al actualizar la rama.`, errBody.message));
+    e.status = resp.status;
+    throw e;
+  }
+  return resp.json().catch(() => null);
+}
+
+// Reintenta la operación completa en caso de 422 (rama cambió en medio)
+async function commitGroupedPush(repo, branch, headers, entries, commitMessage, maxRetries = 3) {
+  let lastErr = null;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const parentSha = await getBranchHead(repo, branch, headers);
+      const baseTreeSha = await getCommitTree(repo, parentSha, headers);
+      const treeSha = await createTree(repo, baseTreeSha, entries, headers);
+      const newCommitSha = await createCommit(repo, commitMessage, treeSha, parentSha, headers);
+      await updateBranchRef(repo, branch, newCommitSha, headers);
+      return newCommitSha;
+    } catch (err) {
+      lastErr = err;
+      // 422 = el ref cambió entre lectura y escritura. Reintentamos.
+      if (err.status === 422 || err.status === 409) {
+        console.warn(`[Git] Conflicto al commit (intento ${attempt + 1}/${maxRetries}). Reintentando...`);
+        await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+        continue;
+      }
+      // Otro error → no reintentar
+      throw err;
+    }
+  }
+  throw lastErr || new Error('No se pudo crear el commit tras varios intentos.');
+}
+
+/* ============================================================
+   PUSH A GITHUB AGRUPADO
+   ============================================================ */
 async function pushToGithub() {
+  if (guardadoEnProgreso) {
+    showToast('Ya hay un guardado en progreso. Espera a que termine.', 'warning');
+    return;
+  }
+
   commitPendingEditsBeforePush();
 
   const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
@@ -3526,11 +3599,13 @@ async function pushToGithub() {
 
   const btn = document.getElementById('gh-save-btn');
   const mainBtn = document.getElementById('main-gh-btn');
-  const originalHtml = btn.innerHTML;
+  const originalHtml = btn ? btn.innerHTML : '';
   const originalMainHtml = mainBtn ? mainBtn.innerHTML : '';
-  btn.innerHTML = 'Subiendo...';
-  btn.disabled = true;
-  if(mainBtn) { mainBtn.innerHTML = '<i class="ti ti-loader"></i> Subiendo...'; mainBtn.disabled = true; }
+  if (btn) { btn.innerHTML = 'Subiendo...'; btn.disabled = true; }
+  if (mainBtn) { mainBtn.innerHTML = '<i class="ti ti-loader"></i> Subiendo...'; mainBtn.disabled = true; }
+
+  guardadoEnProgreso = true;
+
   setGithubStatus(
     sessionUser
       ? `Conectando con GitHub. Los commits llevarán la etiqueta: [${sessionUser}]`
@@ -3545,17 +3620,37 @@ async function pushToGithub() {
 
   const baseDir = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : '';
   const dataRepoPath = baseDir + 'data/cambios.json';
-  const imagesRepoPrefix = baseDir + 'data/images/';
+  const modelosRepoPath = baseDir + 'data/modelos.json';
+  const usuariosRepoPath = baseDir + 'data/usuarios.json';
 
   const t0 = performance.now();
-  const timings = {};
-  const mark = (label, from) => { timings[label] = Math.round(performance.now() - from); };
 
   try {
-    const tPrep = performance.now();
-    const uploadTasks = [];
+    // ============================================================
+    // PASO 1: preparar TODAS las entradas del tree
+    // ============================================================
+    // Cada entrada es { path, mode, type, sha } o { path, content (base64) }.
+    // Vamos a crear primero los blobs de los archivos nuevos (imágenes, PDF, Excel).
 
-    for (const nave of data.naves) {
+    setGithubStatus('Preparando archivos para subir...', 'info');
+
+    const blobTasks = [];
+    const finalEntries = []; // entradas para el tree
+
+    function addBlobEntry(repoPath, contentBase64, afterSha) {
+      // Agregamos una "tarea" que después va a crear el blob y devolver su sha.
+      blobTasks.push({
+        repoPath,
+        contentBase64,
+        afterSha
+      });
+    }
+
+    // Recorremos TODAS las imágenes y archivos nuevos.
+    // Las que ya están en data/images/... se respetan y NO se vuelven a subir.
+    // Las que son data: base64 nuevas se suben.
+
+    for (const nave of data.naves || []) {
       if (Array.isArray(nave.images)) {
         for (let i = 0; i < nave.images.length; i++) {
           const img = nave.images[i];
@@ -3563,14 +3658,8 @@ async function pushToGithub() {
             const ext = extFromDataUri(img);
             const fileName = `${nave.id}_${uid()}.${ext}`;
             const b64 = img.split(',', 2)[1];
-            uploadTasks.push({
-              label: `Imagen general de "${nave.nave || nave.consola || 'mueble'}"`,
-              run: () => createNewFileOnGithub(
-                repo, imagesRepoPrefix + fileName, branch, headers, b64,
-                ghCommitMessage(`Nueva imagen de mueble (${new Date().toLocaleString('es-MX')})`)
-              ),
-              apply: () => { nave.images[i] = 'data/images/' + fileName; }
-            });
+            const repoPath = baseDir + 'data/images/' + fileName;
+            addBlobEntry(repoPath, b64, () => { nave.images[i] = 'data/images/' + fileName; });
           }
         }
       }
@@ -3583,20 +3672,15 @@ async function pushToGithub() {
                 const ext = extFromDataUri(adj);
                 const fileName = `adj_${item.id}_${uid()}.${ext}`;
                 const b64 = adj.split(',', 2)[1];
-                uploadTasks.push({
-                  label: `Foto adjunta de "${item.title || 'un cambio'}"`,
-                  run: () => createNewFileOnGithub(
-                    repo, imagesRepoPrefix + fileName, branch, headers, b64,
-                    ghCommitMessage(`Nueva imagen de reporte (${new Date().toLocaleString('es-MX')})`)
-                  ),
-                  apply: () => { item.adjuntos[j] = 'data/images/' + fileName; }
-                });
+                const repoPath = baseDir + 'data/images/' + fileName;
+                addBlobEntry(repoPath, b64, () => { item.adjuntos[j] = 'data/images/' + fileName; });
               }
             }
           }
         }
       }
     }
+
     if (Array.isArray(data.fichasTecnicas)) {
       for (let i = 0; i < data.fichasTecnicas.length; i++) {
         const f = data.fichasTecnicas[i];
@@ -3606,14 +3690,8 @@ async function pushToGithub() {
           else if (f.content.includes('image/png')) ext = 'png';
           const fileName = `ficha_${uid()}.${ext}`;
           const b64 = f.content.split(',', 2)[1];
-          uploadTasks.push({
-            label: `Ficha técnica "${f.name}"`,
-            run: () => createNewFileOnGithub(
-              repo, imagesRepoPrefix + fileName, branch, headers, b64,
-              ghCommitMessage(`Nueva ficha técnica (${f.name})`)
-            ),
-            apply: () => { f.content = 'data/images/' + fileName; }
-          });
+          const repoPath = baseDir + 'data/images/' + fileName;
+          addBlobEntry(repoPath, b64, () => { f.content = 'data/images/' + fileName; });
         }
       }
     }
@@ -3629,17 +3707,10 @@ async function pushToGithub() {
             else if (adj.startsWith('data:image/png')) ext = 'png';
             else if (adj.startsWith('data:image/webp')) ext = 'webp';
             else if (adj.startsWith('data:image/jpeg') || adj.startsWith('data:image/jpg')) ext = 'jpg';
-
             const fileName = `adj_pg_${pg.id}_${uid()}.${ext}`;
             const b64 = adj.split(',', 2)[1];
-            uploadTasks.push({
-              label: `Adjunto de pendiente "${pg.title || 'general'}"`,
-              run: () => createNewFileOnGithub(
-                repo, imagesRepoPrefix + fileName, branch, headers, b64,
-                ghCommitMessage(`Nuevo adjunto de pendiente general (${new Date().toLocaleString('es-MX')})`)
-              ),
-              apply: () => { pg.adjuntos[k] = 'data/images/' + fileName; }
-            });
+            const repoPath = baseDir + 'data/images/' + fileName;
+            addBlobEntry(repoPath, b64, () => { pg.adjuntos[k] = 'data/images/' + fileName; });
           }
         }
       }
@@ -3653,127 +3724,139 @@ async function pushToGithub() {
           else if (sm.pdfContent.includes('image/png')) ext = 'png';
           const fileName = `procesos_${sm.id}_${uid()}.${ext}`;
           const b64 = sm.pdfContent.split(',', 2)[1];
-          uploadTasks.push({
-            label: `Apartado "${sm.label}" (PDF)`,
-            run: () => createNewFileOnGithub(
-              repo, imagesRepoPrefix + fileName, branch, headers, b64,
-              ghCommitMessage(`Actualizar PDF del apartado "${sm.label}"`)
-            ),
-            apply: () => { sm.pdfContent = 'data/images/' + fileName; }
-          });
+          const repoPath = baseDir + 'data/images/' + fileName;
+          addBlobEntry(repoPath, b64, () => { sm.pdfContent = 'data/images/' + fileName; });
         }
         if (sm.excelOriginal && sm.excelOriginal.startsWith('data:')) {
           const ext = sm.excelOriginal.includes('vnd.ms-excel') ? 'xls' : 'xlsx';
           const fileName = `procesos_${sm.id}_${uid()}.${ext}`;
           const b64 = sm.excelOriginal.split(',', 2)[1];
-          uploadTasks.push({
-            label: `Apartado "${sm.label}" (Excel original)`,
-            run: () => createNewFileOnGithub(
-              repo, imagesRepoPrefix + fileName, branch, headers, b64,
-              ghCommitMessage(`Actualizar Excel original del apartado "${sm.label}"`)
-            ),
-            apply: () => { sm.excelOriginal = 'data/images/' + fileName; }
-          });
+          const repoPath = baseDir + 'data/images/' + fileName;
+          addBlobEntry(repoPath, b64, () => { sm.excelOriginal = 'data/images/' + fileName; });
         }
       }
     }
-    mark('preparar', tPrep);
 
-    const tImgs = performance.now();
-    let nuevasImagenes = 0;
-    const fallosImagenes = [];
-    if (uploadTasks.length) {
-      let completadas = 0;
-      setGithubStatus(`Subiendo ${uploadTasks.length} imagen(es)/archivo(s) nuevo(s)...`, 'info');
+    // ============================================================
+    // PASO 2: crear todos los blobs (con concurrencia limitada)
+    // ============================================================
+    let blobsCreados = 0;
+    if (blobTasks.length > 0) {
+      setGithubStatus(`Subiendo ${blobTasks.length} archivo(s) nuevo(s)...`, 'info');
       await runWithConcurrency(
-        uploadTasks.map((t, taskIdx) => async () => {
+        blobTasks.map((task, idx) => async () => {
           try {
-            try {
-              await t.run();
-            } catch (firstErr) {
-              console.warn(`Fallo al subir archivo ${taskIdx + 1}, reintentando una vez...`, firstErr);
-              await t.run();
-            }
-            t.apply();
-            nuevasImagenes++;
+            const sha = await createBlob(repo, task.contentBase64, headers);
+            finalEntries.push({
+              path: task.repoPath,
+              mode: '100644',
+              type: 'blob',
+              sha: sha
+            });
+            // Aplicamos el cambio en memoria (reemplaza el data: por la ruta)
+            if (typeof task.afterSha === 'function') task.afterSha();
+            blobsCreados++;
           } catch (err) {
-            console.error(`No se pudo subir el archivo ${taskIdx + 1} tras reintentar:`, err);
-            fallosImagenes.push({ label: t.label, message: err.message || 'error desconocido' });
+            console.error(`Fallo al subir archivo ${idx + 1}:`, err);
+            throw err;
           } finally {
-            completadas++;
-            setGithubStatus(`Subiendo archivos nuevos... (${completadas}/${uploadTasks.length})`, 'info');
+            setGithubStatus(`Subiendo archivos nuevos... (${blobsCreados}/${blobTasks.length})`, 'info');
           }
         }),
         5
       );
     }
-    mark('imagenes', tImgs);
 
-    const tData = performance.now();
-    setGithubStatus('Guardando datos...', 'info');
+    // ============================================================
+    // PASO 3: preparar JSONs
+    // ============================================================
+    // Importante: los JSONs se serializan DESPUÉS de actualizar las rutas en memoria.
+    setGithubStatus('Preparando datos JSON...', 'info');
+
     const dataString = JSON.stringify(data);
-    const dataPutResult = await putFileToGithubCached(
-      repo, dataRepoPath, branch, headers, utf8ToBase64(dataString),
-      ghCommitMessage(`Actualización del reporte desde la app (${new Date().toLocaleString('es-MX')})`)
-    );
-    mark('datos_cambios_json', tData);
+    const dataBase64 = utf8ToBase64(dataString);
 
-    const tModelos = performance.now();
-    if(modelosDBChanged){
-      setGithubStatus('Guardando base de datos de modelos...', 'info');
-      const modelosRepoPath = baseDir + 'data/modelos.json';
-      await putFileToGithubCached(
-        repo, modelosRepoPath, branch, headers, utf8ToBase64(JSON.stringify(modelosDB)),
-        ghCommitMessage(`Actualización de base de datos de modelos (${new Date().toLocaleString('es-MX')})`)
-      );
-      modelosDBChanged = false;
+    // Blob para cambios.json
+    const dataBlobSha = await createBlob(repo, dataBase64, headers);
+    finalEntries.push({
+      path: dataRepoPath,
+      mode: '100644',
+      type: 'blob',
+      sha: dataBlobSha
+    });
+
+    // Blob para modelos.json (solo si cambió)
+    if (modelosDBChanged) {
+      const modelosBase64 = utf8ToBase64(JSON.stringify(modelosDB));
+      const modelosBlobSha = await createBlob(repo, modelosBase64, headers);
+      finalEntries.push({
+        path: modelosRepoPath,
+        mode: '100644',
+        type: 'blob',
+        sha: modelosBlobSha
+      });
     }
-    mark('modelos_json', tModelos);
 
+    // Blob para usuarios.json (solo si cambió)
     if (typeof usuariosDBChanged !== 'undefined' && usuariosDBChanged) {
-      setGithubStatus('Guardando usuarios...', 'info');
-      const usuariosRepoPath = baseDir + 'data/usuarios.json';
       const usuariosData = (typeof getUsuariosParaGuardar === 'function')
         ? getUsuariosParaGuardar()
         : { usuarios: usuariosDB };
-      await putFileToGithubCached(
-        repo, usuariosRepoPath, branch, headers, utf8ToBase64(JSON.stringify(usuariosData, null, 2)),
-        ghCommitMessage(`Actualización de usuarios (${new Date().toLocaleString('es-MX')})`)
-      );
-      usuariosDBChanged = false;
+      const usuariosBase64 = utf8ToBase64(JSON.stringify(usuariosData, null, 2));
+      const usuariosBlobSha = await createBlob(repo, usuariosBase64, headers);
+      finalEntries.push({
+        path: usuariosRepoPath,
+        mode: '100644',
+        type: 'blob',
+        sha: usuariosBlobSha
+      });
     }
 
-    const tUI = performance.now();
-    const commitSha = dataPutResult && dataPutResult.commit && dataPutResult.commit.sha
-      ? dataPutResult.commit.sha.slice(0, 7)
-      : null;
-    const commitMsg = commitSha ? ` (commit ${commitSha})` : '';
+    // ============================================================
+    // PASO 4: crear UN SOLO commit con todos los archivos
+    // ============================================================
+    setGithubStatus('Creando el commit...', 'info');
 
+    const commitMessage = ghCommitMessage(
+      `Actualización del reporte desde la app (${new Date().toLocaleString('es-MX')})`
+    );
+
+    let newCommitSha;
+    try {
+      newCommitSha = await commitGroupedPush(repo, branch, headers, finalEntries, commitMessage);
+    } catch (err) {
+      // Reintento especial: si algún archivo ya existía con otro contenido, GitHub
+      // puede devolver error. Volvemos a intentar SOLO con los JSONs, sin los blobs.
+      console.error('Error al crear el commit agrupado:', err);
+      throw err;
+    }
+
+    // Limpiar flags
+    modelosDBChanged = false;
+    if (typeof usuariosDBChanged !== 'undefined') usuariosDBChanged = false;
+
+    // ============================================================
+    // PASO 5: mostrar resultado
+    // ============================================================
+    const commitSha = newCommitSha ? newCommitSha.slice(0, 7) : null;
     const etiqueta = sessionUser ? `"${sessionUser}"` : '(sin sesión)';
-    if (fallosImagenes.length > 0) {
-      const detalle = fallosImagenes.map(f => `• ${f.label}: ${f.message}`).join('\n');
-      const msg = `⚠️ Guardado con advertencias: ${fallosImagenes.length} imagen(es) no se pudieron subir. Vuelve a presionar "Guardar en GitHub".`;
-      setGithubStatus(
-        `⚠️ El cambio se guardó${commitMsg} como ${etiqueta}, pero ${fallosImagenes.length} imagen(es) no se pudieron subir tras reintentar. ` +
-        `Las fotos no se perdieron (quedaron guardadas dentro del registro); vuelve a darle "Guardar en GitHub" cuando tengas mejor conexión para reintentarlas.\n${detalle}`,
-        'error'
-      );
-      showToast(msg, 'warning');
-    } else {
-      setGithubStatus(`✅ Cambios subidos correctamente a GitHub como ${etiqueta}${nuevasImagenes ? ` (${nuevasImagenes} imagen(es) nueva(s))` : ''}${commitMsg}.`, 'ok');
-      showToast(
-        `Cambios guardados correctamente${commitSha ? ' (commit ' + commitSha + ')' : ''}`,
-        'success'
-      );
-    }
-    mark('actualizar_ui', tUI);
 
-    timings.total = Math.round(performance.now() - t0);
-    console.log('[GitHub Save] Usuario:', sessionUser, '| Tiempos por etapa (ms):', timings);
+    setGithubStatus(
+      `✅ Cambios subidos correctamente a GitHub como ${etiqueta}` +
+      `${blobsCreados ? ` (${blobsCreados} archivo(s) nuevo(s))` : ''}` +
+      `${commitSha ? ` (commit ${commitSha})` : ''}.`,
+      'ok'
+    );
+    showToast(
+      `Cambios guardados correctamente${commitSha ? ' (commit ' + commitSha + ')' : ''}`,
+      'success'
+    );
+
+    const total = Math.round(performance.now() - t0);
+    console.log(`[GitHub Save] Usuario: ${sessionUser} | Archivos: ${finalEntries.length} | Blobs nuevos: ${blobsCreados} | Tiempo: ${total}ms | Commit: ${commitSha}`);
+
   } catch (err) {
     console.error('Error al subir a GitHub:', err);
-    timings.total = Math.round(performance.now() - t0);
-    console.log('[GitHub Save] Usuario:', sessionUser, '| Tiempos hasta el error (ms):', timings);
 
     const pareceFalloDeRed = (err instanceof TypeError) || !navigator.onLine;
     if (pareceFalloDeRed) {
@@ -3791,8 +3874,8 @@ async function pushToGithub() {
         if (/401/.test(detalle)) return '\n\n👉 Causa probable: el Token de GitHub es inválido, expiró o está mal copiado. Vuelve a generarlo en GitHub → Settings → Developer settings → Personal access tokens.';
         if (/403/.test(detalle)) return '\n\n👉 Causa probable: el Token no tiene permisos suficientes. Debe tener scope "repo" (o "Contents: Read and write" si es un token fino) y acceso al repositorio.';
         if (/404/.test(detalle)) return '\n\n👉 Causa probable: el repositorio, la rama o la ruta no existen. Verifica la configuración.';
-        if (/409/.test(detalle)) return '\n\n👉 El archivo cambió en GitHub justo cuando subías. Vuelve a presionar "Guardar en GitHub"; la app sincronizará automáticamente.';
-        if (/422/.test(detalle)) return '\n\n👉 Causa probable: la rama no existe. Verifica el nombre de la rama (main / master / otra).';
+        if (/409/.test(detalle)) return '\n\n👉 La rama cambió en GitHub justo cuando subías. Vuelve a presionar "Guardar en GitHub"; la app reintenta automáticamente.';
+        if (/422/.test(detalle)) return '\n\n👉 Causa probable: la rama no existe o el commit no puede apuntar a la rama. Verifica el nombre de la rama (main / master / otra).';
         return '';
       })();
       setGithubStatus(`❌ No se pudo guardar.\n\n${detalle}${pista}`, 'error');
@@ -3806,9 +3889,9 @@ async function pushToGithub() {
       showToast(shortMsg, 'error');
     }
   } finally {
-    btn.innerHTML = originalHtml;
-    btn.disabled = false;
-    if(mainBtn) { mainBtn.innerHTML = originalMainHtml; mainBtn.disabled = false; }
+    guardadoEnProgreso = false;
+    if (btn) { btn.innerHTML = originalHtml; btn.disabled = false; }
+    if (mainBtn) { mainBtn.innerHTML = originalMainHtml; mainBtn.disabled = false; }
   }
 }
 
@@ -4460,6 +4543,20 @@ async function cargarDatosIniciales(){
   } catch (e) {
     console.warn('No se pudo revisar cambios pendientes sin conexión:', e);
   }
+
+  // Restaurar el estado del panel de Pendientes Generales
+  try {
+    if (localStorage.getItem('rpi_pg_panel_open') === '1') {
+      isPGPanelOpen = true;
+      const panel = document.getElementById('pg-panel');
+      const chev = document.getElementById('pg-chevron');
+      if (panel) panel.style.display = 'block';
+      if (chev) {
+        chev.classList.remove('ti-chevron-down');
+        chev.classList.add('ti-chevron-up');
+      }
+    }
+  } catch (e) {}
 }
 
 async function cargarModelosDB(){
@@ -4621,6 +4718,7 @@ async function deleteFileFromGithub(repo, repoPath, branch, headers, message) {
   return delResp.json().catch(() => null);
 }
 
+// --- ELIMINADO: guardado automático al eliminar ficha ---
 async function deleteFicha(id) {
   if (!isEditableMode) return;
   if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar fichas técnicas.'); return; }
@@ -4656,17 +4754,9 @@ async function deleteFicha(id) {
   const idx = data.fichasTecnicas.findIndex(x => x.id === id);
   if (idx !== -1) data.fichasTecnicas.splice(idx, 1);
 
-  try {
-    if (cfg && cfg.repo && cfg.token) {
-      await quickSaveGithub();
-    }
-  } catch (err) {
-    console.error('El archivo se borró pero no se pudo actualizar el listado guardado:', err);
-    alert('⚠️ El archivo se eliminó correctamente, pero no se pudo actualizar el listado guardado en GitHub. Usa "Guardar en GitHub" para terminar de sincronizarlo.');
-  } finally {
-    fichaDeleteInProgress.delete(id);
-    renderFichas();
-  }
+  fichaDeleteInProgress.delete(id);
+  renderFichas();
+  setGithubStatus('✅ Ficha eliminada. Presiona "Guardar en GitHub" para aplicar el cambio.', 'ok');
 }
 
 let pendingReplaceFichaId = null;
@@ -4698,6 +4788,7 @@ function handleFichaReplace(e) {
   reader.readAsDataURL(file);
 }
 
+// --- ELIMINADO: guardado automático al reemplazar ficha ---
 async function replaceFichaContent(id, newName, newContentBase64) {
   if (fichaReplaceInProgress.has(id)) return;
   const f = getFichaById(id);
@@ -4729,17 +4820,9 @@ async function replaceFichaContent(id, newName, newContentBase64) {
   f.name = newName;
   f.content = newContentBase64;
 
-  try {
-    if (cfg && cfg.repo && cfg.token) {
-      await quickSaveGithub();
-    }
-  } catch (err) {
-    console.error('El archivo se reemplazó localmente pero no se pudo guardar en GitHub:', err);
-    alert('⚠️ El archivo nuevo quedó cargado, pero no se pudo guardar en GitHub todavía. Usa "Guardar en GitHub" para terminar de subirlo.');
-  } finally {
-    fichaReplaceInProgress.delete(id);
-    renderFichas();
-  }
+  fichaReplaceInProgress.delete(id);
+  renderFichas();
+  setGithubStatus('✅ Ficha reemplazada. Presiona "Guardar en GitHub" para aplicar el cambio.', 'ok');
 }
 
 /* ---- RECORDATORIO DE PENDIENTES (CADA 2 HORAS) ---- */

@@ -221,49 +221,6 @@ body{
 .btn-excel{background:linear-gradient(135deg,#1d7a46,#15803d);color:#fff;border-color:transparent}
 .btn-excel:hover{background:linear-gradient(135deg,#15803d,#1d7a46);box-shadow:0 8px 18px -4px rgba(21,128,61,0.45)}
 
-/* ---------- FILA DE GITHUB EN EL MENÚ LATERAL ---------- */
-.gh-row {
-  display: flex !important;
-  width: 100% !important;
-  gap: 6px;
-  opacity: 1 !important;
-  transform: none !important;
-}
-.gh-row .gh-save-btn {
-  flex: 1 1 auto !important;
-  min-width: 0;
-  width: auto !important;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  white-space: nowrap;
-  padding: 10px 12px;
-  min-height: 46px;
-  font-size: 13.5px;
-  overflow: hidden;
-}
-.gh-row .gh-save-btn span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.gh-row .gh-settings-btn {
-  flex: 0 0 auto !important;
-  width: 46px !important;
-  min-width: 46px !important;
-  max-width: 46px !important;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  min-height: 46px;
-}
-.gh-row svg {
-  flex-shrink: 0;
-  display: block;
-}
-
 /* ---------- DROPDOWN ---------- */
 .dropdown-wrap{position:relative;display:inline-block}
 .dropdown-menu{
@@ -1675,6 +1632,36 @@ html,body{
 
   #pdf-report-container{padding: 20px;}
   .pdf-chart-row{flex-direction: column;}
+
+  /* ============================================================
+     NUEVO: Reordenar las imágenes en móvil.
+     ------------------------------------------------------------
+     En PC, las imágenes quedan dentro de .item-footer, junto a
+     los badges Habilitado/Planos/Etiquetas (alineados a la derecha).
+     Eso funciona bien y NO se toca.
+
+     En móvil, el .item-footer se apila en columna y, por defecto,
+     los badges aparecen primero y las imágenes después (al final).
+     Con estas reglas, las imágenes suben ANTES de los badges:
+       1) .item-footer pasa a column (apilado vertical)
+       2) .contenedor-adjuntos recibe order:1 (arriba) y se centra
+       3) .proceso-item recibe order:2 (abajo)
+     PC no se ve afectado porque está dentro de esta media query.
+     ============================================================ */
+  .item-card .item-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .item-card .proceso-container .contenedor-adjuntos {
+    order: 1;
+    justify-content: center;
+    width: 100%;
+    margin-left: 0;
+  }
+  .item-card .proceso-container .proceso-item {
+    order: 2;
+  }
 }
 
 @media (max-width: 480px){

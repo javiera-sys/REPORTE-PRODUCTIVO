@@ -1848,3 +1848,15 @@ html,body{
   .rte-btn { min-width: 34px; height: 34px; }
   .rte-toolbar { padding: 4px; }
 }
+/* Botón de Guardar en GitHub en el menú lateral */
+.side-menu-body .dropdown-wrap .btn-github {
+  white-space: nowrap;
+  font-size: 13px;
+  padding: 10px 14px;
+  min-height: 46px;
+}
+
+.side-menu-body .dropdown-wrap .btn-github svg {
+  flex-shrink: 0;
+  display: block;
+}

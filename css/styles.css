@@ -1850,45 +1850,53 @@ html,body{
   .rte-btn { min-width: 34px; height: 34px; }
   .rte-toolbar { padding: 4px; }
 }
-/* ---------- FILA DE GITHUB EN EL MENÚ LATERAL ---------- */
-.gh-row {
+/* ---------- FILA DE GITHUB EN EL MENÚ LATERAL ----------
+   Se usa un selector muy específico (.side-menu-body .gh-row ...) para
+   ganar contra la regla general .side-menu-body .btn que define
+   width:100%. Si no, el botón de guardar se estira y empuja al
+   engranaje fuera de la pantalla. */
+.side-menu-body .gh-row {
   display: flex !important;
+  flex-direction: row !important;
   width: 100% !important;
-  gap: 6px;
+  gap: 6px !important;
   opacity: 1 !important;
   transform: none !important;
 }
-.gh-row .gh-save-btn {
-  flex: 1 1 auto !important;
-  min-width: 0;
+.side-menu-body .gh-row .gh-save-btn {
+  flex: 1 1 0% !important;
   width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
   display: flex !important;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  white-space: nowrap;
-  padding: 10px 12px;
-  min-height: 46px;
-  font-size: 13.5px;
-  overflow: hidden;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  white-space: nowrap !important;
+  padding: 10px 12px !important;
+  min-height: 46px !important;
+  font-size: 13.5px !important;
+  overflow: hidden !important;
 }
-.gh-row .gh-save-btn span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.side-menu-body .gh-row .gh-save-btn span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
-.gh-row .gh-settings-btn {
-  flex: 0 0 auto !important;
+.side-menu-body .gh-row .gh-settings-btn {
+  flex: 0 0 46px !important;
   width: 46px !important;
   min-width: 46px !important;
   max-width: 46px !important;
   display: flex !important;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  min-height: 46px;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  min-height: 46px !important;
 }
-.gh-row svg {
-  flex-shrink: 0;
-  display: block;
+.side-menu-body .gh-row svg {
+  flex-shrink: 0 !important;
+  display: block !important;
 }
+

@@ -1,6 +1,5 @@
 /* ============================================================
    styles.css — Reporte de Producción
-   Optimización responsive Android (320px → desktop)
    ============================================================ */
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -79,7 +78,6 @@ body{
 }
 .top-bar-left{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
 
-/* ÍCONO DEL HEADER — SVG embebido, sin depender de la fuente Tabler */
 .top-bar-left::before{
   content:'';
   display:inline-block;
@@ -104,7 +102,7 @@ body{
 }
 .top-bar-left p{font-size:11px;color:var(--color-text-secondary);margin-top:2px;font-weight:500}
 
-/* ---------- BOTONES FLOTANTES — SVG embebido ---------- */
+/* ---------- BOTONES FLOTANTES ---------- */
 .side-menu-toggle{
   position:fixed;
   bottom: calc(20px + var(--safe-bottom));
@@ -175,7 +173,6 @@ body{
   transition:opacity 0.28s ease, transform 0.28s ease;
 }
 .side-menu-body .dropdown-wrap .btn{opacity:1;transform:none;transition:background 0.15s}
-.side-menu-body .dropdown-wrap .btn:first-child{flex:1}
 .side-menu.open .side-menu-body > .btn,
 .side-menu.open .side-menu-body > .dropdown-wrap{opacity:1;transform:translateX(0)}
 .side-menu.open .side-menu-body > *:nth-child(1){transition-delay:0.04s}
@@ -223,6 +220,49 @@ body{
 .btn-github:hover{background:linear-gradient(135deg,#1a1e22,#24292e);box-shadow:0 8px 18px -4px rgba(36,41,46,0.45)}
 .btn-excel{background:linear-gradient(135deg,#1d7a46,#15803d);color:#fff;border-color:transparent}
 .btn-excel:hover{background:linear-gradient(135deg,#15803d,#1d7a46);box-shadow:0 8px 18px -4px rgba(21,128,61,0.45)}
+
+/* ---------- FILA DE GITHUB EN EL MENÚ LATERAL ---------- */
+.gh-row {
+  display: flex !important;
+  width: 100% !important;
+  gap: 6px;
+  opacity: 1 !important;
+  transform: none !important;
+}
+.gh-row .gh-save-btn {
+  flex: 1 1 auto !important;
+  min-width: 0;
+  width: auto !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  padding: 10px 12px;
+  min-height: 46px;
+  font-size: 13.5px;
+  overflow: hidden;
+}
+.gh-row .gh-save-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gh-row .gh-settings-btn {
+  flex: 0 0 auto !important;
+  width: 46px !important;
+  min-width: 46px !important;
+  max-width: 46px !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  min-height: 46px;
+}
+.gh-row svg {
+  flex-shrink: 0;
+  display: block;
+}
 
 /* ---------- DROPDOWN ---------- */
 .dropdown-wrap{position:relative;display:inline-block}
@@ -1847,16 +1887,4 @@ html,body{
 @media (max-width: 360px) {
   .rte-btn { min-width: 34px; height: 34px; }
   .rte-toolbar { padding: 4px; }
-}
-/* Botón de Guardar en GitHub en el menú lateral */
-.side-menu-body .dropdown-wrap .btn-github {
-  white-space: nowrap;
-  font-size: 13px;
-  padding: 10px 14px;
-  min-height: 46px;
-}
-
-.side-menu-body .dropdown-wrap .btn-github svg {
-  flex-shrink: 0;
-  display: block;
 }

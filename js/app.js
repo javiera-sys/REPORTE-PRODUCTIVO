@@ -892,8 +892,6 @@ function subirAdjuntoPG(event, pgId) {
   reader.readAsDataURL(file);
 }
 
-// --- ELIMINADO: guardado automático al eliminar adjunto PG ---
-// El usuario debe presionar "Guardar en GitHub" para aplicar el cambio.
 async function eliminarAdjuntoPG(event, pgId, idx) {
   if (event) event.stopPropagation();
   if (!isEditableMode) return;
@@ -903,8 +901,6 @@ async function eliminarAdjuntoPG(event, pgId, idx) {
 
   const adj = pg.adjuntos[idx];
 
-  // Si el archivo ya está en GitHub (no es data:), lo borramos del repo.
-  // Si es data: (nunca se subió), solo lo quitamos de memoria.
   if (typeof adj === 'string' && !adj.startsWith('data:')) {
     try {
       const cfg = loadGithubConfig();
@@ -920,8 +916,6 @@ async function eliminarAdjuntoPG(event, pgId, idx) {
 
   pg.adjuntos.splice(idx, 1);
   renderPG();
-  // OJO: Ya NO se llama quickSaveGithub() aquí.
-  // El usuario debe presionar "Guardar en GitHub" para que el cambio quede permanente.
 }
 
 function abrirPdfPG(pgId, idx) {
@@ -1000,9 +994,6 @@ function render(){
     });
   }
 
-  // --- MIGRACIÓN DE FECHAS HISTÓRICAS ---
-  // Esta lógica se asegura de que los cambios existentes que ya están terminados
-  // o cancelados tengan una fecha de evento para que aparezcan en el calendario.
   if(data && data.naves) {
     data.naves.forEach(nave => {
       if (nave.items) {
@@ -1127,10 +1118,6 @@ function filterItems(){
       const isDone = itemCard.classList.contains('plano-done');
    const isCancelado = itemCard.classList.contains('item-cancelado');
    let statusMatch = true;
-   // Los 3 estados son mutuamente excluyentes:
-   //   - Terminado = tiene clase 'plano-done' (y no está cancelado)
-   //   - Cancelado = tiene clase 'item-cancelado'
-   //   - Pendiente = no es terminado NI cancelado
    if (filterStatus === 'pending') {
      statusMatch = !isDone && !isCancelado;
    } else if (filterStatus === 'done') {
@@ -2178,7 +2165,6 @@ async function confirmPdSubmoduleModal() {
   }
 }
 
-// --- ELIMINADO: guardado automático al crear apartado ---
 async function createPdSubmodule(name, type) {
   if (pdSubmoduleOpInProgress.has('new')) return;
   pdSubmoduleOpInProgress.add('new');
@@ -2193,7 +2179,6 @@ async function createPdSubmodule(name, type) {
   setPdStatus(`✅ Apartado "${name}" (${type === 'pdf' ? 'PDF' : 'Excel'}) creado. Presiona "Guardar en GitHub" para subirlo.`, 'ok');
 }
 
-// --- ELIMINADO: guardado automático al actualizar apartado ---
 async function updatePdSubmodule(id, name, type) {
   if (pdSubmoduleOpInProgress.has(id)) return;
   const sm = getPdSubmodule(id);
@@ -2212,7 +2197,6 @@ async function updatePdSubmodule(id, name, type) {
   setPdStatus(`✅ Apartado actualizado. Presiona "Guardar en GitHub" para subirlo.`, 'ok');
 }
 
-// --- ELIMINADO: guardado automático al eliminar apartado ---
 async function deletePdSubmodule(id) {
   if (!isEditableMode) return;
   if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar apartados.'); return; }
@@ -2440,7 +2424,6 @@ function triggerPdPdfUpload() {
   document.getElementById('pd-pdf-input').click();
 }
 
-// --- ELIMINADO: guardado automático al subir PDF ---
 function handlePdPdfUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -2572,7 +2555,6 @@ function deletePdColumn(colIdx) {
   renderPdTable();
 }
 
-// --- MODIFICADO: solo borra la hoja original si se va a subir de inmediato ---
 async function savePdChanges() {
   if (!isEditableMode) return;
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
@@ -3442,19 +3424,6 @@ function extFromDataUri(uri) {
   return fmt === 'jpeg' ? 'jpg' : fmt;
 }
 
-/* ============================================================
-   NUEVA API: guardado agrupado en 1 sola operación (1 commit)
-   ============================================================
-   Usa la API de Git Data de GitHub:
-   1. Obtener el commit actual de la rama → tree base.
-   2. Crear un blob por cada archivo nuevo (imágenes, PDFs, Excel).
-   3. Crear un tree nuevo con TODOS los blobs + los archivos JSON.
-   4. Crear un commit nuevo con ese tree.
-   5. Actualizar la rama para que apunte al nuevo commit.
-
-   Todo en UNA SOLA operación → 1 commit en lugar de N commits.
-   ============================================================ */
-
 async function getBranchHead(repo, branch, headers) {
   const url = `https://api.github.com/repos/${repo}/git/ref/heads/${encodeURIComponent(branch)}`;
   const resp = await fetch(url, { headers, cache: 'no-store' });
@@ -3538,7 +3507,6 @@ async function updateBranchRef(repo, branch, newCommitSha, headers) {
   return resp.json().catch(() => null);
 }
 
-// Reintenta la operación completa en caso de 422 (rama cambió en medio)
 async function commitGroupedPush(repo, branch, headers, entries, commitMessage, maxRetries = 3) {
   let lastErr = null;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -3551,22 +3519,17 @@ async function commitGroupedPush(repo, branch, headers, entries, commitMessage, 
       return newCommitSha;
     } catch (err) {
       lastErr = err;
-      // 422 = el ref cambió entre lectura y escritura. Reintentamos.
       if (err.status === 422 || err.status === 409) {
         console.warn(`[Git] Conflicto al commit (intento ${attempt + 1}/${maxRetries}). Reintentando...`);
         await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
         continue;
       }
-      // Otro error → no reintentar
       throw err;
     }
   }
   throw lastErr || new Error('No se pudo crear el commit tras varios intentos.');
 }
 
-/* ============================================================
-   PUSH A GITHUB AGRUPADO
-   ============================================================ */
 async function pushToGithub() {
   if (guardadoEnProgreso) {
     showToast('Ya hay un guardado en progreso. Espera a que termine.', 'warning');
@@ -3662,29 +3625,18 @@ async function pushToGithub() {
   const t0 = performance.now();
 
   try {
-    // ============================================================
-    // PASO 1: preparar TODAS las entradas del tree
-    // ============================================================
-    // Cada entrada es { path, mode, type, sha } o { path, content (base64) }.
-    // Vamos a crear primero los blobs de los archivos nuevos (imágenes, PDF, Excel).
-
     setGithubStatus('Preparando archivos para subir...', 'info');
 
     const blobTasks = [];
-    const finalEntries = []; // entradas para el tree
+    const finalEntries = [];
 
     function addBlobEntry(repoPath, contentBase64, afterSha) {
-      // Agregamos una "tarea" que después va a crear el blob y devolver su sha.
       blobTasks.push({
         repoPath,
         contentBase64,
         afterSha
       });
     }
-
-    // Recorremos TODAS las imágenes y archivos nuevos.
-    // Las que ya están en data/images/... se respetan y NO se vuelven a subir.
-    // Las que son data: base64 nuevas se suben.
 
     for (const nave of data.naves || []) {
       if (Array.isArray(nave.images)) {
@@ -3773,9 +3725,6 @@ async function pushToGithub() {
       }
     }
 
-    // ============================================================
-    // PASO 2: crear todos los blobs (con concurrencia limitada)
-    // ============================================================
     let blobsCreados = 0;
     if (blobTasks.length > 0) {
       setGithubStatus(`Subiendo ${blobTasks.length} archivo(s) nuevo(s)...`, 'info');
@@ -3789,7 +3738,6 @@ async function pushToGithub() {
               type: 'blob',
               sha: sha
             });
-            // Aplicamos el cambio en memoria (reemplaza el data: por la ruta)
             if (typeof task.afterSha === 'function') task.afterSha();
             blobsCreados++;
           } catch (err) {
@@ -3803,16 +3751,11 @@ async function pushToGithub() {
       );
     }
 
-    // ============================================================
-    // PASO 3: preparar JSONs
-    // ============================================================
-    // Importante: los JSONs se serializan DESPUÉS de actualizar las rutas en memoria.
     setGithubStatus('Preparando datos JSON...', 'info');
 
     const dataString = JSON.stringify(data);
     const dataBase64 = utf8ToBase64(dataString);
 
-    // Blob para cambios.json
     const dataBlobSha = await createBlob(repo, dataBase64, headers);
     finalEntries.push({
       path: dataRepoPath,
@@ -3821,7 +3764,6 @@ async function pushToGithub() {
       sha: dataBlobSha
     });
 
-    // Blob para modelos.json (solo si cambió)
     if (modelosDBChanged) {
       const modelosBase64 = utf8ToBase64(JSON.stringify(modelosDB));
       const modelosBlobSha = await createBlob(repo, modelosBase64, headers);
@@ -3833,7 +3775,6 @@ async function pushToGithub() {
       });
     }
 
-    // Blob para usuarios.json (solo si cambió)
     if (typeof usuariosDBChanged !== 'undefined' && usuariosDBChanged) {
       const usuariosData = (typeof getUsuariosParaGuardar === 'function')
         ? getUsuariosParaGuardar()
@@ -3848,9 +3789,6 @@ async function pushToGithub() {
       });
     }
 
-    // ============================================================
-    // PASO 4: crear UN SOLO commit con todos los archivos
-    // ============================================================
     setGithubStatus('Creando el commit...', 'info');
 
     const commitMessage = ghCommitMessage(
@@ -3861,19 +3799,13 @@ async function pushToGithub() {
     try {
       newCommitSha = await commitGroupedPush(repo, branch, headers, finalEntries, commitMessage);
     } catch (err) {
-      // Reintento especial: si algún archivo ya existía con otro contenido, GitHub
-      // puede devolver error. Volvemos a intentar SOLO con los JSONs, sin los blobs.
       console.error('Error al crear el commit agrupado:', err);
       throw err;
     }
 
-    // Limpiar flags
     modelosDBChanged = false;
     if (typeof usuariosDBChanged !== 'undefined') usuariosDBChanged = false;
 
-    // ============================================================
-    // PASO 5: mostrar resultado
-    // ============================================================
     const commitSha = newCommitSha ? newCommitSha.slice(0, 7) : null;
     const etiqueta = sessionUser ? `"${sessionUser}"` : '(sin sesión)';
 
@@ -4580,7 +4512,6 @@ async function cargarDatosIniciales(){
     console.warn('No se pudo revisar cambios pendientes sin conexión:', e);
   }
 
-  // Restaurar el estado del panel de Pendientes Generales
   try {
     if (localStorage.getItem('rpi_pg_panel_open') === '1') {
       isPGPanelOpen = true;
@@ -4754,7 +4685,6 @@ async function deleteFileFromGithub(repo, repoPath, branch, headers, message) {
   return delResp.json().catch(() => null);
 }
 
-// --- ELIMINADO: guardado automático al eliminar ficha ---
 async function deleteFicha(id) {
   if (!isEditableMode) return;
   if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar fichas técnicas.'); return; }
@@ -4824,7 +4754,6 @@ function handleFichaReplace(e) {
   reader.readAsDataURL(file);
 }
 
-// --- ELIMINADO: guardado automático al reemplazar ficha ---
 async function replaceFichaContent(id, newName, newContentBase64) {
   if (fichaReplaceInProgress.has(id)) return;
   const f = getFichaById(id);
@@ -4909,8 +4838,6 @@ function checkAndSendPendingReminders() {
 setInterval(checkAndSendPendingReminders, 5 * 60 * 1000);
 setTimeout(checkAndSendPendingReminders, 5000);
 
-// ... (Todo el código anterior de app.js permanece igual hasta la sección del Dashboard) ...
-
 /* ---- MÓDULO DASHBOARD Y ESTADÍSTICAS ---- */
 
 function updateSubCatDropdown(type, selectId) {
@@ -4970,8 +4897,8 @@ function getItemEffectiveDate(item) {
 
 // --- NUEVA LÓGICA DEL CALENDARIO ---
 
-let calendarCurrentDate = new Date(); // Fecha actual del calendario (mes/año)
-let calendarEventFilter = 'all'; // 'all', 'pending', 'done', 'cancelled'
+let calendarCurrentDate = new Date();
+let calendarEventFilter = 'all';
 
 function renderCalendar() {
     const container = document.getElementById('calendar-view');
@@ -4983,7 +4910,6 @@ function renderCalendar() {
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const dayNames = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
-    // Recolectar todos los eventos del mes actual
     const eventsByDay = {};
     (data.naves || []).forEach(nave => {
         (nave.items || []).forEach(item => {
@@ -5020,9 +4946,9 @@ function renderCalendar() {
             ${dayNames.map(d => `<div class="calendar-day-header">${d}</div>`).join('')}
     `;
 
-    const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0=Dom, 1=Lun...
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const startOffset = (firstDayOfMonth === 0) ? 6 : firstDayOfMonth - 1; // Ajustar para que Lunes sea 0
+    const startOffset = (firstDayOfMonth === 0) ? 6 : firstDayOfMonth - 1;
 
     for (let i = 0; i < startOffset; i++) {
         calendarHtml += `<div class="calendar-day other-month"></div>`;
@@ -5062,7 +4988,7 @@ function renderCalendar() {
         calendarHtml += `<div class="calendar-day other-month"></div>`;
     }
 
-    calendarHtml += `</div>`; // Cierra calendar-grid
+    calendarHtml += `</div>`;
 
     container.innerHTML = calendarHtml;
 }
@@ -5119,7 +5045,6 @@ function showDayEvents(day) {
     });
     listHtml += `</div>`;
 
-    // Crear un modal temporal para mostrar la lista
     let modal = document.getElementById('modal-day-events');
     if (!modal) {
         modal = document.createElement('div');
@@ -5134,20 +5059,359 @@ function showDayEvents(day) {
 
 function openDashboard() {
   document.getElementById('modal-dashboard').classList.add('open');
-  renderCalendar(); // Renderiza el calendario al abrir
-  setTimeout(renderDashboard, 200);
+  
+  // 🌟 IMPORTANTE: Esperar un momento a que el modal se muestre completamente
+  // antes de renderizar el calendario y las gráficas.
+  setTimeout(() => {
+    renderCalendar();
+    renderDashboard();
+  }, 250);
 }
 
-// ... (El resto del código de renderDashboard, renderDashList, etc. permanece igual) ...
+function clearDashFilter(field) {
+  dashFilters[field] = null;
+  if(field === 'tipo') dashFilters.clasificacion = null;
+  renderDashboard();
+}
+
+function updateFilterBadges() {
+  const bTipo = document.getElementById('filter-badge-tipo');
+  const bClasif = document.getElementById('filter-badge-clasif');
+  const bImpacto = document.getElementById('filter-badge-impacto');
+
+  if(dashFilters.tipo) { bTipo.style.display = 'inline-block'; bTipo.innerHTML = dashFilters.tipo + ' &times;'; }
+  else bTipo.style.display = 'none';
+
+  if(dashFilters.clasificacion) { bClasif.style.display = 'inline-block'; bClasif.innerHTML = dashFilters.clasificacion + ' &times;'; }
+  else bClasif.style.display = 'none';
+
+  if(dashFilters.impacto) { bImpacto.style.display = 'inline-block'; bImpacto.innerHTML = dashFilters.impacto + ' &times;'; }
+  else bImpacto.style.display = 'none';
+}
+
+function renderDashboard() {
+  if (!window.echarts) {
+      console.warn("ECharts no está cargado, intentando de nuevo en 500ms...");
+      setTimeout(renderDashboard, 500);
+      return;
+  }
+
+  // 🌟 IMPORTANTE: Verificar que los contenedores tengan tamaño antes de inicializar
+  const chartTipoEl = document.getElementById('chart-tipo');
+  const chartImpactoEl = document.getElementById('chart-impacto');
+  const chartClasifEl = document.getElementById('chart-clasificacion');
+  
+  if (!chartTipoEl || !chartImpactoEl || !chartClasifEl) return;
+  
+  // Si el contenedor tiene ancho 0, esperar (el modal no está visible aún)
+  if (chartTipoEl.offsetWidth === 0 || chartImpactoEl.offsetWidth === 0) {
+    setTimeout(renderDashboard, 300);
+    return;
+  }
+
+  updateFilterBadges();
+
+  // Inicializar o reusar las gráficas
+  if(!chartTipo) {
+      chartTipo = echarts.init(chartTipoEl);
+      chartTipo.on('click', function(params) {
+          dashFilters.tipo = params.name;
+          dashFilters.clasificacion = null;
+          renderDashboard();
+      });
+  }
+  if(!chartClasif) {
+      chartClasif = echarts.init(chartClasifEl);
+      chartClasif.on('click', function(params) {
+          dashFilters.clasificacion = params.name;
+          renderDashboard();
+      });
+  }
+  if(!chartImpacto) {
+      chartImpacto = echarts.init(chartImpactoEl);
+      chartImpacto.on('click', function(params) {
+          dashFilters.impacto = params.name;
+          renderDashboard();
+      });
+  }
+
+  let tError=0, tAjuste=0, tMejora=0;
+  let clasifCounts = {};
+  let impactoCounts = {
+      'Planos: ✔️':0, 'Planos: ✖️':0,
+      'Habilitado: ✔️':0, 'Habilitado: ✖️':0,
+      'Etiquetas: ✔️':0, 'Etiquetas: ✖️':0
+  };
+
+  let relatedItems = [];
+
+  (data.naves || []).forEach(nave => {
+      (nave.items || []).forEach(item => {
+          let typeMatch = !dashFilters.tipo ||
+                          (dashFilters.tipo === 'Errores' && item.type === 'error') ||
+                          (dashFilters.tipo === 'Ajustes' && item.type === 'ajuste') ||
+                          (dashFilters.tipo === 'Mejoras' && item.type === 'mejora');
+
+          let classMatch = !dashFilters.clasificacion || (item.subType === dashFilters.clasificacion);
+
+          let proc = item.proceso || {planos:false, habilitado:false, etiquetas:false};
+          let pVal = proc.planos ? 'Planos: ✔️' : 'Planos: ✖️';
+          let hVal = proc.habilitado ? 'Habilitado: ✔️' : 'Habilitado: ✖️';
+          let eVal = proc.etiquetas ? 'Etiquetas: ✔️' : 'Etiquetas: ✖️';
+
+          let impMatch = !dashFilters.impacto || (pVal===dashFilters.impacto || hVal===dashFilters.impacto || eVal===dashFilters.impacto);
+
+          if (typeMatch && classMatch && impMatch) {
+              relatedItems.push({nave, item});
+
+              if(item.type==='error') tError++;
+              if(item.type==='ajuste') tAjuste++;
+              if(item.type==='mejora') tMejora++;
+
+              const sc = item.subType || 'Sin clasificar';
+              clasifCounts[sc] = (clasifCounts[sc] || 0) + 1;
+
+              impactoCounts[pVal]++;
+              impactoCounts[hVal]++;
+              impactoCounts[eVal]++;
+          }
+      });
+  });
+
+  chartTipo.setOption({
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: ['Errores', 'Ajustes', 'Mejoras'], axisLabel: {interval: 0} },
+      yAxis: { type: 'value' },
+      series: [{
+          data: [
+              {value: tError, itemStyle: {color: '#ef4444'}},
+              {value: tAjuste, itemStyle: {color: '#eab308'}},
+              {value: tMejora, itemStyle: {color: '#8b5cf6'}}
+          ],
+          type: 'bar',
+          label: { show: true, position: 'top' }
+      }]
+  });
+  chartTipo.resize();
+
+  let cEntries = Object.entries(clasifCounts).sort((a, b) => a[1] - b[1]);
+  let cKeys = cEntries.map(e => e[0]);
+  const palette = ['#3b82f6', '#06b6d4', '#10b981', '#84cc16', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#a855f7', '#6366f1', '#0ea5e9', '#d946ef', '#f43f5e', '#8b5cf6'];
+
+  let coloredData = cEntries.map(([k, v], i) => {
+      return {
+          value: v,
+          name: k,
+          itemStyle: { color: palette[i % palette.length] }
+      };
+  });
+
+  const clasifHeight = Math.max(250, cKeys.length * 34 + 60);
+  chartClasifEl.style.height = clasifHeight + 'px';
+
+  chartClasif.setOption({
+      tooltip: { trigger: 'item' },
+      grid: { left: '3%', right: '8%', top: 10, bottom: 20, containLabel: true },
+      xAxis: { type: 'value' },
+      yAxis: {
+          type: 'category',
+          data: cKeys,
+          axisLabel: { width: 160, overflow: 'truncate', fontSize: 11 }
+      },
+      series: [{
+          data: coloredData,
+          type: 'bar',
+          barMaxWidth: 22,
+          label: { show: true, position: 'right', fontSize: 11, fontWeight: 600 }
+      }]
+  }, true);
+  chartClasif.resize();
+
+  chartImpacto.setOption({
+      tooltip: { trigger: 'item' },
+      series: [
+          {
+              name: 'Impacto',
+              type: 'pie',
+              radius: ['40%', '70%'],
+              itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2 },
+              label: { show: false },
+              data: [
+                  {value: impactoCounts['Planos: ✔️'], name: 'Planos: ✔️', itemStyle:{color:'#34d399'}},
+                  {value: impactoCounts['Planos: ✖️'], name: 'Planos: ✖️', itemStyle:{color:'#f87171'}},
+                  {value: impactoCounts['Habilitado: ✔️'], name: 'Habilitado: ✔️', itemStyle:{color:'#10b981'}},
+                  {value: impactoCounts['Habilitado: ✖️'], name: 'Habilitado: ✖️', itemStyle:{color:'#ef4444'}},
+                  {value: impactoCounts['Etiquetas: ✔️'], name: 'Etiquetas: ✔️', itemStyle:{color:'#059669'}},
+                  {value: impactoCounts['Etiquetas: ✖️'], name: 'Etiquetas: ✖️', itemStyle:{color:'#dc2626'}}
+              ]
+          }
+      ]
+  });
+  chartImpacto.resize();
+
+  renderDashList(relatedItems);
+
+  const totalR = relatedItems.length;
+  let conclusiones = [];
+  if (totalR === 0) {
+      conclusiones.push("No hay registros suficientes para generar un análisis con los filtros actuales.");
+  } else {
+      let tipos = [{name: 'Errores', val: tError}, {name: 'Ajustes', val: tAjuste}, {name: 'Mejoras', val: tMejora}];
+      tipos.sort((a,b) => b.val - a.val);
+      if(tipos[0].val > 0) {
+          conclusiones.push(`📌 <b>Tendencia principal:</b> El tipo de reporte predominante es <b>${tipos[0].name}</b>, representando el ${Math.round((tipos[0].val/totalR)*100)}% de los registros analizados.`);
+      }
+
+      if(cKeys.length > 0) {
+          let maxClasif = cKeys.reduce((a, b) => clasifCounts[a] > clasifCounts[b] ? a : b);
+          conclusiones.push(`📊 <b>Clasificación más frecuente:</b> La categoría con mayor incidencia es <b>${maxClasif}</b> (${clasifCounts[maxClasif]} casos). Sería recomendable enfocar acciones preventivas o de mejora en esta área.`);
+      }
+
+      let maxImpacto = '';
+      let maxImpactoVal = -1;
+      ['Planos: ✖️', 'Habilitado: ✖️', 'Etiquetas: ✖️'].forEach(k => {
+          if(impactoCounts[k] > maxImpactoVal) {
+              maxImpactoVal = impactoCounts[k];
+              maxImpacto = k.split(':')[0];
+          }
+      });
+      if(maxImpactoVal > 0) {
+          conclusiones.push(`⚠️ <b>Área más impactada:</b> <b>${maxImpacto}</b> es el rubro que ha requerido más modificaciones directas (${maxImpactoVal} afectaciones registradas).`);
+      } else {
+          conclusiones.push(`✅ <b>Impacto:</b> Hasta el momento no se han registrado afectaciones negativas graves en Planos, Habilitado o Etiquetas con los filtros actuales.`);
+      }
+  }
+  const concContainer = document.getElementById('dash-conclusions');
+  if(concContainer) concContainer.innerHTML = conclusiones.join('<br><br>');
+}
+
+function renderDashList(items) {
+  const list = document.getElementById('dash-list');
+  if (items.length === 0) {
+      list.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No se encontraron modelos con estos filtros.</div>';
+      return;
+  }
+
+  list.innerHTML = items.map(entry => {
+      let mText = entry.nave.models.map(m => m.name).join(', ');
+      return `
+      <div class="dash-list-item" onclick="closeModal('modal-dashboard'); setTimeout(() => document.getElementById('ic-${entry.item.id}').scrollIntoView({behavior:'smooth', block:'center'}), 300);">
+          <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:13px; color:var(--navy); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${mText || 'Sin modelo'}</div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">${entry.nave.consola} - ${entry.item.title}</div>
+          </div>
+          <div style="font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px; background:${entry.item.type==='error'?'#fee2e2':entry.item.type==='ajuste'?'#fef08a':'#ede9fe'}; color:${entry.item.type==='error'?'#b91c1c':entry.item.type==='ajuste'?'#854d0e':'#6d28d9'};">
+              ${(entry.item.subType || entry.item.type).toUpperCase()}
+          </div>
+      </div>
+      `;
+  }).join('');
+}
+
+async function generateStatsPDF() {
+  const btn = document.querySelector('#modal-dashboard .btn-green');
+  const oldTxt = btn.innerHTML;
+  btn.innerHTML = '<i class="ti ti-loader"></i> Generando...';
+
+  if (chartTipo) chartTipo.resize();
+  if (chartClasif) chartClasif.resize();
+  if (chartImpacto) chartImpacto.resize();
+
+  const c1Img = chartTipo.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
+  const c2Img = chartClasif.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
+  const c3Img = chartImpacto.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
+
+  let totalModelos = 0, totalODT = 0, totalRegistros = 0;
+  let modelosRows = '';
+
+  data.naves.forEach(n => {
+      totalModelos += n.models.length;
+      n.items.forEach(i => {
+          totalRegistros++;
+          if(i.odt) totalODT++;
+          let mNames = n.models.map(m=>m.name).join('<br>');
+          modelosRows += `<tr><td>${formatDateEs(i.fecha)}</td><td>${mNames}</td><td>${i.odt||'-'}</td><td>${(i.subType||i.type).toUpperCase()}</td><td>${i.proceso?.planoTerminado?'TERMINADO':'PENDIENTE'}</td></tr>`;
+      });
+  });
+
+  const now = new Date().toLocaleString('es-MX');
+
+  const container = document.getElementById('pdf-report-container');
+  container.style.display = 'block';
+  const conclusionesText = document.getElementById('dash-conclusions') ? document.getElementById('dash-conclusions').innerHTML : '';
+
+  container.innerHTML = `
+      <div class="pdf-title">Reporte Estadístico de Producción</div>
+      <div class="pdf-subtitle">Generado el ${now}</div>
+
+      <div class="pdf-metrics">
+          <div class="pdf-metric-box">
+              <div class="pdf-metric-val">${totalRegistros}</div>
+              <div class="pdf-metric-lbl">Total Registros</div>
+          </div>
+          <div class="pdf-metric-box">
+              <div class="pdf-metric-val">${totalModelos}</div>
+              <div class="pdf-metric-lbl">Modelos Afectados</div>
+          </div>
+          <div class="pdf-metric-box">
+              <div class="pdf-metric-val">${totalODT}</div>
+              <div class="pdf-metric-lbl">ODTs Procesadas</div>
+          </div>
+      </div>
+
+      <div style="font-size:16px; font-weight:800; border-bottom:2px solid #cbd5e1; margin-bottom:15px; padding-bottom:5px; color:#1e293b;">Gráficas Generales</div>
+      <div class="pdf-chart-row">
+          <div class="pdf-chart-col">
+              <div style="font-size:12px; font-weight:700; margin-bottom:10px; text-align:center;">Tipo de Reporte</div>
+              <img src="${c1Img}" class="pdf-chart-img">
+          </div>
+          <div class="pdf-chart-col">
+              <div style="font-size:12px; font-weight:700; margin-bottom:10px; text-align:center;">Impacto por Área</div>
+              <img src="${c3Img}" class="pdf-chart-img">
+          </div>
+      </div>
+
+      <div class="pdf-chart-row">
+          <div class="pdf-chart-col" style="flex:1;">
+              <div style="font-size:12px; font-weight:700; margin-bottom:10px; text-align:center;">Clasificación Detallada</div>
+              <img src="${c2Img}" class="pdf-chart-img" style="max-height: 250px; object-fit: contain;">
+          </div>
+      </div>
+
+      <div style="font-size:16px; font-weight:800; border-bottom:2px solid #cbd5e1; margin-bottom:15px; margin-top:20px; padding-bottom:5px; color:#1e293b;">Conclusiones Automáticas</div>
+      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:15px; font-size:12px; color:#1e40af; line-height:1.6; margin-bottom:20px;">
+          ${conclusionesText}
+      </div>
+
+      <div style="font-size:16px; font-weight:800; border-bottom:2px solid #cbd5e1; margin-bottom:15px; margin-top:20px; padding-bottom:5px; color:#1e293b; page-break-before: always;">Detalle de Registros</div>
+      <table class="pdf-table">
+          <thead><tr><th>Fecha</th><th>Modelo(s)</th><th>ODT</th><th>Clasificación</th><th>Estatus</th></tr></thead>
+          <tbody>${modelosRows}</tbody>
+      </table>
+
+      <div style="font-size:12px; color:#64748b; margin-top:40px;">* Fin del reporte. Resumen ejecutivo generado automáticamente por el Dashboard de Estadísticas.</div>
+  `;
+
+  try {
+      const opt = {
+        margin:       10,
+        filename:     'Reporte_Estadistico.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(container).save();
+  } catch (err) {
+      console.error(err);
+      alert("Hubo un error al generar el PDF.");
+  } finally {
+      container.style.display = 'none';
+      btn.innerHTML = oldTxt;
+  }
+}
 
 // --- Modificamos la inicialización para que el calendario se renderice ---
-const oldOpenDashboard = openDashboard;
-openDashboard = function() {
-    oldOpenDashboard();
-    renderCalendar();
-};
-
-// --- Modificamos la inicialización para que el calendario se actualice al cambiar datos ---
 const oldRender = render;
 render = function() {
   oldRender();

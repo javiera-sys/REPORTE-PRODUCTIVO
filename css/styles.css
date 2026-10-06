@@ -1,5 +1,5 @@
 /* ============================================================
-   styles.css — Reporte de Producción (VERSIÓN FINAL v4)
+   styles.css — Reporte de Producción (VERSIÓN FINAL CON SCROLL)
    ============================================================ */
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -55,10 +55,6 @@ body{
 
 /* ------------------------------------------------------------
    ÍCONOS TABLER - NO FORZAR FONT-FAMILY
-   ------------------------------------------------------------
-   La librería de Tabler Icons ya define su propia font-family
-   y sus ::before con content. NO la sobreescribimos.
-   Solo aseguramos que se vean nítidos.
    ------------------------------------------------------------ */
 .ti {
   -webkit-font-smoothing: antialiased;
@@ -353,7 +349,7 @@ body.is-locked .img-box{cursor:not-allowed !important;pointer-events:none !impor
 }
 .proceso-item:hover{background:#e0f2f1;color:var(--navy);border-color:var(--navy-light)}
 
-/* ---------- BADGE PLANO TERMINADO (CORREGIDO) ---------- */
+/* ---------- BADGE PLANO TERMINADO ---------- */
 .plano-terminado-badge{
   display:inline-flex;
   align-items:center;
@@ -403,7 +399,7 @@ body.is-locked .img-box{cursor:not-allowed !important;pointer-events:none !impor
 body.is-locked .plano-terminado-badge{cursor:not-allowed;pointer-events:none;opacity:0.65}
 .status-icon{font-size:12px}
 
-/* ---------- NAVE HEADER (BOTONES BLANCOS CON ÍCONOS) ---------- */
+/* ---------- NAVE HEADER ---------- */
 .nave-header{
   background:linear-gradient(120deg,var(--navy) 0%,var(--accent) 100%);
   color:#fff;
@@ -1061,7 +1057,7 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
 
 .divider{border:none;border-top:1px solid var(--color-border-tertiary);margin:14px 0}
 
-/* ---------- ADJUNTOS POR CAMBIO (CORREGIDO) ---------- */
+/* ---------- ADJUNTOS POR CAMBIO ---------- */
 .contenedor-adjuntos{
   display: inline-flex;
   flex-wrap: wrap;
@@ -1215,6 +1211,46 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
   text-align: center;
 }
 .calendar-filters{display: flex;gap: 8px;flex-wrap: wrap;}
+
+/* ---------- ENVOLTORIO CON SCROLL HORIZONTAL (para móvil) ---------- */
+.calendar-scroll-wrap{
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+}
+.calendar-scroll-wrap::-webkit-scrollbar{
+  height: 6px;
+}
+.calendar-scroll-wrap::-webkit-scrollbar-thumb{
+  background: var(--color-border-secondary);
+  border-radius: 3px;
+}
+.calendar-scroll-wrap::-webkit-scrollbar-track{
+  background: transparent;
+}
+
+/* Mensajito que aparece solo en móvil */
+.calendar-scroll-hint{
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-top: 8px;
+  font-weight: 500;
+}
+.calendar-scroll-hint i{
+  font-size: 13px;
+}
+
+/* El grid dentro del scroll-wrap no necesita overflow propio */
+.calendar-scroll-wrap .calendar-grid{
+  min-width: 700px;
+}
 
 .calendar-grid{
   display: grid;
@@ -1676,10 +1712,12 @@ button,.btn,.btn-filter,.hbtn{touch-action:manipulation}
   .calendar-nav{width: 100%;justify-content: space-between;}
   .calendar-filters{width: 100%;justify-content: flex-start;}
   .calendar-grid{font-size: 10px;}
-  .calendar-day{min-height: 80px;padding: 4px;}
+  .calendar-day{min-height: 90px;padding: 6px;}
+  .calendar-day-header{padding: 8px 4px;font-size: 11px;}
   .calendar-event{font-size: 8px;padding: 2px 4px;}
   .calendar-day-number{font-size: 10px;}
   .charts-section{grid-template-columns: 1fr;}
+  .calendar-scroll-hint{display: flex;}
 }
 
 @media (max-width: 640px){
@@ -1691,6 +1729,15 @@ button,.btn,.btn-filter,.hbtn{touch-action:manipulation}
     padding: 10px 12px;
     background: rgba(255,255,255,0.98);
   }
+
+  .calendar-scroll-wrap{
+    margin: 0 -8px;
+    padding: 0 8px 6px 8px;
+  }
+  .calendar-scroll-wrap .calendar-grid{
+    min-width: 640px;
+  }
+
   .top-header-row{flex-direction: column; align-items: stretch; gap: 8px;}
   .top-bar-left{gap: 8px;}
   .top-bar-left h1{font-size: 14px;}

@@ -624,6 +624,14 @@ function toggleProceso(naveId, itemId, field, el, event) {
     if(!item.proceso) item.proceso = { habilitado: false, planos: false, etiquetas: false, planoTerminado: false };
     item.proceso[field] = !item.proceso[field];
 
+    if (field === 'planoTerminado') {
+      if (item.proceso.planoTerminado) {
+        item.completedAt = Date.now();
+      } else {
+        delete item.completedAt;
+      }
+    }
+
     const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
     if (_user) {
       item.modifiedBy = _user.username;
@@ -646,8 +654,10 @@ function toggleCancelado(naveId, itemId, event) {
   if (!item.cancelado) {
     if (!confirm('¿Marcar este cambio como Cancelado?\n\nEl registro no se borra, solo se marca visualmente como no válido.')) return;
     item.cancelado = true;
+    item.cancelledAt = Date.now();
   } else {
     item.cancelado = false;
+    delete item.cancelledAt;
   }
 
   const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
@@ -985,6 +995,24 @@ function render(){
             obj.coleccion = coleccionParaCodigo(obj.name) || obj.coleccion || '';
           }
           return obj;
+        });
+      }
+    });
+  }
+
+  // --- MIGRACIÓN DE FECHAS HISTÓRICAS ---
+  // Esta lógica se asegura de que los cambios existentes que ya están terminados
+  // o cancelados tengan una fecha de evento para que aparezcan en el calendario.
+  if(data && data.naves) {
+    data.naves.forEach(nave => {
+      if (nave.items) {
+        nave.items.forEach(item => {
+          if (!item.completedAt && item.proceso && item.proceso.planoTerminado) {
+            item.completedAt = item.modifiedAt || item.createdAt;
+          }
+          if (!item.cancelledAt && item.cancelado) {
+            item.cancelledAt = item.modifiedAt || item.createdAt;
+          }
         });
       }
     });

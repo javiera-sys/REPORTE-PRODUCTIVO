@@ -7,16 +7,25 @@
 <meta name="theme-color" content="#0f6e8c">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon.svg">
-<link rel="stylesheet" href="css/styles.css">
+
+<!-- ⭐ TABLER ICONS DESDE CDN OFICIAL (VERIFICADO) ⭐ -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+
+<!-- Google Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="vendor/fonts.googleapis.com/css2">
-<link rel="stylesheet" href="vendor/cdn.jsdelivr.net/tabler-icons.min.css">
-<script src="vendor/cdnjs.cloudflare.com/html2pdf.bundle.min.js"></script>
-<script src="vendor/cdnjs.cloudflare.com/xlsx.full.min.js"></script>
-<script src="vendor/www.gstatic.com/firebase-app-compat.js"></script>
-<script src="vendor/www.gstatic.com/firebase-messaging-compat.js"></script>
-<script src="vendor/cdn.jsdelivr.net/echarts.min.js"></script>
-<script src="vendor/cdnjs.cloudflare.com/jszip.min.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+
+<!-- Estilos propios -->
+<link rel="stylesheet" href="css/styles.css">
+
+<!-- Librerías -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body class="is-locked">
 
@@ -145,7 +154,7 @@
 <div class="side-menu" id="side-menu" role="dialog" aria-label="Menú de acciones">
     <div class="side-menu-header">
       <h3>Acciones</h3>
-      <button type="button" class="btn-ghost btn" title="Cerrar" onclick="closeSideMenu()"><i class="ti ti-x"></i></button>
+      <button type="button" class="btn-ghost btn" onclick="closeSideMenu()"><i class="ti ti-x"></i></button>
     </div>
     <div class="side-menu-body">
       <button type="button" class="btn btn-purple only-editable" onclick="closeSideMenu(); openAddNave()"><i class="ti ti-plus" aria-hidden="true"></i> Nuevo mueble</button>

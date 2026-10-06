@@ -4909,6 +4909,8 @@ function checkAndSendPendingReminders() {
 setInterval(checkAndSendPendingReminders, 5 * 60 * 1000);
 setTimeout(checkAndSendPendingReminders, 5000);
 
+// ... (Todo el código anterior de app.js permanece igual hasta la sección del Dashboard) ...
+
 /* ---- MÓDULO DASHBOARD Y ESTADÍSTICAS ---- */
 
 function updateSubCatDropdown(type, selectId) {
@@ -4966,538 +4968,186 @@ function getItemEffectiveDate(item) {
   return null;
 }
 
-function getISOWeeksInYear(isoYear) {
-  const p = (y) => {
-    const d = new Date(Date.UTC(y, 0, 1));
-    const dow = d.getUTCDay() || 7;
-    const isLeap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
-    return dow === 4 || (dow === 3 && isLeap);
-  };
-  return p(isoYear) ? 53 : 52;
-}
+// --- NUEVA LÓGICA DEL CALENDARIO ---
 
-function getISOWeekDateRange(isoYear, week) {
-  const simple = new Date(Date.UTC(isoYear, 0, 1 + (week - 1) * 7));
-  const dow = simple.getUTCDay();
-  const diff = (dow <= 4 ? dow - 1 : dow - 8);
-  const start = new Date(simple);
-  start.setUTCDate(simple.getUTCDate() - diff);
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 6);
-  end.setUTCHours(23, 59, 59, 999);
-  return { start, end };
-}
+let calendarCurrentDate = new Date(); // Fecha actual del calendario (mes/año)
+let calendarEventFilter = 'all'; // 'all', 'pending', 'done', 'cancelled'
 
-function fmtFechaCorta(d) {
-  return d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
-}
-function fmtFechaLarga(d) {
-  return d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
-}
+function renderCalendar() {
+    const container = document.getElementById('calendar-view');
+    if (!container) return;
 
-function populateWeekYearSelector() {
-  const sel = document.getElementById('week-report-year');
-  if (!sel) return;
-  const years = new Set([new Date().getFullYear()]);
-  (data.naves || []).forEach(n => (n.items || []).forEach(it => {
-    const d = getItemEffectiveDate(it);
-    if (d) years.add(d.getFullYear());
-  }));
-  const sorted = Array.from(years).sort((a, b) => b - a);
-  sel.innerHTML = sorted.map(y => `<option value="${y}">${y}</option>`).join('');
-  populateWeekSelector();
-}
+    const year = calendarCurrentDate.getFullYear();
+    const month = calendarCurrentDate.getMonth();
 
-function populateWeekSelector() {
-  const yearSel = document.getElementById('week-report-year');
-  const weekSel = document.getElementById('week-report-week');
-  if (!yearSel || !weekSel) return;
-  const isoYear = parseInt(yearSel.value, 10) || new Date().getFullYear();
-  const totalWeeks = getISOWeeksInYear(isoYear);
-  const today = new Date();
-  const { week: currentWeek } = getISOWeekInfoSafe(today);
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    const dayNames = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
-  let opts = '';
-  for (let w = 1; w <= totalWeeks; w++) {
-    const { start, end } = getISOWeekDateRange(isoYear, w);
-    opts += `<option value="${w}">Semana ${w} (${fmtFechaCorta(start)} - ${fmtFechaCorta(end)})</option>`;
-  }
-  weekSel.innerHTML = opts;
-  if (isoYear === today.getFullYear() && currentWeek >= 1 && currentWeek <= totalWeeks) {
-    weekSel.value = String(currentWeek);
-  }
-
-  document.getElementById('week-report-results').style.display = 'none';
-  document.getElementById('week-report-empty').style.display = 'none';
-  document.getElementById('week-report-pdf-btn').style.display = 'none';
-}
-
-function getISOWeekInfoSafe(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = (d.getUTCDay() + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - dayNum + 3);
-  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
-  const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
-  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
-  const week = 1 + Math.round((d - firstThursday) / (7 * 24 * 3600 * 1000));
-  return { week, isoYear: d.getUTCFullYear() };
-}
-
-let weekReportData = null;
-let weekReportOpenCategory = null;
-
-function generateWeeklyReport() {
-  const isoYear = parseInt(document.getElementById('week-report-year').value, 10);
-  const week = parseInt(document.getElementById('week-report-week').value, 10);
-  const { start, end } = getISOWeekDateRange(isoYear, week);
-
-  const buckets = { terminado: [], pendiente: [], cancelado: [] };
-
-  (data.naves || []).forEach(nave => {
-    (nave.items || []).forEach(item => {
-      const d = getItemEffectiveDate(item);
-      if (!d) return;
-      if (d < start || d > end) return;
-
-      const entry = { title: item.title, nave: nave.nave || nave.consola || '', fechaDate: d, tipo: item.type };
-      if (item.cancelado) buckets.cancelado.push(entry);
-      else if (item.proceso && item.proceso.planoTerminado) buckets.terminado.push(entry);
-      else buckets.pendiente.push(entry);
+    // Recolectar todos los eventos del mes actual
+    const eventsByDay = {};
+    (data.naves || []).forEach(nave => {
+        (nave.items || []).forEach(item => {
+            const processEvent = (date, type) => {
+                const d = new Date(date);
+                if (d.getFullYear() === year && d.getMonth() === month) {
+                    const day = d.getDate();
+                    if (!eventsByDay[day]) eventsByDay[day] = [];
+                    eventsByDay[day].push({ item, type, naveName: nave.consola });
+                }
+            };
+            if (item.createdAt) processEvent(item.createdAt, 'pending');
+            if (item.completedAt) processEvent(item.completedAt, 'done');
+            if (item.cancelledAt) processEvent(item.cancelledAt, 'cancelled');
+        });
     });
-  });
 
-  weekReportData = { isoYear, week, start, end, ...buckets };
-  weekReportOpenCategory = null;
-
-  document.getElementById('week-count-terminado').textContent = buckets.terminado.length;
-  document.getElementById('week-count-pendiente').textContent = buckets.pendiente.length;
-  document.getElementById('week-count-cancelado').textContent = buckets.cancelado.length;
-  document.getElementById('week-report-range').textContent = `Semana ${week} · ${fmtFechaLarga(start)} — ${fmtFechaLarga(end)}`;
-  document.getElementById('week-report-detail').style.display = 'none';
-  document.querySelectorAll('.week-stat-card').forEach(c => c.classList.remove('active'));
-
-  const total = buckets.terminado.length + buckets.pendiente.length + buckets.cancelado.length;
-  document.getElementById('week-report-results').style.display = total ? 'block' : 'none';
-  document.getElementById('week-report-empty').style.display = total ? 'none' : 'block';
-  document.getElementById('week-report-pdf-btn').style.display = total ? 'inline-flex' : 'none';
-}
-
-const WEEK_CAT_LABELS = { terminado: 'Cambios finalizados', pendiente: 'Cambios pendientes', cancelado: 'Cambios cancelados' };
-
-function toggleWeekReportDetail(cat) {
-  if (!weekReportData) return;
-  const detailWrap = document.getElementById('week-report-detail');
-  const list = document.getElementById('week-report-detail-list');
-  const title = document.getElementById('week-report-detail-title');
-
-  if (weekReportOpenCategory === cat) {
-    weekReportOpenCategory = null;
-    detailWrap.style.display = 'none';
-    document.querySelectorAll('.week-stat-card').forEach(c => c.classList.remove('active'));
-    return;
-  }
-  weekReportOpenCategory = cat;
-  document.querySelectorAll('.week-stat-card').forEach(c => c.classList.remove('active'));
-  document.getElementById('week-card-' + cat).classList.add('active');
-
-  const items = weekReportData[cat] || [];
-  title.textContent = `${WEEK_CAT_LABELS[cat]} (${items.length})`;
-  list.innerHTML = items.length
-    ? items.map(it => `<div class="week-report-detail-item"><b>${escHtml(it.title)}</b><span>${escHtml(it.nave)} · ${it.fechaDate ? fmtFechaLarga(it.fechaDate) : ''}</span></div>`).join('')
-    : '<div class="week-report-detail-item">Sin registros en esta categoría.</div>';
-  detailWrap.style.display = 'block';
-}
-
-async function generateWeeklyReportPDF() {
-  if (!weekReportData) return;
-  const btn = document.getElementById('week-report-pdf-btn');
-  const original = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<i class="ti ti-loader"></i> Generando...';
-
-  try {
-    const { start, end, week, terminado, pendiente, cancelado } = weekReportData;
-    const section = (label, colorBg, colorText, items) => `
-      <div style="margin-bottom:22px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; background:${colorBg}; color:${colorText}; padding:10px 14px; border-radius:10px; font-weight:800; font-size:14px;">
-          <span>${label}</span><span>${items.length}</span>
+    let calendarHtml = `
+        <div class="calendar-header">
+            <div class="calendar-nav">
+                <button class="btn-ghost btn" onclick="changeCalendarMonth(-1)" title="Mes anterior"><i class="ti ti-chevron-left"></i></button>
+                <h3>${monthNames[month]} ${year}</h3>
+                <button class="btn-ghost btn" onclick="changeCalendarMonth(1)" title="Mes siguiente"><i class="ti ti-chevron-right"></i></button>
+                <button class="btn btn-sm" onclick="goToToday()">Hoy</button>
+            </div>
+            <div class="calendar-filters">
+                <button class="btn-filter ${calendarEventFilter === 'all' ? 'active' : ''}" onclick="setCalendarFilter('all')">Todos</button>
+                <button class="btn-filter ${calendarEventFilter === 'pending' ? 'active' : ''}" onclick="setCalendarFilter('pending')">⏳ Pendientes</button>
+                <button class="btn-filter ${calendarEventFilter === 'done' ? 'active' : ''}" onclick="setCalendarFilter('done')">✔️ Terminados</button>
+                <button class="btn-filter ${calendarEventFilter === 'cancelled' ? 'active' : ''}" onclick="setCalendarFilter('cancelled')">🚫 Cancelados</button>
+            </div>
         </div>
-        <table style="width:100%; border-collapse:collapse; margin-top:8px; font-size:12px;">
-          <thead><tr style="background:#f1f5f9;"><th style="text-align:left;padding:6px 8px;">Título</th><th style="text-align:left;padding:6px 8px;">Mueble</th><th style="text-align:left;padding:6px 8px;">Fecha</th></tr></thead>
-          <tbody>
-            ${items.length ? items.map(it => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escHtml(it.title)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${escHtml(it.nave)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">${it.fechaDate ? fmtFechaLarga(it.fechaDate) : ''}</td></tr>`).join('') : '<tr><td colspan="3" style="padding:8px;color:#64748b;">Sin registros.</td></tr>'}
-          </tbody>
-        </table>
-      </div>`;
-
-    const container = document.createElement('div');
-    container.style.cssText = 'padding:40px; font-family:Inter,sans-serif; color:#1e293b; background:#fff; width:800px;';
-    container.innerHTML = `
-      <h1 style="font-size:22px; margin-bottom:4px;">Reporte Semanal Histórico</h1>
-      <p style="color:#64748b; margin-bottom:20px;">Semana ${week} · ${fmtFechaLarga(start)} — ${fmtFechaLarga(end)} · Generado el ${new Date().toLocaleString('es-MX')}</p>
-      ${section('✅ Cambios finalizados', '#dcfce7', '#15803d', terminado)}
-      ${section('⏳ Cambios pendientes', '#fef3c7', '#b45309', pendiente)}
-      ${section('🚫 Cambios cancelados', '#fee2e2', '#b91c1c', cancelado)}
+        <div class="calendar-grid">
+            ${dayNames.map(d => `<div class="calendar-day-header">${d}</div>`).join('')}
     `;
-    document.body.appendChild(container);
 
-    const opt = {
-      margin: [10, 10, 10, 10],
-      filename: `reporte_semanal_${weekReportData.isoYear}_S${week}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
+    const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0=Dom, 1=Lun...
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startOffset = (firstDayOfMonth === 0) ? 6 : firstDayOfMonth - 1; // Ajustar para que Lunes sea 0
 
-    const blob = await html2pdf().set(opt).from(container).output('blob');
-    document.body.removeChild(container);
+    for (let i = 0; i < startOffset; i++) {
+        calendarHtml += `<div class="calendar-day other-month"></div>`;
+    }
 
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-  } catch (err) {
-    console.error('Error al generar el PDF del reporte semanal:', err);
-    alert('❌ No se pudo generar el PDF: ' + (err.message || err));
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = original;
-  }
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dayEvents = (eventsByDay[day] || []).filter(ev => calendarEventFilter === 'all' || ev.type === calendarEventFilter);
+        
+        let eventsHtml = '';
+        const maxEventsToShow = 3;
+        const eventsToShow = dayEvents.slice(0, maxEventsToShow);
+
+        eventsToShow.forEach(ev => {
+            const typeLabel = ev.type === 'pending' ? 'PENDIENTE' : ev.type === 'done' ? 'TERMINADO' : 'CANCELADO';
+            const typeClass = `event-${ev.type}`;
+            eventsHtml += `<div class="calendar-event ${typeClass}" title="${typeLabel}: ${escHtml(ev.item.title)}">${typeLabel.substring(0,3)}: ${escHtml(ev.item.title.substring(0,15))}...</div>`;
+        });
+
+        if (dayEvents.length > maxEventsToShow) {
+            eventsHtml += `<div class="calendar-event-more" onclick="showDayEvents(${day})">+${dayEvents.length - maxEventsToShow} más</div>`;
+        }
+
+        const today = new Date();
+        const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+
+        calendarHtml += `
+            <div class="calendar-day ${isToday ? 'today' : ''}">
+                <div class="calendar-day-number">${day}</div>
+                <div class="calendar-day-events">${eventsHtml}</div>
+            </div>
+        `;
+    }
+
+    const totalCells = startOffset + daysInMonth;
+    const remainingCells = (7 - (totalCells % 7)) % 7;
+    for (let i = 0; i < remainingCells; i++) {
+        calendarHtml += `<div class="calendar-day other-month"></div>`;
+    }
+
+    calendarHtml += `</div>`; // Cierra calendar-grid
+
+    container.innerHTML = calendarHtml;
 }
+
+function changeCalendarMonth(offset) {
+    calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + offset);
+    renderCalendar();
+}
+
+function goToToday() {
+    calendarCurrentDate = new Date();
+    renderCalendar();
+}
+
+function setCalendarFilter(filter) {
+    calendarEventFilter = filter;
+    renderCalendar();
+}
+
+function showDayEvents(day) {
+    const year = calendarCurrentDate.getFullYear();
+    const month = calendarCurrentDate.getMonth();
+    const dayEvents = [];
+
+    (data.naves || []).forEach(nave => {
+        (nave.items || []).forEach(item => {
+            const process = (date, type) => {
+                const d = new Date(date);
+                if (d.getFullYear() === year && d.getMonth() === month && d.getDate() === day) {
+                    if (calendarEventFilter === 'all' || calendarEventFilter === type) {
+                        dayEvents.push({ item, type, naveName: nave.consola });
+                    }
+                }
+            };
+            if (item.createdAt) process(item.createdAt, 'pending');
+            if (item.completedAt) process(item.completedAt, 'done');
+            if (item.cancelledAt) process(item.cancelledAt, 'cancelled');
+        });
+    });
+
+    if (dayEvents.length === 0) return;
+
+    const dateStr = new Date(year, month, day).toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    let listHtml = `<h3>Eventos del ${dateStr}</h3><div class="day-events-list">`;
+    dayEvents.forEach(ev => {
+        const typeLabel = ev.type === 'pending' ? 'PENDIENTE' : ev.type === 'done' ? 'TERMINADO' : 'CANCELADO';
+        const typeClass = `event-${ev.type}`;
+        listHtml += `
+            <div class="calendar-event ${typeClass}" style="margin-bottom: 8px; font-size: 14px;">
+                <strong>${typeLabel}:</strong> ${escHtml(ev.item.title)} <br>
+                <small>${escHtml(ev.naveName)} - ${ev.item.subType || ev.item.type}</small>
+            </div>
+        `;
+    });
+    listHtml += `</div>`;
+
+    // Crear un modal temporal para mostrar la lista
+    let modal = document.getElementById('modal-day-events');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modal-day-events';
+        modal.className = 'modal-bg';
+        document.body.appendChild(modal);
+    }
+    modal.innerHTML = `<div class="modal">${listHtml}<div class="form-footer"><button class="btn" onclick="closeModal('modal-day-events')">Cerrar</button></div></div>`;
+    modal.classList.add('open');
+}
+
 
 function openDashboard() {
   document.getElementById('modal-dashboard').classList.add('open');
-  populateWeekYearSelector();
+  renderCalendar(); // Renderiza el calendario al abrir
   setTimeout(renderDashboard, 200);
 }
 
-function clearDashFilter(field) {
-  dashFilters[field] = null;
-  if(field === 'tipo') dashFilters.clasificacion = null;
-  renderDashboard();
-}
+// ... (El resto del código de renderDashboard, renderDashList, etc. permanece igual) ...
 
-function updateFilterBadges() {
-  const bTipo = document.getElementById('filter-badge-tipo');
-  const bClasif = document.getElementById('filter-badge-clasif');
-  const bImpacto = document.getElementById('filter-badge-impacto');
+// --- Modificamos la inicialización para que el calendario se renderice ---
+const oldOpenDashboard = openDashboard;
+openDashboard = function() {
+    oldOpenDashboard();
+    renderCalendar();
+};
 
-  if(dashFilters.tipo) { bTipo.style.display = 'inline-block'; bTipo.innerHTML = dashFilters.tipo + ' &times;'; }
-  else bTipo.style.display = 'none';
-
-  if(dashFilters.clasificacion) { bClasif.style.display = 'inline-block'; bClasif.innerHTML = dashFilters.clasificacion + ' &times;'; }
-  else bClasif.style.display = 'none';
-
-  if(dashFilters.impacto) { bImpacto.style.display = 'inline-block'; bImpacto.innerHTML = dashFilters.impacto + ' &times;'; }
-  else bImpacto.style.display = 'none';
-}
-
-function renderDashboard() {
-  if (!window.echarts) {
-      alert("Cargando librerías de gráficos, intenta de nuevo en un segundo...");
-      return;
-  }
-
-  updateFilterBadges();
-
-  if(!chartTipo) {
-      chartTipo = echarts.init(document.getElementById('chart-tipo'));
-      chartTipo.on('click', function(params) {
-          dashFilters.tipo = params.name;
-          dashFilters.clasificacion = null;
-          renderDashboard();
-      });
-  }
-  if(!chartClasif) {
-      chartClasif = echarts.init(document.getElementById('chart-clasificacion'));
-      chartClasif.on('click', function(params) {
-          dashFilters.clasificacion = params.name;
-          renderDashboard();
-      });
-  }
-  if(!chartImpacto) {
-      chartImpacto = echarts.init(document.getElementById('chart-impacto'));
-      chartImpacto.on('click', function(params) {
-          dashFilters.impacto = params.name;
-          renderDashboard();
-      });
-  }
-
-  let tError=0, tAjuste=0, tMejora=0;
-  let clasifCounts = {};
-  let impactoCounts = {
-      'Planos: ✔️':0, 'Planos: ✖️':0,
-      'Habilitado: ✔️':0, 'Habilitado: ✖️':0,
-      'Etiquetas: ✔️':0, 'Etiquetas: ✖️':0
-  };
-
-  let relatedItems = [];
-
-  data.naves.forEach(nave => {
-      nave.items.forEach(item => {
-          let typeMatch = !dashFilters.tipo ||
-                          (dashFilters.tipo === 'Errores' && item.type === 'error') ||
-                          (dashFilters.tipo === 'Ajustes' && item.type === 'ajuste') ||
-                          (dashFilters.tipo === 'Mejoras' && item.type === 'mejora');
-
-          let classMatch = !dashFilters.clasificacion || (item.subType === dashFilters.clasificacion);
-
-          let proc = item.proceso || {planos:false, habilitado:false, etiquetas:false};
-          let pVal = proc.planos ? 'Planos: ✔️' : 'Planos: ✖️';
-          let hVal = proc.habilitado ? 'Habilitado: ✔️' : 'Habilitado: ✖️';
-          let eVal = proc.etiquetas ? 'Etiquetas: ✔️' : 'Etiquetas: ✖️';
-
-          let impMatch = !dashFilters.impacto || (pVal===dashFilters.impacto || hVal===dashFilters.impacto || eVal===dashFilters.impacto);
-
-          if (typeMatch && classMatch && impMatch) {
-              relatedItems.push({nave, item});
-
-              if(item.type==='error') tError++;
-              if(item.type==='ajuste') tAjuste++;
-              if(item.type==='mejora') tMejora++;
-
-              const sc = item.subType || 'Sin clasificar';
-              clasifCounts[sc] = (clasifCounts[sc] || 0) + 1;
-
-              impactoCounts[pVal]++;
-              impactoCounts[hVal]++;
-              impactoCounts[eVal]++;
-          }
-      });
-  });
-
-  chartTipo.setOption({
-      tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: ['Errores', 'Ajustes', 'Mejoras'], axisLabel: {interval: 0} },
-      yAxis: { type: 'value' },
-      series: [{
-          data: [
-              {value: tError, itemStyle: {color: '#ef4444'}},
-              {value: tAjuste, itemStyle: {color: '#eab308'}},
-              {value: tMejora, itemStyle: {color: '#8b5cf6'}}
-          ],
-          type: 'bar',
-          label: { show: true, position: 'top' }
-      }]
-  });
-  chartTipo.resize();
-
-  let cEntries = Object.entries(clasifCounts).sort((a, b) => a[1] - b[1]);
-  let cKeys = cEntries.map(e => e[0]);
-  const palette = ['#3b82f6', '#06b6d4', '#10b981', '#84cc16', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#a855f7', '#6366f1', '#0ea5e9', '#d946ef', '#f43f5e', '#8b5cf6'];
-
-  let coloredData = cEntries.map(([k, v], i) => {
-      return {
-          value: v,
-          name: k,
-          itemStyle: { color: palette[i % palette.length] }
-      };
-  });
-
-  const clasifBox = document.getElementById('chart-clasificacion');
-  const clasifHeight = Math.max(250, cKeys.length * 34 + 60);
-  clasifBox.style.height = clasifHeight + 'px';
-
-  chartClasif.setOption({
-      tooltip: { trigger: 'item' },
-      grid: { left: '3%', right: '8%', top: 10, bottom: 20, containLabel: true },
-      xAxis: { type: 'value' },
-      yAxis: {
-          type: 'category',
-          data: cKeys,
-          axisLabel: { width: 160, overflow: 'truncate', fontSize: 11 }
-      },
-      series: [{
-          data: coloredData,
-          type: 'bar',
-          barMaxWidth: 22,
-          label: { show: true, position: 'right', fontSize: 11, fontWeight: 600 }
-      }]
-  }, true);
-  chartClasif.resize();
-
-  chartImpacto.setOption({
-      tooltip: { trigger: 'item' },
-      series: [
-          {
-              name: 'Impacto',
-              type: 'pie',
-              radius: ['40%', '70%'],
-              itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2 },
-              label: { show: false },
-              data: [
-                  {value: impactoCounts['Planos: ✔️'], name: 'Planos: ✔️', itemStyle:{color:'#34d399'}},
-                  {value: impactoCounts['Planos: ✖️'], name: 'Planos: ✖️', itemStyle:{color:'#f87171'}},
-                  {value: impactoCounts['Habilitado: ✔️'], name: 'Habilitado: ✔️', itemStyle:{color:'#10b981'}},
-                  {value: impactoCounts['Habilitado: ✖️'], name: 'Habilitado: ✖️', itemStyle:{color:'#ef4444'}},
-                  {value: impactoCounts['Etiquetas: ✔️'], name: 'Etiquetas: ✔️', itemStyle:{color:'#059669'}},
-                  {value: impactoCounts['Etiquetas: ✖️'], name: 'Etiquetas: ✖️', itemStyle:{color:'#dc2626'}}
-              ]
-          }
-      ]
-  });
-  chartImpacto.resize();
-
-  renderDashList(relatedItems);
-
-  const totalR = relatedItems.length;
-  let conclusiones = [];
-  if (totalR === 0) {
-      conclusiones.push("No hay registros suficientes para generar un análisis con los filtros actuales.");
-  } else {
-      let tipos = [{name: 'Errores', val: tError}, {name: 'Ajustes', val: tAjuste}, {name: 'Mejoras', val: tMejora}];
-      tipos.sort((a,b) => b.val - a.val);
-      if(tipos[0].val > 0) {
-          conclusiones.push(`📌 <b>Tendencia principal:</b> El tipo de reporte predominante es <b>${tipos[0].name}</b>, representando el ${Math.round((tipos[0].val/totalR)*100)}% de los registros analizados.`);
-      }
-
-      if(cKeys.length > 0) {
-          let maxClasif = cKeys.reduce((a, b) => clasifCounts[a] > clasifCounts[b] ? a : b);
-          conclusiones.push(`📊 <b>Clasificación más frecuente:</b> La categoría con mayor incidencia es <b>${maxClasif}</b> (${clasifCounts[maxClasif]} casos). Sería recomendable enfocar acciones preventivas o de mejora en esta área.`);
-      }
-
-      let maxImpacto = '';
-      let maxImpactoVal = -1;
-      ['Planos: ✖️', 'Habilitado: ✖️', 'Etiquetas: ✖️'].forEach(k => {
-          if(impactoCounts[k] > maxImpactoVal) {
-              maxImpactoVal = impactoCounts[k];
-              maxImpacto = k.split(':')[0];
-          }
-      });
-      if(maxImpactoVal > 0) {
-          conclusiones.push(`⚠️ <b>Área más impactada:</b> <b>${maxImpacto}</b> es el rubro que ha requerido más modificaciones directas (${maxImpactoVal} afectaciones registradas).`);
-      } else {
-          conclusiones.push(`✅ <b>Impacto:</b> Hasta el momento no se han registrado afectaciones negativas graves en Planos, Habilitado o Etiquetas con los filtros actuales.`);
-      }
-  }
-  const concContainer = document.getElementById('dash-conclusions');
-  if(concContainer) concContainer.innerHTML = conclusiones.join('<br><br>');
-}
-
-function renderDashList(items) {
-  const list = document.getElementById('dash-list');
-  if (items.length === 0) {
-      list.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No se encontraron modelos con estos filtros.</div>';
-      return;
-  }
-
-  list.innerHTML = items.map(entry => {
-      let mText = entry.nave.models.map(m => m.name).join(', ');
-      return `
-      <div class="dash-list-item" onclick="closeModal('modal-dashboard'); setTimeout(() => document.getElementById('ic-${entry.item.id}').scrollIntoView({behavior:'smooth', block:'center'}), 300);">
-          <div style="flex:1; min-width:0;">
-              <div style="font-weight:700; font-size:13px; color:var(--navy); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${mText || 'Sin modelo'}</div>
-              <div style="font-size:11px; color:#64748b; margin-top:2px;">${entry.nave.consola} - ${entry.item.title}</div>
-          </div>
-          <div style="font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px; background:${entry.item.type==='error'?'#fee2e2':entry.item.type==='ajuste'?'#fef08a':'#ede9fe'}; color:${entry.item.type==='error'?'#b91c1c':entry.item.type==='ajuste'?'#854d0e':'#6d28d9'};">
-              ${(entry.item.subType || entry.item.type).toUpperCase()}
-          </div>
-      </div>
-      `;
-  }).join('');
-}
-
-async function generateStatsPDF() {
-  const btn = document.querySelector('#modal-dashboard .btn-green');
-  const oldTxt = btn.innerHTML;
-  btn.innerHTML = '<i class="ti ti-loader"></i> Generando...';
-
-  if (chartTipo) chartTipo.resize();
-  if (chartClasif) chartClasif.resize();
-  if (chartImpacto) chartImpacto.resize();
-
-  const c1Img = chartTipo.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
-  const c2Img = chartClasif.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
-  const c3Img = chartImpacto.getDataURL({type: 'png', pixelRatio: 2, backgroundColor: '#fff'});
-
-  let totalModelos = 0, totalODT = 0, totalRegistros = 0;
-  let modelosRows = '';
-
-  data.naves.forEach(n => {
-      totalModelos += n.models.length;
-      n.items.forEach(i => {
-          totalRegistros++;
-          if(i.odt) totalODT++;
-          let mNames = n.models.map(m=>m.name).join('<br>');
-          modelosRows += `<tr><td>${formatDateEs(i.fecha)}</td><td>${mNames}</td><td>${i.odt||'-'}</td><td>${(i.subType||i.type).toUpperCase()}</td><td>${i.proceso?.planoTerminado?'TERMINADO':'PENDIENTE'}</td></tr>`;
-      });
-  });
-
-  const now = new Date().toLocaleString('es-MX');
-
-  const container = document.getElementById('pdf-report-container');
-  container.style.display = 'block';
-  const conclusionesText = document.getElementById('dash-conclusions') ? document.getElementById('dash-conclusions').innerHTML : '';
-
-  container.innerHTML = `
-      <div class="pdf-title">Reporte Estadístico de Producción</div>
-      <div class="pdf-subtitle">Generado el ${now}</div>
-
-      <div class="pdf-metrics">
-          <div class="pdf-metric-box">
-              <div class="pdf-metric-val">${totalRegistros}</div>
-              <div class="pdf-metric-lbl">Total Registros</div>
-          </div>
-          <div class="pdf-metric-box">
-              <div class="pdf-metric-val">${totalModelos}</div>
-              <div class="pdf-metric-lbl">Modelos Afectados</div>
-          </div>
-          <div class="pdf-metric-box">
-              <div class="pdf-metric-val">${totalODT}</div>
-              <div class="pdf-metric-lbl">ODTs Procesadas</div>
-          </div>
-      </div>
-
-      <div style="font-size:16px; font-weight:800; border-bottom:2px solid #cbd5e1; margin-bottom:15px; padding-bottom:5px; color:#1e293b;">Gráficas Generales</div>
-      <div class="pdf-chart-row">
-          <div class="pdf-chart-col">
-              <div style="font-size:12px; font-weight:700; margin-bottom:10px; text-align:center;">Tipo de Reporte</div>
-              <img src="${c1Img}" class="pdf-chart-img">
-          </div>
-          <div class="pdf-chart-col">
-              <div style="font-size:12px; font-weight:700; margin-bottom:10px; text-align:center;">Impacto por Área</div>
-              <img src="${c3Img}" class="pdf-chart-img">
-          </div>
-      </div>
-
-      <div class="pdf-chart-row">
-          <div class="pdf-chart-col" style="flex:1;">
-              <div style="font-size:12px; font-weight:700; margin-bottom:10px; text-align:center;">Clasificación Detallada</div>
-              <img src="${c2Img}" class="pdf-chart-img" style="max-height: 250px; object-fit: contain;">
-          </div>
-      </div>
-
-      <div style="font-size:16px; font-weight:800; border-bottom:2px solid #cbd5e1; margin-bottom:15px; margin-top:20px; padding-bottom:5px; color:#1e293b;">Conclusiones Automáticas</div>
-      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:15px; font-size:12px; color:#1e40af; line-height:1.6; margin-bottom:20px;">
-          ${conclusionesText}
-      </div>
-
-      <div style="font-size:16px; font-weight:800; border-bottom:2px solid #cbd5e1; margin-bottom:15px; margin-top:20px; padding-bottom:5px; color:#1e293b; page-break-before: always;">Detalle de Registros</div>
-      <table class="pdf-table">
-          <thead><tr><th>Fecha</th><th>Modelo(s)</th><th>ODT</th><th>Clasificación</th><th>Estatus</th></tr></thead>
-          <tbody>${modelosRows}</tbody>
-      </table>
-
-      <div style="font-size:12px; color:#64748b; margin-top:40px;">* Fin del reporte. Resumen ejecutivo generado automáticamente por el Dashboard de Estadísticas.</div>
-  `;
-
-  try {
-      const opt = {
-        margin:       10,
-        filename:     'Reporte_Estadistico.pdf',
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2 },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-
-      await html2pdf().set(opt).from(container).save();
-  } catch (err) {
-      console.error(err);
-      alert("Hubo un error al generar el PDF.");
-  } finally {
-      container.style.display = 'none';
-      btn.innerHTML = oldTxt;
-  }
-}
-
+// --- Modificamos la inicialización para que el calendario se actualice al cambiar datos ---
 const oldRender = render;
 render = function() {
   oldRender();

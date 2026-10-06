@@ -4930,20 +4930,21 @@ function renderCalendar() {
     let calendarHtml = `
         <div class="calendar-header">
             <div class="calendar-nav">
-                <button class="btn-ghost btn" onclick="changeCalendarMonth(-1)" title="Mes anterior"><i class="ti ti-chevron-left"></i></button>
+                <button type="button" class="btn-ghost btn" onclick="changeCalendarMonth(-1)" title="Mes anterior"><i class="ti ti-chevron-left"></i></button>
                 <h3>${monthNames[month]} ${year}</h3>
-                <button class="btn-ghost btn" onclick="changeCalendarMonth(1)" title="Mes siguiente"><i class="ti ti-chevron-right"></i></button>
-                <button class="btn btn-sm" onclick="goToToday()">Hoy</button>
+                <button type="button" class="btn-ghost btn" onclick="changeCalendarMonth(1)" title="Mes siguiente"><i class="ti ti-chevron-right"></i></button>
+                <button type="button" class="btn btn-sm" onclick="goToToday()">Hoy</button>
             </div>
             <div class="calendar-filters">
-                <button class="btn-filter ${calendarEventFilter === 'all' ? 'active' : ''}" onclick="setCalendarFilter('all')">Todos</button>
-                <button class="btn-filter ${calendarEventFilter === 'pending' ? 'active' : ''}" onclick="setCalendarFilter('pending')">⏳ Pendientes</button>
-                <button class="btn-filter ${calendarEventFilter === 'done' ? 'active' : ''}" onclick="setCalendarFilter('done')">✔️ Terminados</button>
-                <button class="btn-filter ${calendarEventFilter === 'cancelled' ? 'active' : ''}" onclick="setCalendarFilter('cancelled')">🚫 Cancelados</button>
+                <button type="button" class="btn-filter ${calendarEventFilter === 'all' ? 'active' : ''}" onclick="setCalendarFilter('all')">Todos</button>
+                <button type="button" class="btn-filter ${calendarEventFilter === 'pending' ? 'active' : ''}" onclick="setCalendarFilter('pending')">⏳ Pendientes</button>
+                <button type="button" class="btn-filter ${calendarEventFilter === 'done' ? 'active' : ''}" onclick="setCalendarFilter('done')">✔️ Terminados</button>
+                <button type="button" class="btn-filter ${calendarEventFilter === 'cancelled' ? 'active' : ''}" onclick="setCalendarFilter('cancelled')">🚫 Cancelados</button>
             </div>
         </div>
-        <div class="calendar-grid">
-            ${dayNames.map(d => `<div class="calendar-day-header">${d}</div>`).join('')}
+        <div class="calendar-scroll-wrap">
+            <div class="calendar-grid">
+                ${dayNames.map(d => `<div class="calendar-day-header">${d}</div>`).join('')}
     `;
 
     const firstDayOfMonth = new Date(year, month, 1).getDay();
@@ -4988,7 +4989,15 @@ function renderCalendar() {
         calendarHtml += `<div class="calendar-day other-month"></div>`;
     }
 
-    calendarHtml += `</div>`;
+    calendarHtml += `
+            </div>
+        </div>
+        <div class="calendar-scroll-hint">
+            <i class="ti ti-arrow-left"></i>
+            Desliza para ver todos los días
+            <i class="ti ti-arrow-right"></i>
+        </div>
+    `;
 
     container.innerHTML = calendarHtml;
 }

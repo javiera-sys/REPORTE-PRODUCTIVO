@@ -1900,3 +1900,227 @@ html,body{
   display: block !important;
 }
 
+/* ============================================================
+   ESTILOS DEL DASHBOARD Y CALENDARIO
+   ============================================================ */
+
+/* Modificación del modal del dashboard para que el calendario no se superponga */
+.dashboard-modal {
+  width: 95%;
+  max-width: 1400px; /* Más ancho para el calendario */
+  height: 90vh;
+  display: flex;
+  flex-direction: column; /* Organiza el header, calendario y gráficas verticalmente */
+  background: #f8fafc;
+}
+
+.dash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--color-border-secondary);
+  flex-shrink: 0; /* Evita que el header se encoja */
+}
+
+/* Contenedor para el calendario y las gráficas, con scroll */
+.dash-content {
+  flex: 1; /* Ocupa el espacio restante */
+  overflow-y: auto; /* Permite scroll si el contenido es muy alto */
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Sección del Calendario */
+.calendar-section {
+  background: #fff;
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.calendar-nav h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  min-width: 180px;
+  text-align: center;
+}
+.calendar-nav .btn {
+  padding: 6px 10px;
+}
+
+.calendar-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Cuadrícula del Calendario */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-border-secondary);
+  gap: 1px;
+}
+
+.calendar-day-header {
+  background: var(--color-background-secondary);
+  padding: 10px 5px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}
+
+.calendar-day {
+  background: #fff;
+  min-height: 120px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+.calendar-day.other-month {
+  background-color: var(--color-background-tertiary);
+  opacity: 0.6;
+}
+.calendar-day.today {
+  background-color: #e0f2f1;
+}
+.calendar-day.today .calendar-day-number {
+  background-color: var(--navy);
+  color: #fff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.calendar-day-number {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  align-self: flex-start;
+}
+
+.calendar-day-events {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.calendar-event {
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.calendar-event:hover {
+  transform: scale(1.02);
+}
+
+.event-pending { background: #fef3c7; color: #b45309; border-left: 3px solid #f59e0b; }
+.event-done { background: #dcfce7; color: #15803d; border-left: 3px solid #22c55e; }
+.event-cancelled { background: #fee2e2; color: #b91c1c; border-left: 3px solid #ef4444; }
+
+.calendar-event-more {
+  font-size: 10px;
+  color: var(--navy);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 4px;
+  text-align: center;
+  border-radius: 4px;
+  background: #e0f2f1;
+}
+.calendar-event-more:hover { background: #ccfbf1; }
+
+/* Contenedor de Gráficas */
+.charts-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+/* Ajuste para el modal de eventos del día */
+#modal-day-events .modal {
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+#modal-day-events h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  text-transform: capitalize;
+}
+.day-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Ajuste responsive para móviles */
+@media (max-width: 768px) {
+  .calendar-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .calendar-nav {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .calendar-filters {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .calendar-grid {
+    font-size: 10px;
+  }
+  .calendar-day {
+    min-height: 80px;
+    padding: 4px;
+  }
+  .calendar-event {
+    font-size: 8px;
+    padding: 2px 4px;
+  }
+  .calendar-day-number {
+    font-size: 10px;
+  }
+  .charts-section {
+    grid-template-columns: 1fr;
+  }
+}

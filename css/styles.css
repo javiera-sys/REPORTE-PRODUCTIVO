@@ -1,5 +1,5 @@
 /* ============================================================
-   styles.css — Reporte de Producción (VERSIÓN CORREGIDA)
+   styles.css — Reporte de Producción (VERSIÓN FINAL CORREGIDA)
    ============================================================ */
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -39,8 +39,8 @@ body{
   background-attachment:fixed;
   color:var(--color-text-primary);
   font-size:14px;
-  -webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -331,7 +331,7 @@ body.is-locked .img-box{cursor:not-allowed !important;pointer-events:none !impor
   cursor:pointer;
   display:flex;align-items:center;gap:6px;
   color:var(--color-text-secondary);
-  transition:all 0.15s;
+  transition:background 0.15s, color 0.15s, border-color 0.15s;
   font-family:var(--font-sans);
   user-select:none;
   flex-shrink: 0;
@@ -344,7 +344,7 @@ body.is-locked .img-box{cursor:not-allowed !important;pointer-events:none !impor
   border-radius:8px;padding:4px 10px;
   font-size:10.5px;font-weight:800;
   cursor:pointer;
-  transition:all 0.15s;
+  transition:filter 0.15s, transform 0.15s;
   user-select:none;
   letter-spacing:0.03em;
   flex-shrink:0;
@@ -352,15 +352,27 @@ body.is-locked .img-box{cursor:not-allowed !important;pointer-events:none !impor
   margin-top:1px;
 }
 .plano-terminado-badge i{font-size:13px}
-.plano-terminado-badge:hover{filter:brightness(0.96)}
-.plano-terminado-badge.pendiente{background:#fee2e2;border:1.5px solid #fca5a5;color:#b91c1c;box-shadow:0 1px 3px rgba(220,38,38,0.15)}
-.plano-terminado-badge.pendiente:hover{background:#fecaca;border-color:#f87171}
-.plano-terminado-badge.done{background:#dcfce7;border:1.5px solid #86efac;color:#15803d;padding:4px 6px}
+.plano-terminado-badge.pendiente{
+  background:#fee2e2;
+  border:1.5px solid #fca5a5;
+  color:#b91c1c;
+}
+.plano-terminado-badge.pendiente:hover{
+  background:#fecaca;
+  border-color:#f87171;
+}
+.plano-terminado-badge.done{
+  background:#dcfce7;
+  border:1.5px solid #86efac;
+  color:#15803d;
+  padding:4px 6px;
+}
 .plano-terminado-badge.done i{font-size:15px}
+.plano-terminado-badge.done:hover{background:#bbf7d0}
 body.is-locked .plano-terminado-badge{cursor:not-allowed;pointer-events:none;opacity:0.65}
 .status-icon{font-size:12px}
 
-/* ---------- NAVE HEADER ---------- */
+/* ---------- NAVE HEADER (CON BOTONES SÓLIDOS) ---------- */
 .nave-header{
   background:linear-gradient(120deg,var(--navy) 0%,var(--accent) 100%);
   color:#fff;
@@ -370,33 +382,39 @@ body.is-locked .plano-terminado-badge{cursor:not-allowed;pointer-events:none;opa
 }
 .nave-header-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;flex:1}
 .nave-badge{
-  background:rgba(255,255,255,0.22);
+  background:rgba(255,255,255,0.28);
   border-radius:8px;padding:4px 11px;
   font-size:11px;font-weight:700;letter-spacing:0.06em;
   flex-shrink:0;
+  color:#fff;
 }
 .nave-title{
   font-size:14px;font-weight:700;letter-spacing:-0.01em;
   word-break:break-word;
   line-height:1.3;
   min-width: 0;
-}
-.nave-header-right{display:flex;gap:5px;flex-wrap:wrap}
-.hbtn{
-  background:rgba(255,255,255,0.14);
-  border:1px solid rgba(255,255,255,0.3);
   color:#fff;
+}
+.nave-header-right{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.hbtn{
+  background:#ffffff;
+  border:1px solid #ffffff;
+  color:var(--navy);
   border-radius:10px;padding:5px 12px;
-  font-size:12px;font-weight:600;cursor:pointer;
+  font-size:12px;font-weight:700;cursor:pointer;
   display:inline-flex;align-items:center;gap:5px;
   font-family:var(--font-sans);
-  transition:background 0.15s, transform 0.15s;
+  transition:background 0.15s, transform 0.15s, box-shadow 0.15s;
   white-space: nowrap;
   flex-shrink: 0;
+  box-shadow:0 1px 3px rgba(0,0,0,0.12);
 }
-.hbtn:hover{background:rgba(255,255,255,0.26);transform:translateY(-1px)}
-.hbtn.danger{background:rgba(224,48,74,0.45);border-color:rgba(224,48,74,0.55)}
-.hbtn.danger:hover{background:rgba(224,48,74,0.7)}
+.hbtn:hover{background:#f0f9ff;transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,0.18)}
+.hbtn:active{transform:translateY(0)}
+.hbtn i{color:var(--navy)}
+.hbtn.danger{background:#ffffff;border-color:#ffffff;color:var(--red)}
+.hbtn.danger i{color:var(--red)}
+.hbtn.danger:hover{background:#fef2f2;box-shadow:0 2px 6px rgba(220,38,38,0.25)}
 
 /* ---------- NAVE BODY ---------- */
 .nave-body{
@@ -610,11 +628,14 @@ body.is-locked .plano-terminado-badge{cursor:not-allowed;pointer-events:none;opa
   flex-wrap: wrap;
 }
 .item-title-text{
-  font-size:13px;font-weight:700;line-height:1.4;
+  font-size:13px;
+  font-weight:800;
+  line-height:1.4;
   flex:1 1 160px;
   min-width: 0;
   word-break: break-word;
   overflow-wrap: anywhere;
+  color:var(--color-text-primary);
 }
 .item-meta{
   font-size:11px;
@@ -655,7 +676,7 @@ body.is-locked .plano-terminado-badge{cursor:not-allowed;pointer-events:none;opa
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
-.item-desc-text strong, .item-desc-text b { font-weight: 800; color: var(--color-text-primary); }
+.item-desc-text strong, .item-desc-text b { font-weight: 800; color:var(--color-text-primary); }
 .item-desc-text em, .item-desc-text i { font-style: italic; }
 .item-desc-text u { text-decoration: underline; }
 .item-footer{
@@ -1004,7 +1025,7 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
   border-radius:6px;
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;
-  transition:all 0.2s;
+  transition:background 0.2s;
   flex-shrink: 0;
 }
 .espacio-imagen:hover{background-color:#ccfbf1}
@@ -1055,7 +1076,7 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
   padding:6px 14px;
   font-size:12px;font-weight:600;
   color:var(--color-text-secondary);
-  cursor:pointer;transition:all 0.2s;
+  cursor:pointer;transition:background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
   font-family:var(--font-sans);
   white-space: nowrap;
   touch-action: manipulation;
@@ -1098,7 +1119,6 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
   min-height: 0;
 }
 
-/* Sección del Calendario */
 .calendar-section{
   background: #fff;
   border: 1px solid var(--color-border-tertiary);
@@ -1182,7 +1202,6 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
 }
 .calendar-event-more:hover{background: #ccfbf1;}
 
-/* Contenedor de Gráficas */
 .charts-section{
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -1200,7 +1219,6 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
 }
 .chart-box{flex:1;width:100%;min-height:280px;}
 
-/* Forzar altura mínima de las gráficas */
 #chart-tipo,
 #chart-impacto,
 #chart-clasificacion{
@@ -1214,7 +1232,7 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
 }
 .dash-list-item{
   background:#fff;border:1px solid var(--color-border-tertiary);
-  border-radius:8px;padding:10px;cursor:pointer;transition:all 0.2s;
+  border-radius:8px;padding:10px;cursor:pointer;transition:border-color 0.2s, transform 0.2s, box-shadow 0.2s;
   display:flex;justify-content:space-between;align-items:center;
   gap: 8px;flex-wrap: wrap;min-width: 0;
 }
@@ -1222,7 +1240,6 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
 .dash-filter-pill{font-size:11px;background:#ccfbf1;color:#0f766e;padding:2px 8px;border-radius:8px;margin-left:8px;font-weight:600;cursor:pointer;}
 .dash-filter-pill:hover{background:#99f6e4;text-decoration:line-through}
 
-/* Modal de eventos del día */
 #modal-day-events .modal{max-width:600px;max-height:80vh;overflow-y:auto;}
 #modal-day-events h3{margin-top:0;margin-bottom:15px;text-transform:capitalize;}
 .day-events-list{display:flex;flex-direction:column;gap:10px;}
@@ -1249,7 +1266,7 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
   border:1px solid #fde68a;border-radius:20px;
   padding:6px 14px;font-size:12px;font-weight:700;
   cursor:pointer;display:flex;align-items:center;gap:6px;
-  transition:all 0.2s;
+  transition:background 0.2s, color 0.2s, border-color 0.2s;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1259,7 +1276,7 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
   background:#dcfce7;color:#15803d;
   border:1px solid #bbf7d0;border-radius:20px;
   padding:6px 12px;font-size:12px;font-weight:700;
-  transition:all 0.2s;
+  transition:background 0.2s, color 0.2s, border-color 0.2s;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1296,7 +1313,7 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
   border-radius:10px;padding:10px 14px;
   display:flex;justify-content:space-between;align-items:center;
   cursor:pointer;color:#b91c1c;font-weight:700;
-  transition:all 0.2s;
+  transition:background 0.2s;
   box-shadow:0 2px 4px rgba(220,38,38,0.05);
   gap: 8px;
   flex-wrap: wrap;
@@ -1358,7 +1375,7 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
   border-left:4px solid #e24b4a;
   border-radius:8px;padding:12px;margin-bottom:8px;
   background:var(--color-background-primary);
-  transition:all 0.2s;
+  transition:box-shadow 0.2s;
 }
 .pg-item:hover{box-shadow:var(--shadow-sm)}
 .pg-item-header{
@@ -1395,7 +1412,8 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
   border:1px solid #99e6df;border-radius:20px;
   padding:6px 14px;font-size:12px;font-weight:700;
   cursor:pointer;display:flex;align-items:center;gap:6px;
-  transition:all 0.2s;font-family:var(--font-sans);
+  transition:background 0.2s;
+  font-family:var(--font-sans);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1428,7 +1446,7 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
   padding:4px 12px;font-size:11px;font-weight:700;
   color:var(--color-text-secondary);border-radius:999px;
   cursor:pointer;font-family:var(--font-sans);
-  transition:all 0.15s;
+  transition:background 0.15s, color 0.15s;
   display:inline-flex;align-items:center;gap:4px;
 }
 .marcador-mode-btn:hover{color:var(--navy)}
@@ -1476,7 +1494,7 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
 }
 .pg-adjunto-add-label i{font-size:22px}
 
-/* ---------- FOCO Y ACCESIBILIDAD (SIN BORROSIDAD) ---------- */
+/* ---------- FOCO Y ACCESIBILIDAD ---------- */
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button:focus-visible,.btn:focus-visible,.btn-filter:focus-visible{outline-offset:3px}
 button,.btn,.btn-filter,.hbtn{touch-action:manipulation}

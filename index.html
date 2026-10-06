@@ -44,7 +44,7 @@
         <button class="btn-bell" id="btn-notify" onclick="requestNotificationPermission()" title="Activar/Desactivar Notificaciones en Tiempo Real">
           <i class="ti ti-bell"></i> <span id="notify-label">Notificaciones</span>
         </button>
-        <button class="btn-session logged-in is-admin" id="btn-session" onclick="openSessionModal()" title="Sesión: JAVIER C (admin) - Clic para cerrar sesión">
+        <button class="btn-session logged-in is-admin" id="btn-session" onclick="openSessionModal()" title="Sesión activa - Clic para cerrar sesión">
           <i class="ti ti-user" aria-hidden="true"></i>
           <span id="session-label">👑 JAVIER C</span>
         </button>
@@ -113,8 +113,8 @@
       <div class="marcador-header">
         <div class="marcador-title" style="margin-bottom:0;"><i class="ti ti-chart-donut-2"></i> Marcador</div>
         <div class="marcador-mode-switch" role="group" aria-label="Modo de conteo del marcador">
-          <button type="button" class="marcador-mode-btn active" id="marcador-mode-cambios" onclick="setMarcadorModo('cambios')" title="Contar por cambio/grupo (1 cambio = 1 registro)"><i class="ti ti-list-check"></i> CAMBIOS</button>
-          <button type="button" class="marcador-mode-btn" id="marcador-mode-global" onclick="setMarcadorModo('global')" title="Contar cada mueble dentro de cada cambio"><i class="ti ti-world"></i> GLOBAL</button>
+          <button type="button" class="marcador-mode-btn active" id="marcador-mode-cambios" onclick="setMarcadorModo('cambios')" title="Contar por cambio/grupo"><i class="ti ti-list-check"></i> CAMBIOS</button>
+          <button type="button" class="marcador-mode-btn" id="marcador-mode-global" onclick="setMarcadorModo('global')" title="Contar cada mueble"><i class="ti ti-world"></i> GLOBAL</button>
         </div>
       </div>
       <div class="marcador-grid">
@@ -167,13 +167,13 @@
       <div class="dropdown-wrap">
         <button class="btn btn-excel" id="excel-menu-btn" onclick="closeSideMenu(); toggleExcelMenu(event)" title="Exportar o importar información en Excel"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i> Excel <i class="ti ti-chevron-down" style="font-size:12px"></i></button>
       </div>
-      <button class="btn btn-purple only-editable" onclick="closeSideMenu(); openExport('zip')" title="Descarga una copia completa de todo el proyecto"><i class="ti ti-package" aria-hidden="true"></i> Descargar Repositorio</button>
-      <button class="btn only-editable" id="main-gh-revert-btn" onclick="closeSideMenu(); quickRevertGithub()" title="Descarta tus cambios locales y regresa al último commit guardado en GitHub" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-history" aria-hidden="true"></i> Restaurar última versión</button>
+      <button class="btn btn-purple only-editable" onclick="closeSideMenu(); openExport('zip')" title="Descarga una copia completa del proyecto"><i class="ti ti-package" aria-hidden="true"></i> Descargar Repositorio</button>
+      <button class="btn only-editable" id="main-gh-revert-btn" onclick="closeSideMenu(); quickRevertGithub()" title="Restaurar última versión desde GitHub" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-history" aria-hidden="true"></i> Restaurar última versión</button>
       <button class="btn btn-navy" onclick="closeSideMenu(); openDashboard()" title="Abrir análisis y gráficas"><i class="ti ti-chart-bar" aria-hidden="true"></i> Dashboard de Estadísticas</button>
       <button class="btn btn-navy" onclick="closeSideMenu(); openExport('pdf')" title="Exporta un documento limpio listo para imprimir"><i class="ti ti-file-text" aria-hidden="true"></i> Exportar PDF Final</button>
-      <button class="btn" id="btn-download-offline" onclick="closeSideMenu(); downloadOfflineVersion()" title="Guarda el cascarón de la app (HTML/CSS/JS) para poder abrirla sin conexión" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-cloud-download" aria-hidden="true"></i> Descargar versión offline</button>
-      <button class="btn btn-navy" onclick="closeSideMenu(); openProcesosDiseno()" title="Módulo independiente de procesos de diseño (Excel)"><i class="ti ti-clipboard-list" aria-hidden="true"></i> Procesos de diseño</button>
-      <button class="btn btn-purple admin-principal-only" onclick="closeSideMenu(); openAdminUsuarios()" title="Administración de usuarios (solo cuenta principal)" style=""><i class="ti ti-users" aria-hidden="true"></i> Administración → Usuarios</button>
+      <button class="btn" id="btn-download-offline" onclick="closeSideMenu(); downloadOfflineVersion()" title="Guarda el cascarón de la app para abrirla sin conexión" style="background:var(--color-text-secondary, #6b7280);color:#fff;"><i class="ti ti-cloud-download" aria-hidden="true"></i> Descargar versión offline</button>
+      <button class="btn btn-navy" onclick="closeSideMenu(); openProcesosDiseno()" title="Módulo de procesos de diseño"><i class="ti ti-clipboard-list" aria-hidden="true"></i> Procesos de diseño</button>
+      <button class="btn btn-purple admin-principal-only" onclick="closeSideMenu(); openAdminUsuarios()" title="Administración de usuarios" style=""><i class="ti ti-users" aria-hidden="true"></i> Administración → Usuarios</button>
     </div>
 </div>
 
@@ -196,7 +196,6 @@
       <button class="btn" onclick="closeModal('modal-auth')">Cancelar</button>
       <button class="btn btn-navy" onclick="validatePassword()">Desbloquear</button>
     </div>
-    <button class="auth-hidden-trigger" onclick="openManageAccess()" aria-label=""><i class="ti ti-point"></i></button>
   </div>
 </div>
 
@@ -233,10 +232,8 @@
       <h2>Administración → Usuarios</h2>
       <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-admin-usuarios')"><i class="ti ti-x"></i></button>
     </div>
-
     <h3><i class="ti ti-users"></i> Usuarios existentes</h3>
     <div id="admin-usuarios-list" class="access-list" style="max-height: 240px;"></div>
-
     <h3><i class="ti ti-user-plus"></i> Crear nuevo usuario</h3>
     <div class="form-group">
       <label class="form-label">Nombre completo</label>
@@ -260,20 +257,13 @@
     <div class="form-footer" style="justify-content: flex-end;">
       <button class="btn btn-green" onclick="crearUsuarioAdmin()"><i class="ti ti-plus"></i> Crear usuario</button>
     </div>
-
     <p style="font-size:11px; color:var(--color-text-secondary); margin-top:16px; line-height:1.5;">
-      ⚠️ <b>Nota</b>: GitHub Pages es un sitio estático. El sistema de usuarios es una barrera de organización y disuasión, no seguridad criptográfica. La verdadera protección del repositorio es el token de GitHub.
-    </p>
-    <p style="font-size:11px; color:var(--color-text-secondary); line-height:1.5;">
-      🔒 <b>Reglas del admin principal</b>: solo la cuenta principal puede crear, eliminar usuarios y cambiar contraseñas. La cuenta principal nunca puede ser eliminada.
-    </p>
-    <p style="font-size:11px; color:var(--color-text-secondary); line-height:1.5;">
-      Los cambios de usuarios solo se guardan permanentemente al hacer <b>"Guardar en GitHub"</b>.
+      ⚠️ <b>Nota</b>: El sistema de usuarios es una barrera de organización, no seguridad criptográfica.
     </p>
   </div>
 </div>
 
-<!-- Autorización específica para editar una fecha ya existente -->
+<!-- Autorización para editar fecha -->
 <div class="modal-bg" id="modal-fecha-auth">
   <div class="modal">
     <div class="modal-header">
@@ -282,10 +272,10 @@
     </div>
     <div class="auth-icon-wrap"><i class="ti ti-calendar-cog"></i></div>
     <div class="auth-title">Modificar fecha existente</div>
-    <div class="auth-subtitle">Esta fecha ya está registrada. Ingresa la contraseña de producción para poder cambiarla.</div>
+    <div class="auth-subtitle">Esta fecha ya está registrada. Ingresa la contraseña para cambiarla.</div>
     <div class="form-group">
       <input class="form-input" type="password" id="fecha-auth-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')validateFechaAuth()">
-      <p id="fecha-auth-error" style="display:none; color:var(--red); font-size:12px; margin-top:6px;">❌ Contraseña incorrecta. La fecha original se conserva sin cambios.</p>
+      <p id="fecha-auth-error" style="display:none; color:var(--red); font-size:12px; margin-top:6px;">❌ Contraseña incorrecta.</p>
     </div>
     <div class="form-footer" style="justify-content: center; padding-top: 1rem; border-top: none; margin-top: 0.5rem;">
       <button class="btn" onclick="pendingFechaUnlockItemId=null; closeModal('modal-fecha-auth')">Cancelar</button>
@@ -338,7 +328,7 @@
       <input class="form-input" type="text" id="new-consola" placeholder="CONSOLA 6531">
     </div>
     <div class="form-group" style="position:relative;">
-      <label class="form-label">Códigos de mueble <span style="color:var(--color-text-secondary);font-weight:400">(escribe y presiona Enter o coma)</span></label>
+      <label class="form-label">Códigos de mueble</label>
       <div class="tag-input-area" id="tag-area" onclick="document.getElementById('tag-input').focus()">
         <input class="tag-real-input" id="tag-input" placeholder="IFD6531CNSBL" autocomplete="off" onkeydown="handleTagKey(event)" oninput="handleTagInput(event)" onfocus="mostrarSugerenciasTagModal()" onblur="setTimeout(ocultarSugerenciasTagModal, 150)">
       </div>
@@ -370,15 +360,11 @@
       </div>
     </div>
 
-    <!-- CONTENEDOR CON SCROLL: CALENDARIO ARRIBA + GRÁFICAS ABAJO -->
     <div class="dash-content">
-
-      <!-- SECCIÓN DEL CALENDARIO -->
       <div class="calendar-section">
         <div id="calendar-view"></div>
       </div>
 
-      <!-- SECCIÓN DE GRÁFICAS -->
       <div class="charts-section">
         <div class="chart-container">
           <h3 style="margin-top:0; font-size:14px; color:var(--color-text-secondary);">1. Tipo de Reporte</h3>
@@ -416,7 +402,6 @@
           <div id="dash-list" class="dash-list"></div>
         </div>
       </div>
-
     </div>
   </div>
 </div>
@@ -433,10 +418,8 @@
         <button class="btn-ghost btn" title="Cerrar" onclick="closeProcesosDiseno()"><i class="ti ti-x"></i></button>
       </div>
     </div>
-
     <div style="padding:16px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; flex:1;">
       <p id="pd-status" style="font-size:12px;margin:0;line-height:1.4;display:none"></p>
-
       <div id="pd-list-view" style="display: block;">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
           <p style="font-size:12.5px; color:var(--color-text-secondary); margin:0; flex:1;">Elige un apartado:</p>
@@ -449,28 +432,24 @@
         </div>
         <div id="pd-submodule-list" style="display:flex; flex-direction:column; gap:8px;"></div>
       </div>
-
       <div id="pd-table-view" style="display:none;">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
-          <button class="btn-ghost btn" onclick="backToPdList()" title="Volver a la lista de submódulos"><i class="ti ti-arrow-left"></i></button>
+          <button class="btn-ghost btn" onclick="backToPdList()" title="Volver a la lista"><i class="ti ti-arrow-left"></i></button>
           <h3 id="pd-current-title" style="margin:0; font-size:15px;"></h3>
         </div>
-
         <div id="pd-excel-view">
           <div id="pd-toolbar" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
-            <button class="btn btn-green only-editable" onclick="triggerPdImport()" title="Leer un archivo .xlsx/.xls y mostrarlo en la tabla"><i class="ti ti-upload"></i> Importar Excel</button>
+            <button class="btn btn-green only-editable" onclick="triggerPdImport()" title="Leer un archivo .xlsx/.xls"><i class="ti ti-upload"></i> Importar Excel</button>
             <input type="file" id="pd-import-input" accept=".xlsx,.xls" style="display:none" onchange="handlePdImport(event)">
-            <button class="btn btn-excel" onclick="exportPdExcel()" title="Descarga el archivo original tal como se subió, con todo su formato"><i class="ti ti-file-spreadsheet"></i> Descargar Excel original</button>
-            <button class="btn btn-sm" onclick="exportPdExcelRebuilt()" title="Exporta la tabla tal como está aquí, con los cambios editados"><i class="ti ti-table-export"></i> Exportar con mis cambios</button>
+            <button class="btn btn-excel" onclick="exportPdExcel()" title="Descarga el archivo original"><i class="ti ti-file-spreadsheet"></i> Descargar Excel original</button>
+            <button class="btn btn-sm" onclick="exportPdExcelRebuilt()" title="Exporta la tabla editada"><i class="ti ti-table-export"></i> Exportar con mis cambios</button>
             <span style="flex:1"></span>
             <button class="btn btn-green only-editable" id="pd-save-btn" onclick="savePdChanges()"><i class="ti ti-device-floppy"></i> Guardar cambios del Excel</button>
           </div>
-
           <div id="pd-editor-bar" style="display:none; gap:8px; margin-bottom:10px;">
             <button class="btn btn-sm" onclick="addPdRow()" title="Agregar una fila vacía"><i class="ti ti-row-insert-bottom"></i> Insertar fila</button>
             <button class="btn btn-sm" onclick="addPdColumn()" title="Agregar una columna nueva"><i class="ti ti-column-insert-right"></i> Insertar columna</button>
           </div>
-
           <div id="pd-table-wrap" style="overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--color-border-tertiary); border-radius:12px;">
             <table class="pd-table" id="pd-table">
               <thead id="pd-table-head"></thead>
@@ -479,20 +458,18 @@
           </div>
           <div id="pd-empty-state" style="display:none; text-align:center; padding:2.5rem 1rem; color:var(--color-text-secondary);">
             <i class="ti ti-file-spreadsheet" style="font-size:32px; opacity:0.5;"></i>
-            <p style="margin-top:8px;">Todavía no hay datos. Usa "Importar Excel" para cargar un archivo .xlsx/.xls.</p>
+            <p style="margin-top:8px;">Todavía no hay datos. Usa "Importar Excel" para cargar un archivo.</p>
           </div>
         </div>
-
         <div id="pd-pdf-view" style="display:none;">
           <div id="pd-pdf-toolbar" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
-            <button class="btn btn-green" id="pd-pdf-upload-btn" onclick="triggerPdPdfUpload()" title="Subir el PDF de este apartado"><i class="ti ti-upload"></i> Subir PDF</button>
+            <button class="btn btn-green" id="pd-pdf-upload-btn" onclick="triggerPdPdfUpload()" title="Subir el PDF"><i class="ti ti-upload"></i> Subir PDF</button>
             <input type="file" id="pd-pdf-input" accept=".pdf,application/pdf" style="display:none" onchange="handlePdPdfUpload(event)">
             <button class="btn btn-navy" id="pd-pdf-download-btn" onclick="downloadPdPdf()" style="display:none;" title="Descarga el archivo original"><i class="ti ti-download"></i> Descargar PDF</button>
             <span style="flex:1"></span>
-            <button class="btn btn-amber only-editable-pd" id="pd-pdf-replace-btn" onclick="triggerPdPdfUpload()" style="display:none;" title="Cargar una nueva versión del PDF"><i class="ti ti-replace"></i> Sustituir PDF</button>
-            <button class="btn btn-danger-ghost only-editable-pd" id="pd-pdf-delete-btn" onclick="deletePdPdf()" style="display:none;" title="Eliminar el PDF de este apartado"><i class="ti ti-trash"></i> Eliminar PDF</button>
+            <button class="btn btn-amber only-editable-pd" id="pd-pdf-replace-btn" onclick="triggerPdPdfUpload()" style="display:none;" title="Cargar nueva versión"><i class="ti ti-replace"></i> Sustituir PDF</button>
+            <button class="btn btn-danger-ghost only-editable-pd" id="pd-pdf-delete-btn" onclick="deletePdPdf()" style="display:none;" title="Eliminar el PDF"><i class="ti ti-trash"></i> Eliminar PDF</button>
           </div>
-
           <div id="pd-pdf-viewer-wrap" style="display:none; border:1px solid var(--color-border-tertiary); border-radius:12px; overflow:hidden;">
             <iframe id="pd-pdf-viewer" style="width:100%; height:100%; border:none;" title="Visor de PDF"></iframe>
           </div>
@@ -501,9 +478,7 @@
             <p style="margin-top:8px;">Todavía no hay un PDF cargado. Usa "Subir PDF" para agregarlo.</p>
           </div>
         </div>
-
       </div>
-
     </div>
   </div>
 </div>
@@ -542,13 +517,11 @@
       <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-iup')"><i class="ti ti-x"></i></button>
     </div>
     <p style="font-size:13px; color:var(--color-text-secondary); margin-top:-5px; line-height:1.4" id="iup-modal-desc"></p>
-
     <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:15px;" id="iup-quick-actions">
         <button class="btn btn-purple" onclick="iupAddAll()">Agregar todas las variantes</button>
         <button class="btn btn-green" onclick="iupAddSingle()">Solo agregar <span id="iup-single-code"></span></button>
         <button class="btn btn-amber" onclick="iupToggleSelectionView()">Elegir variantes manualmente</button>
     </div>
-
     <div id="iup-selection-view" style="display:none;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
             <label style="font-size:12px; font-weight:600;">Variantes encontradas:</label>
@@ -566,7 +539,6 @@
   </div>
 </div>
 
-<!-- PDF Report Container -->
 <div id="pdf-report-container"></div>
 
 <!-- Modal Editar Cabecera de Nave -->
@@ -734,21 +706,18 @@
       <button class="btn-ghost btn" title="Cerrar" onclick="closeModal('modal-github')"><i class="ti ti-x"></i></button>
     </div>
     <p style="font-size:12px;color:var(--color-text-secondary);margin-top:-6px;margin-bottom:14px;line-height:1.45">
-      Sube tus cambios (datos e imágenes nuevas) al repositorio de GitHub donde vive tu <b>index.html</b>. El HTML/CSS/JS no se vuelven a subir aquí — solo se actualiza <code>data/cambios.json</code> y, si agregaste fotos nuevas, los archivos dentro de <code>data/images/</code>.
+      Sube tus cambios (datos e imágenes nuevas) al repositorio de GitHub donde vive tu <b>index.html</b>.
     </p>
     <div class="form-group">
       <label class="form-label">Repositorio</label>
       <input class="form-input" type="text" id="gh-repo" placeholder="ej. javiera-sys/REPORTE-PRODUCTIVO">
       <p style="font-size:11px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">
-        Formato <b>usuario/repositorio</b> (no la URL del sitio publicado). Si pegas un link de github.com o de tu página *.github.io, se convierte automáticamente.
+        Formato <b>usuario/repositorio</b> (no la URL del sitio publicado).
       </p>
     </div>
     <div class="form-group">
       <label class="form-label">Ruta de tu index.html dentro del repo</label>
       <input class="form-input" type="text" id="gh-path" placeholder="ej. index.html">
-      <p style="font-size:11px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">
-        Igual que siempre: la ruta de tu <b>index.html</b> (ej. "index.html" o "carpeta/index.html"). A partir de esa ruta, la app guarda los datos en una carpeta "data" junto a él.
-      </p>
     </div>
     <div class="form-group">
       <label class="form-label">Rama</label>
@@ -758,7 +727,7 @@
       <label class="form-label">Token de acceso personal (GitHub)</label>
       <input class="form-input" type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
       <p style="font-size:11px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">
-        Necesita permiso "repo" (o "Contents: Read and write" si es un token fino). Se guarda solo en este navegador, nunca se comparte con nadie más.
+        Necesita permiso "repo" (o "Contents: Read and write" si es un token fino).
       </p>
     </div>
     <div class="form-group" style="display:flex;align-items:center;gap:8px;margin-bottom:0;">

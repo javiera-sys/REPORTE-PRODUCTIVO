@@ -4962,11 +4962,11 @@ function renderCalendar() {
         const maxEventsToShow = 3;
         const eventsToShow = dayEvents.slice(0, maxEventsToShow);
 
-        eventsToShow.forEach(ev => {
-            const typeLabel = ev.type === 'pending' ? 'PENDIENTE' : ev.type === 'done' ? 'TERMINADO' : 'CANCELADO';
-            const typeClass = `event-${ev.type}`;
-            eventsHtml += `<div class="calendar-event ${typeClass}" title="${typeLabel}: ${escHtml(ev.item.title)}">${typeLabel.substring(0,3)}: ${escHtml(ev.item.title.substring(0,15))}...</div>`;
-        });
+        eventsToShow.forEach((ev, idx) => {
+    const typeLabel = ev.type === 'pending' ? 'PENDIENTE' : ev.type === 'done' ? 'TERMINADO' : 'CANCELADO';
+    const typeClass = `event-${ev.type}`;
+    eventsHtml += `<div class="calendar-event ${typeClass}" title="${typeLabel}: ${escHtml(ev.item.title)}" onclick="event.stopPropagation(); showDayEvents(${day}, ${idx})" style="cursor:pointer;">${typeLabel.substring(0,3)}: ${escHtml(ev.item.title.substring(0,15))}...</div>`;
+});
 
         if (dayEvents.length > maxEventsToShow) {
             eventsHtml += `<div class="calendar-event-more" onclick="showDayEvents(${day})">+${dayEvents.length - maxEventsToShow} más</div>`;
@@ -5017,7 +5017,7 @@ function setCalendarFilter(filter) {
     renderCalendar();
 }
 
-function showDayEvents(day) {
+function showDayEvents(day, eventIndex) {
     const year = calendarCurrentDate.getFullYear();
     const month = calendarCurrentDate.getMonth();
     const dayEvents = [];
@@ -5041,14 +5041,50 @@ function showDayEvents(day) {
     if (dayEvents.length === 0) return;
 
     const dateStr = new Date(year, month, day).toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    let listHtml = `<h3>Eventos del ${dateStr}</h3><div class="day-events-list">`;
-    dayEvents.forEach(ev => {
+
+    let destacadoHtml = '';
+    if (typeof eventIndex === 'number' && dayEvents[eventIndex]) {
+        const ev = dayEvents[eventIndex];
+        const typeLabel = ev.type === 'pending' ? 'PENDIENTE' : ev.type === 'done' ? 'TERMINADO' : 'CANCELADO';
+        const typeClass = `event-${ev.type}`;
+        const fechaEvento = ev.type === 'pending' ? (ev.item.createdAt ? new Date(ev.item.createdAt).toLocaleDateString('es-MX') : '—') :
+                            ev.type === 'done' ? (ev.item.completedAt ? new Date(ev.item.completedAt).toLocaleDateString('es-MX') : '—') :
+                            (ev.item.cancelledAt ? new Date(ev.item.cancelledAt).toLocaleDateString('es-MX') : '—');
+        const descripcionLimpia = typeof stripHTML === 'function' ? stripHTML(ev.item.desc || '') : (ev.item.desc || '');
+        
+        destacadoHtml = `
+            <div class="day-event-destacado">
+                <div class="day-event-destacado-tipo ${typeClass}">
+                    <strong>${typeLabel}</strong>
+                </div>
+                <h4 class="day-event-destacado-titulo">${escHtml(ev.item.title)}</h4>
+                <div class="day-event-destacado-meta">
+                    <span><i class="ti ti-building-factory"></i> ${escHtml(ev.naveName)}</span>
+                    <span><i class="ti ti-calendar"></i> ${ev.type === 'pending' ? 'Creado' : ev.type === 'done' ? 'Terminado' : 'Cancelado'}: ${fechaEvento}</span>
+                    ${ev.item.odt ? `<span><i class="ti ti-hash"></i> ODT: ${escHtml(ev.item.odt)}</span>` : ''}
+                    <span><i class="ti ti-category"></i> ${escHtml(ev.item.subType || ev.item.type)}</span>
+                </div>
+                ${descripcionLimpia ? `<div class="day-event-destacado-desc">${escHtml(descripcionLimpia).replace(/\n/g, '<br>')}</div>` : ''}
+                <button type="button" class="btn btn-navy btn-sm" style="margin-top:12px;" onclick="closeModal('modal-day-events'); setTimeout(() => { const el = document.getElementById('ic-${ev.item.id}'); if(el){ closeModal('modal-dashboard'); el.scrollIntoView({behavior:'smooth', block:'center'}); el.style.boxShadow='0 0 0 4px #fbbf24'; setTimeout(()=>el.style.boxShadow='', 3000); } }, 300);">
+                    <i class="ti ti-external-link"></i> Ir al cambio completo
+                </button>
+            </div>
+            <div style="margin-top:20px; padding-top:15px; border-top:1px dashed var(--color-border-secondary);">
+                <p style="font-size:12px; color:var(--color-text-secondary); margin-bottom:10px;">Todos los eventos de este día:</p>
+            </div>
+        `;
+    }
+
+    let listHtml = `<h3 style="text-transform:capitalize;">Eventos del ${dateStr} <span style="font-size:13px;font-weight:400;color:var(--color-text-secondary);">(${dayEvents.length})</span></h3>`;
+    listHtml += destacadoHtml;
+    listHtml += `<div class="day-events-list">`;
+    dayEvents.forEach((ev, idx) => {
         const typeLabel = ev.type === 'pending' ? 'PENDIENTE' : ev.type === 'done' ? 'TERMINADO' : 'CANCELADO';
         const typeClass = `event-${ev.type}`;
         listHtml += `
-            <div class="calendar-event ${typeClass}" style="margin-bottom: 8px; font-size: 14px;">
+            <div class="calendar-event ${typeClass}" style="margin-bottom: 8px; font-size: 13px; padding: 8px 10px; cursor:pointer;" onclick="showDayEvents(${day}, ${idx})">
                 <strong>${typeLabel}:</strong> ${escHtml(ev.item.title)} <br>
-                <small>${escHtml(ev.naveName)} - ${ev.item.subType || ev.item.type}</small>
+                <small style="opacity:0.75;">${escHtml(ev.naveName)} - ${escHtml(ev.item.subType || ev.item.type)}</small>
             </div>
         `;
     });
@@ -5059,12 +5095,12 @@ function showDayEvents(day) {
         modal = document.createElement('div');
         modal.id = 'modal-day-events';
         modal.className = 'modal-bg';
+        modal.onclick = (e) => { if (e.target === modal) closeModal('modal-day-events'); };
         document.body.appendChild(modal);
     }
-    modal.innerHTML = `<div class="modal">${listHtml}<div class="form-footer"><button class="btn" onclick="closeModal('modal-day-events')">Cerrar</button></div></div>`;
+    modal.innerHTML = `<div class="modal" onclick="event.stopPropagation()">${listHtml}<div class="form-footer"><button type="button" class="btn" onclick="closeModal('modal-day-events')">Cerrar</button></div></div>`;
     modal.classList.add('open');
 }
-
 
 function openDashboard() {
   document.getElementById('modal-dashboard').classList.add('open');

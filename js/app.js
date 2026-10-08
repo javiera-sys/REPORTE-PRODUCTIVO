@@ -129,6 +129,33 @@ let modelosDBChanged = false;
 let guardadoEnProgreso = false;
 
 function uid(){return 'x'+Math.random().toString(36).slice(2,9)}
+// ⭐ MIGRACIÓN AUTOMÁTICA: 
+// Los items viejos que ya tenían planoTerminado:true se consideran
+// automáticamente validados (porque fueron hechos antes de esta regla).
+// Solo se ejecuta UNA VEZ por item: si no tiene el campo validadoPorAdmin, se lo asignamos.
+function migrarItemsViejos() {
+  if (!data || !data.naves) return;
+  let migrados = 0;
+  data.naves.forEach(nave => {
+    (nave.items || []).forEach(item => {
+      // Si el item tiene planoTerminado true y NO tiene el campo validadoPorAdmin
+      if (item.proceso && item.proceso.planoTerminado === true && item.validadoPorAdmin === undefined) {
+        item.validadoPorAdmin = true;
+        if (!item.completedAt) {
+          item.completedAt = item.modifiedAt || item.createdAt || Date.now();
+        }
+        migrados++;
+      }
+      // Si el item NO está terminado y NO tiene el campo, lo inicializamos como false
+      if (item.proceso && item.proceso.planoTerminado === false && item.validadoPorAdmin === undefined) {
+        item.validadoPorAdmin = false;
+      }
+    });
+  });
+  if (migrados > 0) {
+    console.log(`[Migración] ${migrados} items viejos marcados como validados por Javier.`);
+  }
+}
 
 function escHtml(s){
   if (s === null || s === undefined || s === 'undefined') return '';
@@ -4515,6 +4542,7 @@ async function cargarDatosIniciales(){
     const json = await resp.json();
     data = json;
     ensureAccessPasswords();
+    migrarItemsViejos();   // 👈 ESTA LÍNEA ES LA NUEVA
     render();
   }catch(err){
     console.error('No se pudo cargar data/cambios.json:', err);
@@ -4535,6 +4563,7 @@ async function cargarDatosIniciales(){
     if (pending) {
       data = JSON.parse(pending.dataJson);
       ensureAccessPasswords();
+      migrarItemsViejos();   // 👈 ESTA LÍNEA ES LA NUEVA
       render();
       if (navigator.onLine) { attemptOfflineSync(); } else { setSyncStatusUI('pending'); }
     }

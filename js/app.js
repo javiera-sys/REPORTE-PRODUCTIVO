@@ -2,8 +2,11 @@ function isAdminSafe() {
   return (typeof isAdmin === 'function') && isAdmin();
 }
 
-document.getElementById('current-date').textContent = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
-
+// Actualizar fecha solo si el elemento existe
+const currentDateEl = document.getElementById('current-date');
+if (currentDateEl) {
+  currentDateEl.textContent = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
 // Configuración de Firebase Cloud Messaging (FCM)
 const firebaseConfig = {
   apiKey: "AIzaSyCAOhYLqz9tNgvmjM9fPFatVGMqJG7WJTo",

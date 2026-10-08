@@ -627,11 +627,24 @@ function toggleProceso(naveId, itemId, field, el, event) {
     if(!item.proceso) item.proceso = { habilitado: false, planos: false, etiquetas: false, planoTerminado: false };
     item.proceso[field] = !item.proceso[field];
 
+    // ⭐ NUEVA REGLA: Solo javier.c valida como terminado real
     if (field === 'planoTerminado') {
+      const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+      const esJavier = user && user.username && user.username.toLowerCase() === 'javier.c';
+
       if (item.proceso.planoTerminado) {
-        item.completedAt = Date.now();
+        if (esJavier) {
+          item.validadoPorAdmin = true;
+          item.completedAt = Date.now();
+        } else {
+          item.validadoPorAdmin = false;
+          item.marcadoTerminadoPorUsuarioAt = Date.now();
+          delete item.completedAt;
+        }
       } else {
+        item.validadoPorAdmin = false;
         delete item.completedAt;
+        delete item.marcadoTerminadoPorUsuarioAt;
       }
     }
 
@@ -1001,7 +1014,7 @@ function render(){
     data.naves.forEach(nave => {
       if (nave.items) {
         nave.items.forEach(item => {
-          if (!item.completedAt && item.proceso && item.proceso.planoTerminado) {
+           if (!item.completedAt && item.proceso && item.proceso.planoTerminado && item.validadoPorAdmin) {
             item.completedAt = item.modifiedAt || item.createdAt;
           }
           if (!item.cancelledAt && item.cancelado) {
@@ -1050,9 +1063,11 @@ function renderMarcador() {
     (nave.items || []).forEach(item => {
       if (item.cancelado) {
         cancelados += peso;
-      } else if (item.proceso && item.proceso.planoTerminado) {
+      } else if (item.proceso && item.proceso.planoTerminado && item.validadoPorAdmin) {
+        // ⭐ Solo cuenta como terminado si javier.c lo validó
         terminados += peso;
       } else {
+        // Todo lo demás es pendiente (aunque el usuario lo haya marcado)
         pendientes += peso;
       }
     });
@@ -1118,16 +1133,25 @@ function filterItems(){
       const itemText = normalizeSearch(itemCard.textContent);
       const textMatch = !q || naveMatches || itemText.includes(q);
       
-      const isDone = itemCard.classList.contains('plano-done');
-   const isCancelado = itemCard.classList.contains('item-cancelado');
-   let statusMatch = true;
-   if (filterStatus === 'pending') {
-     statusMatch = !isDone && !isCancelado;
-   } else if (filterStatus === 'done') {
-     statusMatch = isDone && !isCancelado;
-   } else if (filterStatus === 'cancelado') {
-     statusMatch = isCancelado;
-   }
+      const isCancelado = itemCard.classList.contains('item-cancelado');
+
+      // ⭐ NUEVA REGLA: Un item solo es "terminado real" si javier.c lo validó
+      const itemId = itemCard.id.replace('ic-', '');
+      let itemObj = null;
+      for (const naveX of data.naves) {
+        const found = naveX.items.find(i => i.id === itemId);
+        if (found) { itemObj = found; break; }
+      }
+      const estaValidado = itemObj && itemObj.proceso && itemObj.proceso.planoTerminado && itemObj.validadoPorAdmin;
+
+      let statusMatch = true;
+      if (filterStatus === 'pending') {
+        statusMatch = !estaValidado && !isCancelado;
+      } else if (filterStatus === 'done') {
+        statusMatch = estaValidado && !isCancelado;
+      } else if (filterStatus === 'cancelado') {
+        statusMatch = isCancelado;
+      }
 
       const itemMatches = textMatch && statusMatch;
 
@@ -1289,7 +1313,10 @@ function renderItemCard(item, naveId){
   `;
 
   const planoTerminadoHtml = proc.planoTerminado
-    ? `<div class="plano-terminado-badge done" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Plano terminado - clic para desmarcar"><i class="ti ti-circle-check-filled"></i></div>`
+    ? (item.validadoPorAdmin
+        ? `<div class="plano-terminado-badge done" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Terminado y validado - clic para desmarcar"><i class="ti ti-circle-check-filled"></i></div>`
+        : `<div class="plano-terminado-badge done" style="background:#fef3c7;border-color:#fcd34d;color:#b45309;" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Marcado por usuario - Esperando validación de Javier"><i class="ti ti-clock"></i><span>POR REVISAR</span></div>`
+      )
     : `<div class="plano-terminado-badge pendiente" onclick="toggleProceso('${naveId}', '${item.id}', 'planoTerminado', this, event)" title="Marcar plano como terminado"><i class="ti ti-alert-triangle"></i><span>PENDIENTE</span></div>`;
 
   let metaHtml = '';

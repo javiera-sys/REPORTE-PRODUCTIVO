@@ -1115,11 +1115,11 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
 
 /* ---------- FILTROS ---------- */
 .filter-row{
-  display:flex;align-items:center;gap:12px;
-  margin-top:12px;
-  border-top:1px solid var(--color-border-tertiary);
-  padding-top:12px;
-  flex-wrap:wrap;
+display:flex;align-items:center;justify-content:center;gap:12px;
+margin-top:12px;
+border-top:1px solid var(--color-border-tertiary);
+padding-top:12px;
+flex-wrap:wrap;
 }
 .filter-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .filter-divider{width:1px;height:24px;background:var(--color-border-secondary);margin:0 4px}
@@ -1743,13 +1743,14 @@ button,.btn,.btn-filter,.hbtn{touch-action:manipulation}
   .top-bar-left h1{font-size: 14px;}
   .top-header-row > div:last-child{display: flex; flex-wrap: wrap; gap: 6px;}
 
-  .filter-row{
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 10px;
-    scrollbar-width: thin;
-  }
+   .filter-row{
+   flex-wrap: nowrap;
+   overflow-x: auto;
+   -webkit-overflow-scrolling: touch;
+   padding-bottom: 10px;
+   scrollbar-width: thin;
+   justify-content: flex-start;
+   }
   .filter-group{flex-wrap: nowrap; flex-shrink: 0;}
   .filter-divider{flex-shrink: 0;}
   .btn-filter{padding: 9px 14px; font-size: 12.5px; min-height: 40px;}

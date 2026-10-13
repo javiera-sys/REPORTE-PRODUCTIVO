@@ -2242,3 +2242,114 @@ button,.btn,.btn-filter,.hbtn{touch-action:manipulation}
     font-size: 14.5px;
   }
 }
+/* ============================================================
+   CHECKBOX PARA PENDIENTES GENERALES
+   ============================================================ */
+.pg-checkbox {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 6px;
+  border: 2px solid var(--color-border-secondary);
+  background: var(--color-background-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  flex-shrink: 0;
+}
+.pg-checkbox i {
+  font-size: 16px;
+  color: var(--color-text-secondary);
+  line-height: 1;
+}
+.pg-checkbox:hover {
+  border-color: var(--navy);
+  background: #e0f2f1;
+  transform: scale(1.05);
+}
+.pg-checkbox:active {
+  transform: scale(0.95);
+}
+.pg-check-done {
+  background: #dcfce7;
+  border-color: #16a34a;
+}
+.pg-check-done i {
+  color: #16a34a;
+  font-weight: 900;
+}
+.pg-check-done:hover {
+  background: #bbf7d0;
+  border-color: #15803d;
+}
+.pg-check-review {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+.pg-check-review i {
+  color: #b45309;
+}
+.pg-check-review:hover {
+  background: #fde68a;
+  border-color: #d97706;
+}
+.pg-item-done {
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7) !important;
+  border-left-color: #16a34a !important;
+  opacity: 0.85;
+}
+.pg-item-done .pg-item-title {
+  text-decoration: line-through;
+  color: var(--color-text-secondary);
+}
+.pg-item-review {
+  background: linear-gradient(135deg, #fffbeb, #fef3c7) !important;
+  border-left-color: #f59e0b !important;
+}
+
+/* Mini filtros del header de Pendientes Generales */
+.pg-mini-filter {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(185, 28, 28, 0.15);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #b91c1c;
+  transition: all 0.15s;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+.pg-mini-filter:hover {
+  background: #fff;
+  border-color: #b91c1c;
+}
+.pg-mini-filter.active {
+  background: #b91c1c;
+  color: #fff;
+  border-color: #991b1b;
+}
+body.is-locked .pg-checkbox {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (max-width: 640px) {
+  .pg-mini-filter {
+    padding: 5px 10px;
+    font-size: 12px;
+    min-height: 32px;
+  }
+  .pg-checkbox {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+  }
+  .pg-checkbox i {
+    font-size: 18px;
+  }
+}

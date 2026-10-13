@@ -89,7 +89,13 @@
         <div class="pg-title">
           <i class="ti ti-alert-triangle" style="font-size: 16px;"></i> 
           Pendientes Generales 
-          <span id="pg-counter" class="pg-counter" style="display: inline-block;">0</span>
+          <span id="pg-counter" class="pg-counter" style="display: inline-block;">5</span>
+        </div>
+        <div style="display:flex; gap:6px; align-items:center;" onclick="event.stopPropagation()">
+          <button type="button" class="pg-mini-filter active" data-pg-filter="all" onclick="setPGFilter('all', this)">Todos</button>
+          <button type="button" class="pg-mini-filter" data-pg-filter="pending" onclick="setPGFilter('pending', this)">⏳</button>
+          <button type="button" class="pg-mini-filter" data-pg-filter="review" onclick="setPGFilter('review', this)">⏰</button>
+          <button type="button" class="pg-mini-filter" data-pg-filter="done" onclick="setPGFilter('done', this)">✔️</button>
         </div>
         <i class="ti ti-chevron-down" id="pg-chevron"></i>
       </div>

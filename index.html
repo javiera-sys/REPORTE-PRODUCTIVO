@@ -582,6 +582,18 @@
         <div class="rte-editor" id="pg-desc" contenteditable="true" data-placeholder="Detalles de la instrucción o pendiente..." spellcheck="true" lang="es-MX"></div>
       </div>
     </div>
+
+    <!-- ⭐ NUEVO: Lista de muebles del pendiente -->
+    <div class="form-group">
+      <label class="form-label">Muebles / Items relacionados</label>
+      <div id="pg-items-list" class="pg-items-edit-list"></div>
+      <div class="pg-add-item-row">
+        <input class="form-input" type="text" id="pg-new-item-code" placeholder="Código del mueble (ej: IFD4221CNS)" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();addPgItemFromModal()}">
+        <input class="form-input" type="text" id="pg-new-item-desc" placeholder="Descripción corta (opcional)" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();addPgItemFromModal()}">
+        <button type="button" class="btn btn-sm btn-purple" onclick="addPgItemFromModal()"><i class="ti ti-plus"></i> Agregar</button>
+      </div>
+    </div>
+
     <div class="form-footer">
       <button type="button" class="btn" onclick="closeModal('modal-pg')">Cancelar</button>
       <button type="button" class="btn btn-purple" onclick="savePG()">Guardar</button>

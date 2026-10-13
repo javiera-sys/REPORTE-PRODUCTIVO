@@ -115,7 +115,7 @@ let filterStatus = 'all';
 let filterNave = 'all'; 
 let isPGPanelOpen = false; 
 let marcadorModo = 'cambios';
-
+let filterPGStatus = 'all';
 let fileHandle = null;
 let data = { naves: [], accessPasswords: [], pendientesGenerales: [], fichasTecnicas: [] };
 
@@ -791,6 +791,59 @@ function eliminarAdjunto(event, naveId, itemId, idx) {
     }
   }
 }
+// ⭐ NUEVA: Toggle de completado para Pendientes Generales
+function toggleCompletadoPG(pgId, event) {
+  if (event) event.stopPropagation();
+  if (!isEditableMode) return;
+  
+  const pg = (data.pendientesGenerales || []).find(p => p.id === pgId);
+  if (!pg) return;
+
+  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  const esJavier = user && user.username && user.username.toLowerCase() === 'javier.c';
+
+  // Si está completado y NO es Javier → no puede desmarcarlo
+  if (pg.completado && !esJavier) {
+    alert('🔒 Solo Javier puede desmarcar un pendiente ya completado.');
+    return;
+  }
+
+  // Si NO está completado → cualquier usuario puede marcarlo, pero requiere validación
+  if (!pg.completado) {
+    pg.marcadoPorUsuario = true;
+    pg.completadoPorUsuarioAt = Date.now();
+    if (esJavier) {
+      pg.completado = true;
+      pg.validadoPorAdmin = true;
+      pg.completadoAt = Date.now();
+    } else {
+      pg.completado = false; // Esperando validación
+      pg.validadoPorAdmin = false;
+    }
+  } else {
+    // Desmarcar (solo Javier llega aquí)
+    pg.completado = false;
+    pg.validadoPorAdmin = false;
+    delete pg.completadoAt;
+    delete pg.marcadoPorUsuario;
+    delete pg.completadoPorUsuarioAt;
+  }
+
+  if (user) {
+    pg.modifiedBy = user.username;
+    pg.modifiedByName = user.nombre;
+    pg.modifiedAt = Date.now();
+  }
+
+  renderPG();
+}
+
+function setPGFilter(filter, btn) {
+  filterPGStatus = filter;
+  document.querySelectorAll('.pg-mini-filter').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderPG();
+}
 
 function togglePGPanel() {
   isPGPanelOpen = !isPGPanelOpen;
@@ -827,7 +880,24 @@ function renderPG() {
   }
   
   let html = '';
-  data.pendientesGenerales.forEach(pg => {
+  let pgFiltrados = data.pendientesGenerales;
+  if (typeof filterPGStatus !== 'undefined' && filterPGStatus !== 'all') {
+    pgFiltrados = data.pendientesGenerales.filter(pg => {
+      const comp = pg.completado === true;
+      const porRev = pg.marcadoPorUsuario && !pg.validadoPorAdmin;
+      if (filterPGStatus === 'pending') return !comp && !porRev;
+      if (filterPGStatus === 'done') return comp;
+      if (filterPGStatus === 'review') return porRev;
+      return true;
+    });
+  }
+
+  if (pgFiltrados.length === 0) {
+    listEl.innerHTML = '<div class="empty-section">No hay pendientes generales en esta categoría.</div>';
+    return;
+  }
+
+  pgFiltrados.forEach(pg => {
       let dateStr = '';
       if (pg.createdAt) {
           dateStr = new Date(pg.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -836,15 +906,26 @@ function renderPG() {
       const isNew = pg.createdAt && (Date.now() - pg.createdAt) < (72 * 60 * 60 * 1000);
       const starHtml = isNew ? `<div title="Registro nuevo (últimas 72h)" style="color:#f59e0b; display:flex; align-items:center; justify-content:center; width:20px; height:20px; margin-left:4px;"><i class="ti ti-star-filled" style="font-size:16px"></i></div>` : '';
 
+      const completado = pg.completado === true;
+      const porRevisar = pg.marcadoPorUsuario && !pg.validadoPorAdmin;
+      const checkHtml = completado
+        ? `<div class="pg-checkbox pg-check-done" onclick="toggleCompletadoPG('${pg.id}', event)" title="Completado y validado - clic para desmarcar"><i class="ti ti-check"></i></div>`
+        : (porRevisar
+          ? `<div class="pg-checkbox pg-check-review" onclick="toggleCompletadoPG('${pg.id}', event)" title="Marcado por usuario - Esperando validación de Javier"><i class="ti ti-clock"></i></div>`
+          : `<div class="pg-checkbox pg-check-pending" onclick="toggleCompletadoPG('${pg.id}', event)" title="Marcar como completado"><i class="ti ti-square"></i></div>`
+        );
+
       html += `
-      <div class="pg-item">
+      <div class="pg-item ${completado ? 'pg-item-done' : ''} ${porRevisar ? 'pg-item-review' : ''}">
           <div class="pg-item-header">
-              <div style="display:flex; align-items:flex-start; flex:1;">
+              <div style="display:flex; align-items:flex-start; flex:1; gap:10px;">
+                  ${checkHtml}
                   <div class="pg-item-title">${escHtml(pg.title)}</div>
                   ${starHtml}
               </div>
               ${dateStr ? `<div class="pg-item-date">${dateStr}</div>` : ''}
           </div>
+
           <div class="pg-item-desc">${renderDescripcion(pg.desc)}</div>
     ${renderAdjuntosPG(pg)}
     <div class="pg-actions-row only-editable">

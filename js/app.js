@@ -791,51 +791,80 @@ function eliminarAdjunto(event, naveId, itemId, idx) {
     }
   }
 }
-// ⭐ NUEVA: Toggle de completado para Pendientes Generales
-function toggleCompletadoPG(pgId, event) {
+// ⭐ NUEVA: Toggle de completado para UN MUEBLE dentro de un Pendiente General
+function toggleCompletadoSubItemPG(pgId, subItemId, event) {
   if (event) event.stopPropagation();
   if (!isEditableMode) return;
   
   const pg = (data.pendientesGenerales || []).find(p => p.id === pgId);
   if (!pg) return;
+  if (!Array.isArray(pg.subItems)) pg.subItems = [];
+  const sub = pg.subItems.find(s => s.id === subItemId);
+  if (!sub) return;
+
+  sub.completado = !sub.completado;
+  if (sub.completado) {
+    sub.completadoAt = Date.now();
+  } else {
+    delete sub.completadoAt;
+  }
 
   const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
-  const esJavier = user && user.username && user.username.toLowerCase() === 'javier.c';
-
-  // Si está completado y NO es Javier → no puede desmarcarlo
-  if (pg.completado && !esJavier) {
-    alert('🔒 Solo Javier puede desmarcar un pendiente ya completado.');
-    return;
-  }
-
-  // Si NO está completado → cualquier usuario puede marcarlo, pero requiere validación
-  if (!pg.completado) {
-    pg.marcadoPorUsuario = true;
-    pg.completadoPorUsuarioAt = Date.now();
-    if (esJavier) {
-      pg.completado = true;
-      pg.validadoPorAdmin = true;
-      pg.completadoAt = Date.now();
-    } else {
-      pg.completado = false; // Esperando validación
-      pg.validadoPorAdmin = false;
-    }
-  } else {
-    // Desmarcar (solo Javier llega aquí)
-    pg.completado = false;
-    pg.validadoPorAdmin = false;
-    delete pg.completadoAt;
-    delete pg.marcadoPorUsuario;
-    delete pg.completadoPorUsuarioAt;
-  }
-
   if (user) {
+    sub.modifiedBy = user.username;
+    sub.modifiedByName = user.nombre;
+    sub.modifiedAt = Date.now();
     pg.modifiedBy = user.username;
     pg.modifiedByName = user.nombre;
     pg.modifiedAt = Date.now();
   }
 
   renderPG();
+}
+
+// ⭐ NUEVA: Agregar un mueble a un pendiente general (desde el modal)
+let _pgModalTempItems = [];
+
+function addPgItemFromModal() {
+  const codeEl = document.getElementById('pg-new-item-code');
+  const descEl = document.getElementById('pg-new-item-desc');
+  const code = (codeEl.value || '').trim().toUpperCase();
+  const desc = (descEl.value || '').trim();
+  if (!code) {
+    codeEl.focus();
+    return;
+  }
+  _pgModalTempItems.push({
+    id: 'ps_' + uid(),
+    code: code,
+    desc: desc,
+    completado: false
+  });
+  codeEl.value = '';
+  descEl.value = '';
+  codeEl.focus();
+  renderPgModalItems();
+}
+
+function removePgItemFromModal(subId) {
+  _pgModalTempItems = _pgModalTempItems.filter(s => s.id !== subId);
+  renderPgModalItems();
+}
+
+function renderPgModalItems() {
+  const cont = document.getElementById('pg-items-list');
+  if (!cont) return;
+  if (_pgModalTempItems.length === 0) {
+    cont.innerHTML = '';
+    return;
+  }
+  cont.innerHTML = _pgModalTempItems.map(s => `
+    <div class="pg-subitem" style="padding:6px 8px;">
+      <span class="pg-subitem-code">${escHtml(s.code)}</span>
+      ${s.desc ? `<span class="pg-subitem-desc">${escHtml(s.desc)}</span>` : '<span class="pg-subitem-desc"></span>'}
+      <button type="button" class="pg-subitem-del" onclick="removePgItemFromModal('${s.id}')" title="Quitar"><i class="ti ti-x"></i></button>
+    </div>
+  `).join('');
 }
 
 function setPGFilter(filter, btn) {
@@ -906,32 +935,52 @@ function renderPG() {
       const isNew = pg.createdAt && (Date.now() - pg.createdAt) < (72 * 60 * 60 * 1000);
       const starHtml = isNew ? `<div title="Registro nuevo (últimas 72h)" style="color:#f59e0b; display:flex; align-items:center; justify-content:center; width:20px; height:20px; margin-left:4px;"><i class="ti ti-star-filled" style="font-size:16px"></i></div>` : '';
 
-      const completado = pg.completado === true;
-      const porRevisar = pg.marcadoPorUsuario && !pg.validadoPorAdmin;
-      const checkHtml = completado
-        ? `<div class="pg-checkbox pg-check-done" onclick="toggleCompletadoPG('${pg.id}', event)" title="Completado y validado - clic para desmarcar"><i class="ti ti-check"></i></div>`
-        : (porRevisar
-          ? `<div class="pg-checkbox pg-check-review" onclick="toggleCompletadoPG('${pg.id}', event)" title="Marcado por usuario - Esperando validación de Javier"><i class="ti ti-clock"></i></div>`
-          : `<div class="pg-checkbox pg-check-pending" onclick="toggleCompletadoPG('${pg.id}', event)" title="Marcar como completado"><i class="ti ti-square"></i></div>`
-        );
+            const porRevisar = false;
+      const completado = false;
+
+           // Contar progreso de subitems
+      const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
+      const totalSubs = subs.length;
+      const doneSubs = subs.filter(s => s.completado === true).length;
+      const allDone = totalSubs > 0 && doneSubs === totalSubs;
+      
+      let progressPill = '';
+      if (totalSubs > 0) {
+        progressPill = `<span class="pg-subitem-progress ${allDone ? 'all-done' : ''}"><i class="ti ti-checkbox"></i> ${doneSubs}/${totalSubs}</span>`;
+      }
+
+      // Render de subitems
+      let subsHtml = '';
+      if (totalSubs > 0) {
+        subsHtml = `<div class="pg-items-list">` + subs.map(s => `
+          <div class="pg-subitem ${s.completado ? 'is-done' : ''}">
+            <div class="pg-subitem-check" onclick="toggleCompletadoSubItemPG('${pg.id}', '${s.id}', event)" title="${s.completado ? 'Clic para desmarcar' : 'Marcar como listo'}">
+              <i class="ti ti-check"></i>
+            </div>
+            <span class="pg-subitem-code">${escHtml(s.code || '')}</span>
+            ${s.desc ? `<span class="pg-subitem-desc">${escHtml(s.desc)}</span>` : ''}
+          </div>
+        `).join('') + `</div>`;
+      }
 
       html += `
-      <div class="pg-item ${completado ? 'pg-item-done' : ''} ${porRevisar ? 'pg-item-review' : ''}">
+      <div class="pg-item ${allDone ? 'pg-item-done' : ''} ${porRevisar ? 'pg-item-review' : ''}">
           <div class="pg-item-header">
-              <div style="display:flex; align-items:flex-start; flex:1; gap:10px;">
-                  ${checkHtml}
+              <div style="display:flex; align-items:flex-start; flex:1; gap:10px; flex-wrap:wrap;">
                   <div class="pg-item-title">${escHtml(pg.title)}</div>
+                  ${progressPill}
                   ${starHtml}
               </div>
               ${dateStr ? `<div class="pg-item-date">${dateStr}</div>` : ''}
           </div>
 
           <div class="pg-item-desc">${renderDescripcion(pg.desc)}</div>
-    ${renderAdjuntosPG(pg)}
-    <div class="pg-actions-row only-editable">
-        <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('${pg.id}')"><i class="ti ti-pencil"></i></button>
-        <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('${pg.id}')"><i class="ti ti-trash"></i></button>
-    </div>
+          ${subsHtml}
+          ${renderAdjuntosPG(pg)}
+          <div class="pg-actions-row only-editable">
+              <button class="btn btn-ghost btn-sm" title="Editar" onclick="editPG('${pg.id}')"><i class="ti ti-pencil"></i></button>
+              <button class="btn btn-danger-ghost btn-sm" title="Eliminar" onclick="deletePG('${pg.id}')"><i class="ti ti-trash"></i></button>
+          </div>
       </div>
       `;
   });
@@ -943,6 +992,10 @@ function openAddPG() {
   document.getElementById('pg-edit-id').value = '';
   document.getElementById('pg-title').value = '';
   setEditorContent('pg-desc', '');
+  _pgModalTempItems = [];
+  renderPgModalItems();
+  document.getElementById('pg-new-item-code').value = '';
+  document.getElementById('pg-new-item-desc').value = '';
   document.getElementById('modal-pg-h').textContent = 'Agregar Pendiente General';
   document.getElementById('modal-pg').classList.add('open');
   setTimeout(() => {
@@ -1055,32 +1108,39 @@ function savePG() {
   const desc = getEditorContent('pg-desc');
   
   if (!title || !desc) {
-      alert("⚠️ Título y Descripción son obligatorios.");
-      return;
+    alert("⚠️ Título y Descripción son obligatorios.");
+    return;
   }
   
   if (!data.pendientesGenerales) data.pendientesGenerales = [];
   
   if (id) {
-      const pg = data.pendientesGenerales.find(p => p.id === id);
-      if (pg) {
-          pg.title = title;
-          pg.desc = desc;
-      }
+    const pg = data.pendientesGenerales.find(p => p.id === id);
+    if (pg) {
+      pg.title = title;
+      pg.desc = desc;
+      // Actualizar sub-items, preservando los completados existentes
+      const anteriores = Array.isArray(pg.subItems) ? pg.subItems : [];
+      pg.subItems = _pgModalTempItems.map(s => {
+        const previo = anteriores.find(a => a.id === s.id);
+        return previo ? previo : s;
+      });
+    }
   } else {
-       data.pendientesGenerales.unshift({
-        id: uid(),
-        title: title,
-        desc: desc,
-        adjuntos: [],
-        createdAt: Date.now()
+    data.pendientesGenerales.unshift({
+      id: uid(),
+      title: title,
+      desc: desc,
+      adjuntos: [],
+      subItems: _pgModalTempItems.slice(),
+      createdAt: Date.now()
     });
   }
   
+  _pgModalTempItems = [];
   closeModal('modal-pg');
   renderPG();
 }
-
 function editPG(id) {
   if (!isEditableMode) return;
   const pg = data.pendientesGenerales.find(p => p.id === id);
@@ -1088,6 +1148,8 @@ function editPG(id) {
   document.getElementById('pg-edit-id').value = pg.id;
   document.getElementById('pg-title').value = pg.title;
   setEditorContent('pg-desc', pg.desc);
+  _pgModalTempItems = Array.isArray(pg.subItems) ? pg.subItems.map(s => ({...s})) : [];
+  renderPgModalItems();
   document.getElementById('modal-pg-h').textContent = 'Editar Pendiente General';
   document.getElementById('modal-pg').classList.add('open');
   setTimeout(() => {

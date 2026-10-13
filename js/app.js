@@ -908,15 +908,23 @@ function renderPG() {
       return;
   }
   
-  let html = '';
+    let html = '';
   let pgFiltrados = data.pendientesGenerales;
   if (typeof filterPGStatus !== 'undefined' && filterPGStatus !== 'all') {
     pgFiltrados = data.pendientesGenerales.filter(pg => {
-      const comp = pg.completado === true;
-      const porRev = pg.marcadoPorUsuario && !pg.validadoPorAdmin;
-      if (filterPGStatus === 'pending') return !comp && !porRev;
-      if (filterPGStatus === 'done') return comp;
-      if (filterPGStatus === 'review') return porRev;
+      // ⭐ Calcular estado según los muebles (subItems)
+      const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
+      const totalSubs = subs.length;
+      const doneSubs = subs.filter(s => s.completado === true).length;
+      
+      // ¿Está terminado? → TODOS los muebles están marcados (y tiene al menos uno)
+      const terminado = totalSubs > 0 && doneSubs === totalSubs;
+      
+      // ¿Está pendiente? → No está terminado
+      const pendiente = !terminado;
+
+      if (filterPGStatus === 'pending') return pendiente;
+      if (filterPGStatus === 'done') return terminado;
       return true;
     });
   }

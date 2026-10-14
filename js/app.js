@@ -908,23 +908,19 @@ function renderPG() {
       return;
   }
   
-    let html = '';
+   let html = '';
   let pgFiltrados = data.pendientesGenerales;
   if (typeof filterPGStatus !== 'undefined' && filterPGStatus !== 'all') {
     pgFiltrados = data.pendientesGenerales.filter(pg => {
-      // ⭐ Calcular estado según los muebles (subItems)
+      // ⭐ Estado según los muebles
       const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
       const totalSubs = subs.length;
       const doneSubs = subs.filter(s => s.completado === true).length;
-      
-      // ¿Está terminado? → TODOS los muebles están marcados (y tiene al menos uno)
       const terminado = totalSubs > 0 && doneSubs === totalSubs;
-      
-      // ¿Está pendiente? → No está terminado
-      const pendiente = !terminado;
 
-      if (filterPGStatus === 'pending') return pendiente;
+      if (filterPGStatus === 'pending') return !terminado;
       if (filterPGStatus === 'done') return terminado;
+      if (filterPGStatus === 'review') return false; // Ya no aplica
       return true;
     });
   }
@@ -1232,6 +1228,7 @@ function renderMarcador() {
 
   let pendientes = 0, terminados = 0, cancelados = 0;
 
+  // 1️⃣ Contar items de las NAVES (lógica existente)
   (data.naves || []).forEach(nave => {
     let peso = 1;
     if (marcadorModo === 'global') {
@@ -1242,13 +1239,27 @@ function renderMarcador() {
       if (item.cancelado) {
         cancelados += peso;
       } else if (item.proceso && item.proceso.planoTerminado && item.validadoPorAdmin) {
-        // ⭐ Solo cuenta como terminado si javier.c lo validó
         terminados += peso;
       } else {
-        // Todo lo demás es pendiente (aunque el usuario lo haya marcado)
         pendientes += peso;
       }
     });
+  });
+
+  // 2️⃣ ⭐ NUEVO: Contar PENDIENTES GENERALES también
+  (data.pendientesGenerales || []).forEach(pg => {
+    const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
+    const totalSubs = subs.length;
+    const doneSubs = subs.filter(s => s.completado === true).length;
+    
+    // Un pendiente general está terminado cuando TODOS sus muebles están marcados
+    const terminado = totalSubs > 0 && doneSubs === totalSubs;
+
+    if (terminado) {
+      terminados += 1;
+    } else {
+      pendientes += 1;
+    }
   });
 
   pendienteEl.textContent = pendientes;

@@ -100,6 +100,23 @@
         <div id="pg-list"></div>
       </div>
     </div>
+<!-- ⭐ NUEVO APARTADO: RUTAS ⭐ -->
+<div class="rutas-wrapper" id="rutas-wrapper">
+  <div class="rutas-header" onclick="toggleRutasPanel()">
+    <div class="rutas-title">
+      <i class="ti ti-route" style="font-size: 16px;"></i> 
+      RUTAS 
+      <span id="rutas-counter" class="rutas-counter" style="display: inline-block;">0</span>
+    </div>
+    <i class="ti ti-chevron-down" id="rutas-chevron"></i>
+  </div>
+  <div id="rutas-panel" class="rutas-panel" style="display: none;">
+    <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;" class="only-editable">
+      <button class="btn btn-sm btn-purple" onclick="openAddRuta()"><i class="ti ti-plus"></i> Nueva Ruta</button>
+    </div>
+    <div id="rutas-list"></div>
+  </div>
+</div>
 
     <div class="marcador-wrapper">
       <div class="marcador-header">
@@ -577,19 +594,19 @@
       </div>
     </div>
 
-    <!-- ⭐ NUEVO: Lista de muebles del pendiente -->
+    <!-- ⭐ Lista de muebles del pendiente -->
     <div class="form-group">
       <label class="form-label">Muebles / Items relacionados</label>
       <div id="pg-items-list" class="pg-items-edit-list"></div>
       <div class="pg-add-item-row" style="align-items: flex-start;">
         <div style="position:relative; flex: 1 1 140px; min-width: 0;">
-  <input class="form-input" type="text" id="pg-new-item-code" placeholder="Código del mueble (ej: IFD4221CNS)" autocomplete="off" 
-    oninput="mostrarSugerenciasPgItemModal()" 
-    onblur="setTimeout(ocultarSugerenciasPgItemModal, 150)"
-    onfocus="mostrarSugerenciasPgItemModal()"
-    onkeydown="if(event.key==='Enter'){event.preventDefault();addPgItemFromModal()}">
-  <div class="autocomplete-list" id="pg-code-autocomplete"></div>
-</div>
+          <input class="form-input" type="text" id="pg-new-item-code" placeholder="Código del mueble (ej: IFD4221CNS)" autocomplete="off" 
+            oninput="mostrarSugerenciasPgItemModal()" 
+            onblur="setTimeout(ocultarSugerenciasPgItemModal, 150)"
+            onfocus="mostrarSugerenciasPgItemModal()"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();addPgItemFromModal()}">
+          <div class="autocomplete-list" id="pg-code-autocomplete"></div>
+        </div>
         <input class="form-input" type="text" id="pg-new-item-desc" placeholder="Descripción corta (opcional)" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();addPgItemFromModal()}">
         <button type="button" class="btn btn-sm btn-purple" onclick="addPgItemFromModal()"><i class="ti ti-plus"></i> Agregar</button>
       </div>
@@ -602,6 +619,45 @@
   </div>
 </div>
 
+<!-- MODAL RUTAS -->
+<div class="modal-bg" id="modal-ruta" onclick="if(event.target===this) closeModal('modal-ruta')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2 id="modal-ruta-h">Nueva Ruta</h2>
+      <button type="button" class="btn-ghost btn" onclick="closeModal('modal-ruta')"><i class="ti ti-x"></i></button>
+    </div>
+    <input type="hidden" id="ruta-edit-id" value="">
+    
+    <div class="form-group">
+      <label class="form-label">Título <span style="color:var(--red)">*</span></label>
+      <input class="form-input" type="text" id="ruta-titulo" placeholder="Ej: Ruta de inspección de pintura">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Descripción <span style="color:var(--red)">*</span></label>
+      <div class="rte-wrap" data-rte-target="ruta-desc">
+        <div class="rte-toolbar" role="toolbar" aria-label="Formato de texto"></div>
+        <div class="rte-editor" id="ruta-desc" contenteditable="true" data-placeholder="Escribe los detalles de la ruta aquí..." spellcheck="true" lang="es-MX"></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Imágenes</label>
+      <div id="ruta-temp-images" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; min-height:50px;"></div>
+      <div class="pg-adjunto-add only-editable" style="width:auto; height:auto; padding:6px 12px; border-style:dashed;">
+         <input type="file" accept="image/*" id="ruta-img-input" class="input-oculto" onchange="addTempRutaImages(event)" multiple>
+         <label for="ruta-img-input" style="display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--accent); font-size:12px; font-weight:600;">
+           <i class="ti ti-plus"></i> Agregar imágenes
+         </label>
+      </div>
+    </div>
+
+    <div class="form-footer">
+      <button type="button" class="btn" onclick="closeModal('modal-ruta')">Cancelar</button>
+      <button type="button" class="btn btn-purple" onclick="saveRuta()">Guardar Ruta</button>
+    </div>
+  </div>
+</div>
 <!-- Modal Item -->
 <div class="modal-bg" id="modal-item" onclick="if(event.target===this) closeModal('modal-item')">
   <div class="modal" onclick="event.stopPropagation()">

@@ -1273,29 +1273,18 @@ function renderMarcador() {
     });
   });
 
-  // ⭐ 2) Pendientes Generales
+  // ⭐ 2) Pendientes Generales: solo cuentan los MUEBLES, nunca el registro general
   (data.pendientesGenerales || []).forEach(pg => {
     const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
-    const totalSubs = subs.length;
-    const doneSubs = subs.filter(s => s.completado === true).length;
-
-    if (marcadorModo === 'cambios') {
-      // MODO CAMBIOS → el grupo cuenta como 1
-      const grupoTerminado = totalSubs > 0 && doneSubs === totalSubs;
-      if (grupoTerminado) {
+    subs.forEach(s => {
+      if (s.cancelado === true) {
+        cancelados += 1;
+      } else if (s.completado === true) {
         terminados += 1;
       } else {
         pendientes += 1;
       }
-    } else {
-      // MODO GLOBAL → cada mueble individual cuenta
-      if (totalSubs === 0) {
-        pendientes += 1;
-      } else {
-        terminados += doneSubs;
-        pendientes += (totalSubs - doneSubs);
-      }
-    }
+    });
   });
 
   pendienteEl.textContent = pendientes;

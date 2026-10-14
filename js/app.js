@@ -118,7 +118,7 @@ let marcadorModo = 'cambios';
 let filterPGStatus = 'all';
 let pgExpandidos = {};
 let fileHandle = null;
-let data = { naves: [], accessPasswords: [], pendientesGenerales: [], fichasTecnicas: [] };
+let data = { naves: [], accessPasswords: [], pendientesGenerales: [], fichasTecnicas: [], rutas: [] };
 
 let modelosDB = [];
 let modelosDBIndex = new Map(); 
@@ -1308,7 +1308,8 @@ function render(){
   }
   
   renderPG(); 
-  renderFichas(); 
+  renderFichas();
+  renderRutas();
   renderMarcador();
   filterItems(); 
 }
@@ -4798,15 +4799,15 @@ async function downloadOfflineVersion() {
 }
 
 async function cargarDatosIniciales(){
-  try{
+  try {
     const resp = await fetch('data/cambios.json', {cache:'no-store'});
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     const json = await resp.json();
     data = json;
     ensureAccessPasswords();
-    migrarItemsViejos();   // 👈 ESTA LÍNEA ES LA NUEVA
+    migrarItemsViejos();
     render();
-  }catch(err){
+  } catch(err) {
     console.error('No se pudo cargar data/cambios.json:', err);
     const cont = document.getElementById('naves-container');
     if(cont){
@@ -4817,6 +4818,7 @@ async function cargarDatosIniciales(){
       </div>`;
     }
   }
+
   cargarModelosDB();
 
   updateConnStatusUI();
@@ -4825,7 +4827,7 @@ async function cargarDatosIniciales(){
     if (pending) {
       data = JSON.parse(pending.dataJson);
       ensureAccessPasswords();
-      migrarItemsViejos();   // 👈 ESTA LÍNEA ES LA NUEVA
+      migrarItemsViejos();
       render();
       if (navigator.onLine) { attemptOfflineSync(); } else { setSyncStatusUI('pending'); }
     }
@@ -4845,8 +4847,20 @@ async function cargarDatosIniciales(){
       }
     }
   } catch (e) {}
-}
 
+  try {
+    if (localStorage.getItem('rpi_rutas_panel_open') === '1') {
+      isRutasPanelOpen = true;
+      const panel = document.getElementById('rutas-panel');
+      const chev = document.getElementById('rutas-chevron');
+      if (panel) panel.style.display = 'block';
+      if (chev) {
+        chev.classList.remove('ti-chevron-down');
+        chev.classList.add('ti-chevron-up');
+      }
+    }
+  } catch (e) {}
+}
 async function cargarModelosDB(){
   try{
     const resp = await fetch('data/modelos.json', {cache:'no-store'});
@@ -5908,3 +5922,262 @@ async function quickSaveGithub() {
 // Inicializar
 cargarDatosIniciales();
 initFirebaseMessaging();
+/* ============================================================
+   MÓDULO DE RUTAS (Independiente)
+   ============================================================ */
+let isRutasPanelOpen = false;
+let editingRutaId = null;
+let _rutaTempImages = [];
+
+function toggleRutasPanel() {
+  isRutasPanelOpen = !isRutasPanelOpen;
+  const panel = document.getElementById('rutas-panel');
+  const chev = document.getElementById('rutas-chevron');
+  if (isRutasPanelOpen) {
+    panel.style.display = 'block';
+    chev.classList.replace('ti-chevron-down', 'ti-chevron-up');
+  } else {
+    panel.style.display = 'none';
+    chev.classList.replace('ti-chevron-up', 'ti-chevron-down');
+  }
+  try {
+    localStorage.setItem('rpi_rutas_panel_open', isRutasPanelOpen ? '1' : '0');
+  } catch (e) {}
+}
+
+function renderRutas() {
+  if (!data.rutas) data.rutas = [];
+  const counterEl = document.getElementById('rutas-counter');
+  const listEl = document.getElementById('rutas-list');
+  if (!listEl) return;
+
+  const count = data.rutas.length;
+  if (count > 0) {
+    counterEl.textContent = count;
+    counterEl.style.display = 'inline-block';
+  } else {
+    counterEl.style.display = 'none';
+  }
+
+  if (count === 0) {
+    listEl.innerHTML = '<div class="empty-section">No hay rutas registradas.</div>';
+    return;
+  }
+
+  listEl.innerHTML = data.rutas.map(ruta => {
+    const isDone = ruta.terminado === true;
+    const dateStr = ruta.createdAt ? new Date(ruta.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '';
+    
+    // Renderizar imágenes
+    let imagenesHtml = '';
+    if (ruta.imagenes && ruta.imagenes.length > 0) {
+      imagenesHtml = '<div class="ruta-imagenes">' + ruta.imagenes.map((img, idx) => `
+        <div class="ruta-imagen-item">
+          <img src="${img}" onclick="viewImage('${img}')" title="Ver imagen">
+          <button class="btn-eliminar-adjunto only-editable" onclick="eliminarImagenRuta('${ruta.id}', ${idx}, event)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
+        </div>
+      `).join('') + '</div>';
+    }
+
+    // Botón para agregar imagen
+    const addImgHtml = `
+      <div class="ruta-imagen-add only-editable">
+        <input type="file" accept="image/*" id="ruta-img-${ruta.id}" class="input-oculto" onchange="subirImagenRuta(event, '${ruta.id}')">
+        <label for="ruta-img-${ruta.id}" class="ruta-imagen-add-label" title="Agregar imagen">
+          <i class="ti ti-plus"></i>
+        </label>
+      </div>
+    `;
+
+    // Juntamos las imágenes y el botón de agregar
+    const imagenesConBoton = (imagenesHtml ? imagenesHtml.replace('</div>', '') : '<div class="ruta-imagenes">') + addImgHtml + '</div>';
+
+    return `
+      <div class="ruta-item ${isDone ? 'is-done' : ''}">
+        <div class="ruta-header">
+          <div class="ruta-title">${escHtml(ruta.titulo || 'Sin título')}</div>
+          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+            <span class="ruta-badge ${isDone ? 'done' : 'pending'}" onclick="toggleRutaTerminado('${ruta.id}', event)" title="${isDone ? 'Clic para marcar como pendiente' : 'Clic para marcar como terminado'}">
+              <i class="ti ${isDone ? 'ti-circle-check' : 'ti-clock'}"></i>
+              ${isDone ? 'TERMINADO' : 'PENDIENTE'}
+            </span>
+            ${dateStr ? `<span style="font-size:10px; color:var(--color-text-secondary);">${dateStr}</span>` : ''}
+          </div>
+        </div>
+        <div class="ruta-desc">${renderDescripcion(ruta.descripcion || '')}</div>
+        ${imagenesConBoton}
+        <div class="ruta-actions-row" style="display:flex; gap:6px; margin-top:10px; justify-content:flex-end;">
+          <button class="btn btn-ghost btn-sm only-editable" title="Editar ruta" onclick="editRuta('${ruta.id}')"><i class="ti ti-pencil"></i></button>
+          <button class="btn btn-danger-ghost btn-sm only-editable" title="Eliminar ruta" onclick="deleteRuta('${ruta.id}')"><i class="ti ti-trash"></i></button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleRutaTerminado(id, event) {
+  if (event) event.stopPropagation();
+  if (!isEditableMode) return; // Solo si estamos en modo edición
+  
+  const ruta = (data.rutas || []).find(r => r.id === id);
+  if (!ruta) return;
+
+  ruta.terminado = !ruta.terminado;
+  if (ruta.terminado) {
+    ruta.completedAt = Date.now();
+  } else {
+    delete ruta.completedAt;
+  }
+  
+  // Guardamos quién lo modificó (opcional, buena práctica)
+  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  if (user) {
+    ruta.modifiedBy = user.username;
+    ruta.modifiedByName = user.nombre;
+    ruta.modifiedAt = Date.now();
+  }
+
+  renderRutas();
+}
+
+function subirImagenRuta(event, rutaId) {
+  if (!isEditableMode) { event.target.value = ''; return; }
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const ruta = (data.rutas || []).find(r => r.id === rutaId);
+  if (!ruta) { event.target.value = ''; return; }
+  if (!ruta.imagenes) ruta.imagenes = [];
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const comprimida = await compressImageDataUrl(e.target.result);
+    ruta.imagenes.push(comprimida);
+    renderRutas();
+    event.target.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function eliminarImagenRuta(rutaId, idx, event) {
+  if (event) event.stopPropagation();
+  if (!isEditableMode) return;
+  const ruta = (data.rutas || []).find(r => r.id === rutaId);
+  if (!ruta || !ruta.imagenes || !ruta.imagenes[idx]) return;
+  
+  if (!confirm('¿Eliminar esta imagen de la ruta?')) return;
+  ruta.imagenes.splice(idx, 1);
+  renderRutas();
+}
+
+function openAddRuta() {
+  if (!isEditableMode) return;
+  editingRutaId = null;
+  _rutaTempImages = [];
+  document.getElementById('ruta-edit-id').value = '';
+  document.getElementById('ruta-titulo').value = '';
+  setEditorContent('ruta-desc', '');
+  document.getElementById('modal-ruta-h').textContent = 'Nueva Ruta';
+  renderRutaTempImages();
+  document.getElementById('modal-ruta').classList.add('open');
+  setTimeout(() => {
+    if (typeof initAllRichEditors === 'function') initAllRichEditors();
+  }, 100);
+}
+
+function editRuta(id) {
+  if (!isEditableMode) return;
+  const ruta = (data.rutas || []).find(r => r.id === id);
+  if (!ruta) return;
+
+  editingRutaId = id;
+  _rutaTempImages = ruta.imagenes ? [...ruta.imagenes] : [];
+  document.getElementById('ruta-edit-id').value = id;
+  document.getElementById('ruta-titulo').value = ruta.titulo || '';
+  setEditorContent('ruta-desc', ruta.descripcion || '');
+  document.getElementById('modal-ruta-h').textContent = 'Editar Ruta';
+  renderRutaTempImages();
+  document.getElementById('modal-ruta').classList.add('open');
+  setTimeout(() => {
+    if (typeof initAllRichEditors === 'function') initAllRichEditors();
+  }, 100);
+}
+
+function saveRuta() {
+  if (!isEditableMode) return;
+  const id = document.getElementById('ruta-edit-id').value;
+  const titulo = document.getElementById('ruta-titulo').value.trim();
+  const descripcion = getEditorContent('ruta-desc');
+
+  if (!titulo || !descripcion) {
+    alert('⚠️ Título y Descripción son obligatorios.');
+    return;
+  }
+
+  if (!data.rutas) data.rutas = [];
+
+  if (id) {
+    const ruta = data.rutas.find(r => r.id === id);
+    if (ruta) {
+      ruta.titulo = titulo;
+      ruta.descripcion = descripcion;
+      ruta.imagenes = [..._rutaTempImages];
+    }
+  } else {
+    data.rutas.unshift({
+      id: uid(),
+      titulo: titulo,
+      descripcion: descripcion,
+      imagenes: [..._rutaTempImages],
+      terminado: false,
+      createdAt: Date.now()
+    });
+  }
+
+  _rutaTempImages = [];
+  closeModal('modal-ruta');
+  renderRutas();
+}
+
+function deleteRuta(id) {
+  if (!isEditableMode) return;
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar rutas.'); return; }
+  if (!confirm('¿Eliminar esta ruta permanentemente?')) return;
+  data.rutas = (data.rutas || []).filter(r => r.id !== id);
+  renderRutas();
+}
+
+function renderRutaTempImages() {
+  const cont = document.getElementById('ruta-temp-images');
+  if (!cont) return;
+  if (_rutaTempImages.length === 0) {
+    cont.innerHTML = '<div style="font-size:12px; color:var(--color-text-secondary); font-style:italic;">No hay imágenes agregadas todavía.</div>';
+    return;
+  }
+  cont.innerHTML = _rutaTempImages.map((img, idx) => `
+    <div class="ruta-imagen-item" style="width:50px; height:50px;">
+      <img src="${img}" onclick="viewImage('${img}')">
+      <button class="btn-eliminar-adjunto" onclick="removeTempRutaImage(${idx})" title="Quitar"><i class="ti ti-x"></i></button>
+    </div>
+  `).join('');
+}
+
+function addTempRutaImages(event) {
+  const files = event.target.files;
+  if (!files || files.length === 0) return;
+  Array.from(files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const comprimida = await compressImageDataUrl(e.target.result);
+      _rutaTempImages.push(comprimida);
+      renderRutaTempImages();
+    };
+    reader.readAsDataURL(file);
+  });
+  event.target.value = '';
+}
+
+function removeTempRutaImage(idx) {
+  _rutaTempImages.splice(idx, 1);
+  renderRutaTempImages();
+}

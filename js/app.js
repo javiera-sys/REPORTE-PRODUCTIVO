@@ -677,10 +677,27 @@ function toggleProceso(naveId, itemId, field, el, event) {
     }
 
     const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+    
+    // ⭐ Diferenciar entre MODIFICADOR y VALIDADOR
     if (_user) {
-      item.modifiedBy = _user.username;
-      item.modifiedByName = _user.nombre;
-      item.modifiedAt = Date.now();
+      if (field === 'planoTerminado') {
+        // Cuando se toca el campo planoTerminado, guardamos al VALIDADOR
+        // sin borrar al modificador anterior
+        if (item.proceso.planoTerminado === true) {
+          item.validatedBy = _user.username;
+          item.validatedByName = _user.nombre;
+          item.validatedAt = Date.now();
+        } else {
+          delete item.validatedBy;
+          delete item.validatedByName;
+          delete item.validatedAt;
+        }
+      } else {
+        // Para otros campos (habilitado, planos, etiquetas), es una modificación normal
+        item.modifiedBy = _user.username;
+        item.modifiedByName = _user.nombre;
+        item.modifiedAt = Date.now();
+      }
     }
 
     render();
@@ -704,15 +721,15 @@ function toggleCancelado(naveId, itemId, event) {
     delete item.cancelledAt;
   }
 
-  const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
-  if (_user) {
-    item.modifiedBy = _user.username;
-    item.modifiedByName = _user.nombre;
-    item.modifiedAt = Date.now();
-  }
+      const _user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+    if (_user) {
+      item.modifiedBy = _user.username;
+      item.modifiedByName = _user.nombre;
+      item.modifiedAt = Date.now();
+    }
 
-  render();
-}
+    render();
+  }
 
 function compressImageDataUrl(dataUrl, maxDim = 1600, quality = 0.82) {
   return new Promise((resolve) => {
@@ -1635,15 +1652,19 @@ function renderItemCard(item, naveId){
        if (item.createdByName) {
          autorTag = `<span title="Creado por" style="background:#e0f2f1; color:#0f6e8c; border:1px solid #99e6df;">👤 ${escHtml(item.createdByName.toUpperCase())}</span>`;
        }
-       if (item.modifiedByName && item.modifiedByName !== item.createdByName) {
-         autorTag += `<span title="Última modificación por" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a;">✏️ ${escHtml(item.modifiedByName.toUpperCase())}</span>`;
+       
+              if (item.modifiedByName && item.modifiedByName !== item.createdByName) {
+       autorTag += `<span title="Última modificación por" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a;">✏️ ${escHtml(item.modifiedByName.toUpperCase())}</span>`;
+       }
+// ⭐ NUEVO: Etiqueta del VALIDADOR (independiente)
+       if (item.validatedByName && item.validatedByName !== item.createdByName && item.validatedByName !== item.modifiedByName) {
+         autorTag += `<span title="Validado por" style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0;">✔️ ${escHtml(item.validatedByName.toUpperCase())}</span>`;
        }
 
        if (odtTag || fechaTag || autorTag) {
            metaHtml = `<div class="item-meta">${autorTag}${odtTag}${fechaTag}</div>`;
        }
     }
-
   const isNew = item.createdAt && (Date.now() - item.createdAt) < (72 * 60 * 60 * 1000);
   const starIndicatorHtml = isNew 
     ? `<div title="Registro nuevo (últimas 72h)" style="color:#f59e0b; display:flex; align-items:center; justify-content:center; width:20px; height:20px;"><i class="ti ti-star-filled" style="font-size:16px"></i></div>` 

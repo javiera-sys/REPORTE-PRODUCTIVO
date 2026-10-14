@@ -983,7 +983,24 @@ function togglePGMuebles(pgId) {
 function renderPG() {
   if (!data.pendientesGenerales) data.pendientesGenerales = [];
   renderMarcador();
-  const count = data.pendientesGenerales.length;
+  // ⭐ NUEVO: Contar MUEBLES pendientes, no grupos completos
+  let countMueblesPendientes = 0;
+  data.pendientesGenerales.forEach(pg => {
+    const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
+    if (subs.length === 0) {
+      // Si el grupo no tiene muebles, cuenta como 1 pendiente
+      countMueblesPendientes++;
+    } else {
+      subs.forEach(s => {
+        // Solo cuenta si NO está cancelado y NO está completado
+        if (!s.cancelado && !s.completado) {
+          countMueblesPendientes++;
+        }
+      });
+    }
+  });
+
+  const count = countMueblesPendientes;
   const counterEl = document.getElementById('pg-counter');
   
   if (count > 0) {

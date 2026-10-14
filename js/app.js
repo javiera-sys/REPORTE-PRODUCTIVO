@@ -974,7 +974,7 @@ function renderPG() {
     pgFiltrados = data.pendientesGenerales.filter(pg => {
       // ⭐ Estado según los muebles
       const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
-      const totalSubs = subs.length;
+      const totalSubs = subs.filter(s => !s.cancelado).length;
       const doneSubs = subs.filter(s => s.completado === true).length;
       const terminado = totalSubs > 0 && doneSubs === totalSubs;
 
@@ -1003,11 +1003,11 @@ function renderPG() {
       const completado = false;
 
            // Contar progreso de subitems
-      const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
-      const totalSubs = subs.length;
+            const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
+      const totalSubs = subs.filter(s => !s.cancelado).length;
       const doneSubs = subs.filter(s => s.completado === true).length;
       const allDone = totalSubs > 0 && doneSubs === totalSubs;
-      
+
       let progressPill = '';
       if (totalSubs > 0) {
         progressPill = `<span class="pg-subitem-progress ${allDone ? 'all-done' : ''}"><i class="ti ti-checkbox"></i> ${doneSubs}/${totalSubs}</span>`;
@@ -1015,14 +1015,15 @@ function renderPG() {
 
       // Render de subitems
       let subsHtml = '';
-      if (totalSubs > 0) {
+      if (subs.length > 0) {
         subsHtml = `<div class="pg-items-list">` + subs.map(s => `
-          <div class="pg-subitem ${s.completado ? 'is-done' : ''}">
+          <div class="pg-subitem ${s.completado ? 'is-done' : ''} ${s.cancelado ? 'item-cancelado' : ''}">
             <div class="pg-subitem-check" onclick="toggleCompletadoSubItemPG('${pg.id}', '${s.id}', event)" title="${s.completado ? 'Clic para desmarcar' : 'Marcar como listo'}">
               <i class="ti ti-check"></i>
             </div>
             <span class="pg-subitem-code">${escHtml(s.code || '')}</span>
             ${s.desc ? `<span class="pg-subitem-desc">${escHtml(s.desc)}</span>` : ''}
+            <button class="btn ${s.cancelado ? 'btn-ghost' : 'btn-danger-ghost'} btn-sm only-editable" style="margin-left:auto" title="${s.cancelado ? 'Reactivar mueble' : 'Cancelar mueble'}" onclick="toggleCanceladoSubItemPG('${pg.id}', '${s.id}', event)"><i class="ti ${s.cancelado ? 'ti-rotate' : 'ti-ban'}"></i></button>
           </div>
         `).join('') + `</div>`;
       }

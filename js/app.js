@@ -116,6 +116,7 @@ let filterNave = 'all';
 let isPGPanelOpen = false; 
 let marcadorModo = 'cambios';
 let filterPGStatus = 'all';
+let pgExpandidos = {};
 let fileHandle = null;
 let data = { naves: [], accessPasswords: [], pendientesGenerales: [], fichasTecnicas: [] };
 
@@ -949,6 +950,12 @@ function togglePGPanel() {
   } catch (e) {}
 }
 
+// ⭐ NUEVA: Desplegar / ocultar la lista de muebles de un Pendiente General
+function togglePGMuebles(pgId) {
+  pgExpandidos[pgId] = !pgExpandidos[pgId];
+  renderPG();
+}
+
 function renderPG() {
   if (!data.pendientesGenerales) data.pendientesGenerales = [];
   renderMarcador();
@@ -1027,7 +1034,16 @@ function renderPG() {
           </div>
         `).join('') + `</div>`;
       }
-
+// ⭐ Los muebles van ocultos por defecto; el botón los despliega
+      if (subs.length > 0) {
+        const abierto = pgExpandidos[pg.id] === true;
+        subsHtml = `
+          <button type="button" class="pg-toggle-muebles" onclick="togglePGMuebles('${pg.id}')">
+            <i class="ti ${abierto ? 'ti-chevron-up' : 'ti-chevron-down'}"></i>
+            ${abierto ? 'Ocultar muebles' : 'Ver muebles'} (${subs.length})
+          </button>
+        ` + (abierto ? subsHtml : '');
+      }
       html += `
       <div class="pg-item ${allDone ? 'pg-item-done' : ''} ${porRevisar ? 'pg-item-review' : ''}">
           <div class="pg-item-header">

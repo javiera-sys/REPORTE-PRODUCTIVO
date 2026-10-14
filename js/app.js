@@ -919,6 +919,7 @@ function togglePGPanel() {
 
 function renderPG() {
   if (!data.pendientesGenerales) data.pendientesGenerales = [];
+  renderMarcador();
   const count = data.pendientesGenerales.length;
   const counterEl = document.getElementById('pg-counter');
   

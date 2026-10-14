@@ -824,7 +824,34 @@ function toggleCompletadoSubItemPG(pgId, subItemId, event) {
 
 // ⭐ NUEVA: Agregar un mueble a un pendiente general (desde el modal)
 let _pgModalTempItems = [];
+// ⭐ NUEVO: Autocompletado para el código de mueble en el modal de Pendientes Generales
+function mostrarSugerenciasPgItemModal() {
+  const inp = document.getElementById('pg-new-item-code');
+  const cont = document.getElementById('pg-code-autocomplete');
+  if (!inp || !cont) return;
+  const matches = buscarModelosDB(inp.value, 8);
+  renderAutocompleteList(cont, matches, (m) => `seleccionarSugerenciaPgItemModal('${m.codigo.replace(/'/g,"\\'")}')`);
+}
 
+function ocultarSugerenciasPgItemModal() {
+  const cont = document.getElementById('pg-code-autocomplete');
+  if (cont) cont.classList.remove('open');
+}
+
+function seleccionarSugerenciaPgItemModal(codigo) {
+  const inp = document.getElementById('pg-new-item-code');
+  const descEl = document.getElementById('pg-new-item-desc');
+  if (inp) inp.value = codigo;
+  
+  // Autocompletar también la descripción con la colección del modelo
+  const coleccion = coleccionParaCodigo(codigo);
+  if (descEl && !descEl.value && coleccion) {
+    descEl.value = coleccion;
+  }
+  
+  ocultarSugerenciasPgItemModal();
+  if (inp) inp.focus();
+}
 function addPgItemFromModal() {
   const codeEl = document.getElementById('pg-new-item-code');
   const descEl = document.getElementById('pg-new-item-desc');

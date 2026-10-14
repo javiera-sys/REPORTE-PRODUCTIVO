@@ -821,7 +821,39 @@ function toggleCompletadoSubItemPG(pgId, subItemId, event) {
 
   renderPG();
 }
+// ⭐ NUEVA: Cancelar / reactivar UN MUEBLE dentro de un Pendiente General
+function toggleCanceladoSubItemPG(pgId, subItemId, event) {
+  if (event) event.stopPropagation();
+  if (!isEditableMode) return;
 
+  const pg = (data.pendientesGenerales || []).find(p => p.id === pgId);
+  if (!pg || !Array.isArray(pg.subItems)) return;
+  const sub = pg.subItems.find(s => s.id === subItemId);
+  if (!sub) return;
+
+  if (!sub.cancelado) {
+    if (!confirm('¿Marcar este mueble como Cancelado?')) return;
+    sub.cancelado = true;
+    sub.completado = false;     // un mueble cancelado no puede estar terminado
+    delete sub.completadoAt;
+    sub.cancelledAt = Date.now();
+  } else {
+    sub.cancelado = false;      // reactivar: vuelve como pendiente
+    delete sub.cancelledAt;
+  }
+
+  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  if (user) {
+    sub.modifiedBy = user.username;
+    sub.modifiedByName = user.nombre;
+    sub.modifiedAt = Date.now();
+    pg.modifiedBy = user.username;
+    pg.modifiedByName = user.nombre;
+    pg.modifiedAt = Date.now();
+  }
+
+  renderPG();
+}
 // ⭐ NUEVA: Agregar un mueble a un pendiente general (desde el modal)
 let _pgModalTempItems = [];
 // ⭐ NUEVO: Autocompletado para el código de mueble en el modal de Pendientes Generales

@@ -2575,3 +2575,195 @@ body.is-locked .pg-subitem-check {
     justify-content: center;
   }
 }
+/* ============================================================
+   NUEVO APARTADO: RUTAS
+   ============================================================ */
+.rutas-wrapper {
+  margin-top: 12px;
+  border-top: 1px solid var(--color-border-tertiary);
+  padding-top: 12px;
+}
+
+.rutas-header {
+  background: #e0f2fe; /* Azul clarito */
+  border: 1.5px solid #7dd3fc;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  color: #0369a1;
+  font-weight: 700;
+  transition: background 0.2s;
+  box-shadow: 0 2px 4px rgba(3, 105, 161, 0.05);
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rutas-header:hover { background: #bae6fd; }
+.rutas-title { display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
+.rutas-title i { font-size: 16px; }
+.rutas-counter { background: #0369a1; color: white; border-radius: 8px; padding: 2px 8px; font-size: 11px; }
+
+.rutas-panel {
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 8px;
+  max-height: 500px;
+  overflow-y: auto;
+  box-shadow: var(--shadow-md);
+}
+
+.ruta-item {
+  border: 1px solid var(--color-border-tertiary);
+  border-left: 4px solid #3b82f6; /* Azul para rutas */
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: var(--color-background-primary);
+  transition: box-shadow 0.2s, background 0.2s;
+}
+.ruta-item:hover { box-shadow: var(--shadow-sm); }
+
+.ruta-item.is-done {
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7) !important;
+  border-left-color: #16a34a !important;
+  opacity: 0.85;
+}
+
+.ruta-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ruta-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  line-height: 1.3;
+  word-break: break-word;
+  flex: 1;
+  min-width: 0;
+}
+
+.ruta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.ruta-badge.pending {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1.5px solid #fcd34d;
+}
+.ruta-badge.pending:hover {
+  background: #fde68a;
+  border-color: #f59e0b;
+}
+
+.ruta-badge.done {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1.5px solid #86efac;
+}
+.ruta-badge.done:hover {
+  background: #bbf7d0;
+  border-color: #16a34a;
+}
+
+.ruta-desc {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  margin-bottom: 8px;
+}
+
+.ruta-imagenes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.ruta-imagen-item {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-background-secondary);
+}
+.ruta-imagen-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: zoom-in;
+  display: block;
+}
+.ruta-imagen-item .btn-eliminar-adjunto {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: var(--red);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.ruta-imagen-item .btn-eliminar-adjunto:hover { transform: scale(1.1); }
+
+.ruta-imagen-add {
+  width: 60px;
+  height: 60px;
+  border: 1.5px dashed var(--color-border-secondary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--color-background-secondary);
+  transition: border-color 0.15s, background 0.15s;
+}
+.ruta-imagen-add:hover { background: #ccfbf1; border-color: var(--accent); }
+.ruta-imagen-add-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  color: var(--accent);
+}
+.ruta-imagen-add-label i { font-size: 22px; color: var(--accent); }
+
+body.is-locked .ruta-badge { cursor: not-allowed; opacity: 0.65; }
+body.is-locked .ruta-imagen-add { display: none !important; }
+body.is-locked .ruta-item .btn-eliminar-adjunto { display: none !important; }
+body.is-locked .ruta-actions-row { display: none !important; }

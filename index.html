@@ -587,8 +587,15 @@
     <div class="form-group">
       <label class="form-label">Muebles / Items relacionados</label>
       <div id="pg-items-list" class="pg-items-edit-list"></div>
-      <div class="pg-add-item-row">
-        <input class="form-input" type="text" id="pg-new-item-code" placeholder="Código del mueble (ej: IFD4221CNS)" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();addPgItemFromModal()}">
+      <div class="pg-add-item-row" style="align-items: flex-start;">
+        <div style="position:relative; flex: 1 1 140px; min-width: 0;">
+  <input class="form-input" type="text" id="pg-new-item-code" placeholder="Código del mueble (ej: IFD4221CNS)" autocomplete="off" 
+    oninput="mostrarSugerenciasPgItemModal()" 
+    onblur="setTimeout(ocultarSugerenciasPgItemModal, 150)"
+    onfocus="mostrarSugerenciasPgItemModal()"
+    onkeydown="if(event.key==='Enter'){event.preventDefault();addPgItemFromModal()}">
+  <div class="autocomplete-list" id="pg-code-autocomplete"></div>
+</div>
         <input class="form-input" type="text" id="pg-new-item-desc" placeholder="Descripción corta (opcional)" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();addPgItemFromModal()}">
         <button type="button" class="btn btn-sm btn-purple" onclick="addPgItemFromModal()"><i class="ti ti-plus"></i> Agregar</button>
       </div>

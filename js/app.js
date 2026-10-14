@@ -1255,7 +1255,7 @@ function renderMarcador() {
 
   let pendientes = 0, terminados = 0, cancelados = 0;
 
-  // 1️⃣ Contar items de las NAVES (lógica existente)
+  // ⭐ 1) SIEMPRE contamos los items de las NAVES (cambios normales)
   (data.naves || []).forEach(nave => {
     let peso = 1;
     if (marcadorModo === 'global') {
@@ -1273,21 +1273,23 @@ function renderMarcador() {
     });
   });
 
-  // 2️⃣ ⭐ NUEVO: Contar PENDIENTES GENERALES también
-  (data.pendientesGenerales || []).forEach(pg => {
-    const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
-    const totalSubs = subs.length;
-    const doneSubs = subs.filter(s => s.completado === true).length;
-    
-    // Un pendiente general está terminado cuando TODOS sus muebles están marcados
-    const terminado = totalSubs > 0 && doneSubs === totalSubs;
+  // ⭐ 2) SOLO en modo GLOBAL sumamos los Pendientes Generales
+  if (marcadorModo === 'global') {
+    (data.pendientesGenerales || []).forEach(pg => {
+      const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
+      const totalSubs = subs.length;
+      const doneSubs = subs.filter(s => s.completado === true).length;
+      
+      // Terminado = tiene muebles y todos están marcados
+      const terminado = totalSubs > 0 && doneSubs === totalSubs;
 
-    if (terminado) {
-      terminados += 1;
-    } else {
-      pendientes += 1;
-    }
-  });
+      if (terminado) {
+        terminados += 1;
+      } else {
+        pendientes += 1;
+      }
+    });
+  }
 
   pendienteEl.textContent = pendientes;
   terminadoEl.textContent = terminados;

@@ -1255,7 +1255,7 @@ function renderMarcador() {
 
   let pendientes = 0, terminados = 0, cancelados = 0;
 
-  // ⭐ 1) SIEMPRE contamos los items de las NAVES (cambios normales)
+  // ⭐ 1) Items de las NAVES (cambios normales)
   (data.naves || []).forEach(nave => {
     let peso = 1;
     if (marcadorModo === 'global') {
@@ -1273,29 +1273,37 @@ function renderMarcador() {
     });
   });
 
-  // ⭐ 2) SOLO en modo GLOBAL sumamos los Pendientes Generales
-  if (marcadorModo === 'global') {
-    (data.pendientesGenerales || []).forEach(pg => {
-      const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
-      const totalSubs = subs.length;
-      const doneSubs = subs.filter(s => s.completado === true).length;
-      
-      // Terminado = tiene muebles y todos están marcados
-      const terminado = totalSubs > 0 && doneSubs === totalSubs;
+  // ⭐ 2) Pendientes Generales
+  (data.pendientesGenerales || []).forEach(pg => {
+    const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
+    const totalSubs = subs.length;
+    const doneSubs = subs.filter(s => s.completado === true).length;
 
-      if (terminado) {
+    if (marcadorModo === 'cambios') {
+      // ─── MODO CAMBIOS: el grupo cuenta como 1 solo ───
+      const grupoTerminado = totalSubs > 0 && doneSubs === totalSubs;
+      if (grupoTerminado) {
         terminados += 1;
       } else {
         pendientes += 1;
       }
-    });
-  }
+    } else {
+      // ─── MODO GLOBAL: cada mueble dentro del grupo cuenta individualmente ───
+      if (totalSubs === 0) {
+        // Grupo sin muebles → cuenta como 1 pendiente
+        pendientes += 1;
+      } else {
+        // Contar muebles individuales
+        terminados += doneSubs;
+        pendientes += (totalSubs - doneSubs);
+      }
+    }
+  });
 
   pendienteEl.textContent = pendientes;
   terminadoEl.textContent = terminados;
   canceladoEl.textContent = cancelados;
 }
-
 function dotClass(t){return t==='error'?'dot-error':t==='ajuste'?'dot-ajuste':'dot-mejora'}
 
 function setFilterStatus(status, btn) {

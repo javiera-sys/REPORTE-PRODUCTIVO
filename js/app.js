@@ -1303,10 +1303,6 @@ function renderMarcador() {
   canceladoEl.textContent = cancelados;
 }
 
-  pendienteEl.textContent = pendientes;
-  terminadoEl.textContent = terminados;
-  canceladoEl.textContent = cancelados;
-}
 function dotClass(t){return t==='error'?'dot-error':t==='ajuste'?'dot-ajuste':'dot-mejora'}
 
 function setFilterStatus(status, btn) {

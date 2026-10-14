@@ -1255,7 +1255,7 @@ function renderMarcador() {
 
   let pendientes = 0, terminados = 0, cancelados = 0;
 
-  // ⭐ 1) Items de las NAVES (cambios normales)
+  // ⭐ 1) Items de las NAVES
   (data.naves || []).forEach(nave => {
     let peso = 1;
     if (marcadorModo === 'global') {
@@ -1280,7 +1280,7 @@ function renderMarcador() {
     const doneSubs = subs.filter(s => s.completado === true).length;
 
     if (marcadorModo === 'cambios') {
-      // ─── MODO CAMBIOS: el grupo cuenta como 1 solo ───
+      // MODO CAMBIOS → el grupo cuenta como 1
       const grupoTerminado = totalSubs > 0 && doneSubs === totalSubs;
       if (grupoTerminado) {
         terminados += 1;
@@ -1288,17 +1288,20 @@ function renderMarcador() {
         pendientes += 1;
       }
     } else {
-      // ─── MODO GLOBAL: cada mueble dentro del grupo cuenta individualmente ───
+      // MODO GLOBAL → cada mueble individual cuenta
       if (totalSubs === 0) {
-        // Grupo sin muebles → cuenta como 1 pendiente
         pendientes += 1;
       } else {
-        // Contar muebles individuales
         terminados += doneSubs;
         pendientes += (totalSubs - doneSubs);
       }
     }
   });
+
+  pendienteEl.textContent = pendientes;
+  terminadoEl.textContent = terminados;
+  canceladoEl.textContent = cancelados;
+}
 
   pendienteEl.textContent = pendientes;
   terminadoEl.textContent = terminados;

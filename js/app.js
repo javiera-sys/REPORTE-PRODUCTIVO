@@ -855,6 +855,30 @@ function toggleCanceladoSubItemPG(pgId, subItemId, event) {
 
   renderPG();
 }
+// ⭐ NUEVA: Eliminar definitivamente UN MUEBLE de un Pendiente General
+function eliminarSubItemPG(pgId, subItemId, event) {
+  if (event) event.stopPropagation();
+  if (!isEditableMode) return;
+  if (!isAdminSafe()) { alert('🔒 Solo un administrador puede eliminar muebles.'); return; }
+
+  const pg = (data.pendientesGenerales || []).find(p => p.id === pgId);
+  if (!pg || !Array.isArray(pg.subItems)) return;
+  const sub = pg.subItems.find(s => s.id === subItemId);
+  if (!sub) return;
+
+  if (!confirm('¿Eliminar el mueble ' + (sub.code || '') + ' de este pendiente general?\n\nSe borra permanentemente. Si solo quieres que no cuente, mejor cancélalo.')) return;
+
+  pg.subItems = pg.subItems.filter(s => s.id !== subItemId);
+
+  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  if (user) {
+    pg.modifiedBy = user.username;
+    pg.modifiedByName = user.nombre;
+    pg.modifiedAt = Date.now();
+  }
+
+  renderPG();
+}
 // ⭐ NUEVA: Agregar un mueble a un pendiente general (desde el modal)
 let _pgModalTempItems = [];
 // ⭐ NUEVO: Autocompletado para el código de mueble en el modal de Pendientes Generales
@@ -1030,6 +1054,7 @@ function renderPG() {
             </div>
             <span class="pg-subitem-code">${escHtml(s.code || '')}</span>
             ${s.desc ? `<span class="pg-subitem-desc">${escHtml(s.desc)}</span>` : ''}
+            <button class="btn btn-danger-ghost btn-sm only-editable" style="margin-left:auto" title="Eliminar mueble" onclick="eliminarSubItemPG('${pg.id}', '${s.id}', event)"><i class="ti ti-trash"></i></button>
             <button class="btn ${s.cancelado ? 'btn-ghost' : 'btn-danger-ghost'} btn-sm only-editable" style="margin-left:auto" title="${s.cancelado ? 'Reactivar mueble' : 'Cancelar mueble'}" onclick="toggleCanceladoSubItemPG('${pg.id}', '${s.id}', event)"><i class="ti ${s.cancelado ? 'ti-rotate' : 'ti-ban'}"></i></button>
           </div>
         `).join('') + `</div>`;

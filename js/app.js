@@ -5922,6 +5922,7 @@ async function quickSaveGithub() {
 // Inicializar
 cargarDatosIniciales();
 initFirebaseMessaging();
+// initFirebaseMessaging();
 /* ============================================================
    MÓDULO DE RUTAS (Independiente)
    ============================================================ */

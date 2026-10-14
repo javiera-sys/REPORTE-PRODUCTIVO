@@ -275,8 +275,8 @@ body{
   padding:8px 10px;border-radius:8px;cursor:pointer;font-size:12px;
 }
 .autocomplete-item:hover{background:var(--color-background-secondary)}
-.autocomplete-item .ac-codigo{font-weight:700;color:var(--color-text-primary);word-break: break-word;}
-.autocomplete-item .ac-coleccion{color:var(--color-text-secondary);font-size:11px;white-space:nowrap}
+.autocomplete-item .ac-codigo{font-weight:700;color:var(--color-text-primary);white-space:nowrap;flex-shrink:0;}
+.autocomplete-item .ac-coleccion{color:var(--color-text-secondary);font-size:11px;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:right;}
 
 /* ---------- CHIP DE MODELO ---------- */
 .model-coleccion-tag{

@@ -1657,7 +1657,7 @@ function renderItemCard(item, naveId){
        autorTag += `<span title="Última modificación por" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a;">✏️ ${escHtml(item.modifiedByName.toUpperCase())}</span>`;
        }
 // ⭐ NUEVO: Etiqueta del VALIDADOR (independiente)
-       if (item.validatedByName && item.validatedByName !== item.createdByName && item.validatedByName !== item.modifiedByName) {
+       if (item.validatedByName) {
          autorTag += `<span title="Validado por" style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0;">✔️ ${escHtml(item.validatedByName.toUpperCase())}</span>`;
        }
 

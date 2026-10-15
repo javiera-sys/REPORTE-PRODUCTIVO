@@ -65,6 +65,9 @@ body{
 
 /* ---------- HEADER ---------- */
 .top-bar{
+  position:sticky;
+  top:calc(8px + var(--safe-top));
+  z-index:60;
   background:rgba(255,255,255,0.98);
   border:1px solid rgba(255,255,255,0.6);
   border-radius:20px;
@@ -868,8 +871,7 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
 
 /* ---------- BUSCADOR ---------- */
 .search-bar-row{
-  position:sticky;
-  top: calc(12px + var(--safe-top));
+  position:relative;
   z-index:52;
   width:100%;
   margin-bottom:2px;
@@ -1131,9 +1133,6 @@ textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
   padding-top:12px;
   padding-bottom:12px;
   flex-wrap:wrap;
-  position:sticky;
-  top: calc(12px + var(--safe-top) + 62px);
-  z-index:51;
   background:rgba(255,255,255,0.98);
   border-radius:0 0 16px 16px;
   box-shadow:0 6px 12px -6px rgba(15,36,40,0.12);

@@ -939,7 +939,8 @@ function addPgItemFromModal() {
     id: 'ps_' + uid(),
     code: code,
     desc: desc,
-    completado: false
+    completado: false,
+    createdAt: Date.now()
   });
   codeEl.value = '';
   descEl.value = '';
@@ -1104,7 +1105,7 @@ function renderPG() {
         ` + (abierto ? subsHtml : '');
       }
       html += `
-      <div class="pg-item ${allDone ? 'pg-item-done' : ''} ${porRevisar ? 'pg-item-review' : ''}">
+            <div id="pgc-${pg.id}" class="pg-item ${allDone ? 'pg-item-done' : ''} ${porRevisar ? 'pg-item-review' : ''}">
           <div class="pg-item-header">
               <div style="display:flex; align-items:flex-start; flex:1; gap:10px; flex-wrap:wrap;">
                   <div class="pg-item-title">${escHtml(pg.title)}</div>
@@ -5273,6 +5274,47 @@ function getItemEffectiveDate(item) {
 let calendarCurrentDate = new Date();
 let calendarEventFilter = 'all';
 
+// ⭐ Junta TODOS los eventos: cambios de naves + muebles de Pendientes Generales
+function getCalendarEvents() {
+  const out = [];
+  (data.naves || []).forEach(nave => {
+    (nave.items || []).forEach(item => {
+      if (item.createdAt)   out.push({ item, type: 'pending',   naveName: nave.consola, date: item.createdAt });
+      if (item.completedAt) out.push({ item, type: 'done',      naveName: nave.consola, date: item.completedAt });
+      if (item.cancelledAt) out.push({ item, type: 'cancelled', naveName: nave.consola, date: item.cancelledAt });
+    });
+  });
+  (data.pendientesGenerales || []).forEach(pg => {
+    (pg.subItems || []).forEach(sub => {
+      const item = {
+        id: pg.id,
+        title: 'PG·' + sub.code + ' · ' + pg.title,
+        desc: sub.desc || '',
+        subType: 'PENDIENTE GENERAL',
+        isPG: true
+      };
+      const creado = sub.createdAt || pg.createdAt;
+      if (creado)          out.push({ item, type: 'pending',   naveName: 'PENDIENTES GENERALES', date: creado });
+      if (sub.completadoAt) out.push({ item, type: 'done',      naveName: 'PENDIENTES GENERALES', date: sub.completadoAt });
+      if (sub.cancelledAt)  out.push({ item, type: 'cancelled', naveName: 'PENDIENTES GENERALES', date: sub.cancelledAt });
+    });
+  });
+  return out;
+}
+
+// ⭐ Botón "Ir al cambio completo" (sirve para cambios y para pendientes generales)
+function irAEventoCalendario(id, esPG) {
+  closeModal('modal-dashboard');
+  setTimeout(() => {
+    if (esPG && !isPGPanelOpen) togglePGPanel();
+    const el = document.getElementById((esPG ? 'pgc-' : 'ic-') + id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.style.boxShadow = '0 0 0 4px #fbbf24';
+      setTimeout(() => el.style.boxShadow = '', 3000);
+    }
+  }, 300);
+}
 function renderCalendar() {
     const container = document.getElementById('calendar-view');
     if (!container) return;
@@ -5283,21 +5325,14 @@ function renderCalendar() {
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const dayNames = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
-    const eventsByDay = {};
-    (data.naves || []).forEach(nave => {
-        (nave.items || []).forEach(item => {
-            const processEvent = (date, type) => {
-                const d = new Date(date);
-                if (d.getFullYear() === year && d.getMonth() === month) {
-                    const day = d.getDate();
-                    if (!eventsByDay[day]) eventsByDay[day] = [];
-                    eventsByDay[day].push({ item, type, naveName: nave.consola });
-                }
-            };
-            if (item.createdAt) processEvent(item.createdAt, 'pending');
-            if (item.completedAt) processEvent(item.completedAt, 'done');
-            if (item.cancelledAt) processEvent(item.cancelledAt, 'cancelled');
-        });
+        const eventsByDay = {};
+    getCalendarEvents().forEach(ev => {
+        const d = new Date(ev.date);
+        if (d.getFullYear() === year && d.getMonth() === month) {
+            const day = d.getDate();
+            if (!eventsByDay[day]) eventsByDay[day] = [];
+            eventsByDay[day].push(ev);
+        }
     });
 
     let calendarHtml = `
@@ -5393,22 +5428,10 @@ function setCalendarFilter(filter) {
 function showDayEvents(day, eventIndex) {
     const year = calendarCurrentDate.getFullYear();
     const month = calendarCurrentDate.getMonth();
-    const dayEvents = [];
-
-    (data.naves || []).forEach(nave => {
-        (nave.items || []).forEach(item => {
-            const process = (date, type) => {
-                const d = new Date(date);
-                if (d.getFullYear() === year && d.getMonth() === month && d.getDate() === day) {
-                    if (calendarEventFilter === 'all' || calendarEventFilter === type) {
-                        dayEvents.push({ item, type, naveName: nave.consola });
-                    }
-                }
-            };
-            if (item.createdAt) process(item.createdAt, 'pending');
-            if (item.completedAt) process(item.completedAt, 'done');
-            if (item.cancelledAt) process(item.cancelledAt, 'cancelled');
-        });
+    const dayEvents = getCalendarEvents().filter(ev => {
+        const d = new Date(ev.date);
+        return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day
+            && (calendarEventFilter === 'all' || calendarEventFilter === ev.type);
     });
 
     if (dayEvents.length === 0) return;
@@ -5420,9 +5443,7 @@ function showDayEvents(day, eventIndex) {
         const ev = dayEvents[eventIndex];
         const typeLabel = ev.type === 'pending' ? 'PENDIENTE' : ev.type === 'done' ? 'TERMINADO' : 'CANCELADO';
         const typeClass = `event-${ev.type}`;
-        const fechaEvento = ev.type === 'pending' ? (ev.item.createdAt ? new Date(ev.item.createdAt).toLocaleDateString('es-MX') : '—') :
-                            ev.type === 'done' ? (ev.item.completedAt ? new Date(ev.item.completedAt).toLocaleDateString('es-MX') : '—') :
-                            (ev.item.cancelledAt ? new Date(ev.item.cancelledAt).toLocaleDateString('es-MX') : '—');
+                const fechaEvento = ev.date ? new Date(ev.date).toLocaleDateString('es-MX') : '—';
         const descripcionLimpia = typeof stripHTML === 'function' ? stripHTML(ev.item.desc || '') : (ev.item.desc || '');
         
         destacadoHtml = `
@@ -5438,7 +5459,7 @@ function showDayEvents(day, eventIndex) {
                     <span><i class="ti ti-category"></i> ${escHtml(ev.item.subType || ev.item.type)}</span>
                 </div>
                 ${descripcionLimpia ? `<div class="day-event-destacado-desc">${escHtml(descripcionLimpia).replace(/\n/g, '<br>')}</div>` : ''}
-                <button type="button" class="btn btn-navy btn-sm" style="margin-top:12px;" onclick="closeModal('modal-day-events'); setTimeout(() => { const el = document.getElementById('ic-${ev.item.id}'); if(el){ closeModal('modal-dashboard'); el.scrollIntoView({behavior:'smooth', block:'center'}); el.style.boxShadow='0 0 0 4px #fbbf24'; setTimeout(()=>el.style.boxShadow='', 3000); } }, 300);">
+                                <button type="button" class="btn btn-navy btn-sm" style="margin-top:12px;" onclick="closeModal('modal-day-events'); irAEventoCalendario('${ev.item.id}', ${ev.item.isPG ? 'true' : 'false'});">
                     <i class="ti ti-external-link"></i> Ir al cambio completo
                 </button>
             </div>

@@ -1125,7 +1125,25 @@ function renderPG() {
       </div>
       `;
   });
+    // Anotar en qué parte del scroll iba
+  const panelEl = document.getElementById('pg-panel');
+  const scrollPanel = panelEl ? panelEl.scrollTop : 0;
+  const scrollsInternos = {};
+  listEl.querySelectorAll('.pg-item').forEach(el => {
+    const lista = el.querySelector('.pg-items-list');
+    if (lista) scrollsInternos[el.id] = lista.scrollTop;
+  });
+
+  // Dibujar la lista nueva (esta es la línea de antes)
   listEl.innerHTML = html;
+
+  // Regresar al mismo lugar donde iba
+  Object.keys(scrollsInternos).forEach(id => {
+    const el = document.getElementById(id);
+    const lista = el ? el.querySelector('.pg-items-list') : null;
+    if (lista) lista.scrollTop = scrollsInternos[id];
+  });
+  if (panelEl) panelEl.scrollTop = scrollPanel;
 }
 
 function openAddPG() {

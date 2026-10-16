@@ -1717,8 +1717,10 @@ function renderItemCard(item, naveId){
           ${canceladoBadgeHtml}
         </div>
         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; margin-left:12px;">
-          ${metaHtml}
-          ${typeof shareControlsHtml === 'function' ? shareControlsHtml('i', item.id) : ''}
+          <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
+            ${typeof shareControlsHtml === 'function' ? shareControlsHtml('i', item.id) : ''}
+            ${metaHtml}
+          </div>
           <div class="item-actions-row only-editable">
             <button class="btn ${item.cancelado ? 'btn-ghost' : 'btn-danger-ghost'}" title="${item.cancelado ? 'Reactivar cambio' : 'Cancelar cambio'}" onclick="toggleCancelado('${naveId}','${item.id}', event)"><i class="ti ${item.cancelado ? 'ti-rotate' : 'ti-ban'}" style="font-size:13px"></i></button>
             <button class="btn btn-ghost" title="Editar" onclick="startEdit('${item.id}')"><i class="ti ti-pencil" style="font-size:13px"></i></button>

@@ -1365,37 +1365,50 @@ function renderMarcador() {
   if (!pendienteEl || !terminadoEl || !canceladoEl) return;
 
   let pendientes = 0, terminados = 0, cancelados = 0;
+  const esTerminado = i => !!(i.proceso && i.proceso.planoTerminado && i.validadoPorAdmin);
 
-  // ⭐ 1) Items de las NAVES
+  // 1) BLOQUES DE NAVES
   (data.naves || []).forEach(nave => {
-    let peso = 1;
-    if (marcadorModo === 'global') {
-      peso = (Array.isArray(nave.models) && nave.models.length > 0) ? nave.models.length : 1;
-    }
+    const items = nave.items || [];
+    if (items.length === 0) return;
 
-    (nave.items || []).forEach(item => {
-      if (item.cancelado) {
-        cancelados += peso;
-      } else if (item.proceso && item.proceso.planoTerminado && item.validadoPorAdmin) {
-        terminados += peso;
-      } else {
-        pendientes += peso;
-      }
-    });
+    if (marcadorModo === 'global') {
+      // GLOBAL: cada cambio multiplicado por sus modelos
+      const peso = (Array.isArray(nave.models) && nave.models.length > 0) ? nave.models.length : 1;
+      items.forEach(item => {
+        if (item.cancelado) cancelados += peso;
+        else if (esTerminado(item)) terminados += peso;
+        else pendientes += peso;
+      });
+    } else {
+      // CAMBIOS: cada bloque cuenta 1
+      const activos = items.filter(i => !i.cancelado);
+      if (activos.length === 0) cancelados += 1;          // todo cancelado
+      else if (activos.every(esTerminado)) terminados += 1; // todo terminado
+      else pendientes += 1;                               // tiene al menos un cambio pendiente
+    }
   });
 
-  // ⭐ 2) Pendientes Generales: solo cuentan los MUEBLES, nunca el registro general
+  // 2) PENDIENTES GENERALES
   (data.pendientesGenerales || []).forEach(pg => {
     const subs = Array.isArray(pg.subItems) ? pg.subItems : [];
-    subs.forEach(s => {
-      if (s.cancelado === true) {
-        cancelados += 1;
-      } else if (s.completado === true) {
-        terminados += 1;
-      } else {
-        pendientes += 1;
-      }
-    });
+
+    if (marcadorModo === 'global') {
+      // GLOBAL: cada mueble
+      if (subs.length === 0) { pendientes += 1; return; }
+      subs.forEach(s => {
+        if (s.cancelado === true) cancelados += 1;
+        else if (s.completado === true) terminados += 1;
+        else pendientes += 1;
+      });
+    } else {
+      // CAMBIOS: cada bloque cuenta 1
+      const activos = subs.filter(s => !s.cancelado);
+      if (subs.length === 0) pendientes += 1;
+      else if (activos.length === 0) cancelados += 1;
+      else if (activos.every(s => s.completado === true)) terminados += 1;
+      else pendientes += 1;
+    }
   });
 
   pendienteEl.textContent = pendientes;

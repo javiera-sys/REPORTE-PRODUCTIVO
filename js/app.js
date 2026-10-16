@@ -1112,7 +1112,8 @@ function renderPG() {
                   ${progressPill}
                   ${starHtml}
               </div>
-              ${dateStr ? `<div class="pg-item-date">${dateStr}</div>` : ''}
+          ${typeof shareControlsHtml === 'function' ? shareControlsHtml('p', pg.id) : ''}
+          ${dateStr ? `<div class="pg-item-date">${dateStr}</div>` : ''}
           </div>
 
           <div class="pg-item-desc">${renderDescripcion(pg.desc)}</div>
@@ -1717,6 +1718,7 @@ function renderItemCard(item, naveId){
         </div>
         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; margin-left:12px;">
           ${metaHtml}
+          ${typeof shareControlsHtml === 'function' ? shareControlsHtml('i', item.id) : ''}
           <div class="item-actions-row only-editable">
             <button class="btn ${item.cancelado ? 'btn-ghost' : 'btn-danger-ghost'}" title="${item.cancelado ? 'Reactivar cambio' : 'Cancelar cambio'}" onclick="toggleCancelado('${naveId}','${item.id}', event)"><i class="ti ${item.cancelado ? 'ti-rotate' : 'ti-ban'}" style="font-size:13px"></i></button>
             <button class="btn btn-ghost" title="Editar" onclick="startEdit('${item.id}')"><i class="ti ti-pencil" style="font-size:13px"></i></button>

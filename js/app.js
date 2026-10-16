@@ -4888,7 +4888,7 @@ async function cargarDatosIniciales(){
   }
 
   try {
-    if (localStorage.getItem('rpi_pg_panel_open') === '0') {
+    if (localStorage.getItem('rpi_pg_panel_open') === '1') {
       isPGPanelOpen = true;
       const panel = document.getElementById('pg-panel');
       const chev = document.getElementById('pg-chevron');

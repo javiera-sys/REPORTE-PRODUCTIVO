@@ -4118,7 +4118,22 @@ async function pushToGithub() {
         }
       }
     }
-
+// ⭐ Imágenes de RUTAS: guardarlas como archivo en data/images/ (igual que los demás apartados)
+    if (Array.isArray(data.rutas)) {
+      for (const ruta of data.rutas) {
+        if (!Array.isArray(ruta.imagenes)) continue;
+        for (let r = 0; r < ruta.imagenes.length; r++) {
+          const img = ruta.imagenes[r];
+          if (typeof img === 'string' && img.startsWith('data:image')) {
+            const ext = extFromDataUri(img);
+            const fileName = `ruta_${ruta.id}_${uid()}.${ext}`;
+            const b64 = img.split(',', 2)[1];
+            const repoPath = baseDir + 'data/images/' + fileName;
+            addBlobEntry(repoPath, b64, () => { ruta.imagenes[r] = 'data/images/' + fileName; });
+          }
+        }
+      }
+    }
     let blobsCreados = 0;
     if (blobTasks.length > 0) {
       setGithubStatus(`Subiendo ${blobTasks.length} archivo(s) nuevo(s)...`, 'info');

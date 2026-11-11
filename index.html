@@ -710,6 +710,32 @@
   </div>
 </div>
 
+<div class="modal-bg" id="modal-split-nave">
+  <div class="modal" style="width:440px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Separar modelos del grupo</h2>
+      <button type="button" class="btn-ghost btn" onclick="closeModal('modal-split-nave')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">1. Marca los modelos que quieres sacar</label>
+      <div id="split-models-list" style="border:1px solid var(--color-border-tertiary);border-radius:8px;padding:4px 8px;"></div>
+      <div id="split-info" style="font-size:12px;margin-top:6px;color:var(--color-text-secondary);"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">2. Nombre del mueble nuevo</label>
+      <input class="form-input" type="text" id="split-new-title" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="split-copy-items" checked> Copiar los cambios que ya tiene el grupo</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;"><input type="checkbox" id="split-copy-images" checked> Copiar las imágenes del mueble</label>
+    </div>
+    <div class="form-footer">
+      <button type="button" class="btn" onclick="closeModal('modal-split-nave')">Cancelar</button>
+      <button type="button" class="btn btn-green" id="split-confirm-btn" onclick="confirmSplitNave()">Separar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-edit-model">
   <div class="modal" style="width:400px" onclick="event.stopPropagation()">
     <div class="modal-header">

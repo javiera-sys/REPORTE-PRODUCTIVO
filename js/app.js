@@ -1836,6 +1836,7 @@ function renderNave(nave, index, total){
       <div class="nave-header-right only-editable">
         ${index > 0 ? `<button class="hbtn" onclick="moveNaveUp(${index})" title="Mover arriba"><i class="ti ti-arrow-up"></i></button>` : ''}
         ${index < total - 1 ? `<button class="hbtn" onclick="moveNaveDown(${index})" title="Mover abajo"><i class="ti ti-arrow-down"></i></button>` : ''}
+        ${nave.models.length > 1 ? `<button class="hbtn" onclick="openSplitNave('${nave.id}')" title="Separar modelos a un mueble nuevo (conserva los cambios)"><i class="ti ti-arrows-split-2"></i> Separar</button>` : ''}
         <button class="hbtn" onclick="openEditNaveHeader('${nave.id}')" title="Editar Cabecera"><i class="ti ti-pencil"></i></button>
         <button class="hbtn" onclick="openAddItem('${nave.id}','mejora')"><i class="ti ti-plus"></i> Elemento</button>
         <button class="hbtn danger" onclick="removeNave('${nave.id}')"><i class="ti ti-trash"></i></button>
@@ -2044,6 +2045,91 @@ function saveEditedModel(){
     render();
   }
   closeModal('modal-edit-model');
+}
+
+
+// ✂️ SEPARAR MODELOS DE UN GRUPO (conservando los cambios)
+let splitNaveId = null;
+
+function openSplitNave(naveId) {
+  if (!isEditableMode) return;
+  const nave = data.naves.find(n => n.id === naveId);
+  if (!nave || !Array.isArray(nave.models) || nave.models.length < 2) return;
+  splitNaveId = naveId;
+
+  const list = document.getElementById('split-models-list');
+  list.innerHTML = nave.models.map((m, i) => `
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;">
+      <input type="checkbox" class="split-model-chk" value="${i}" onchange="updateSplitInfo()">
+      <span><b>${escHtml(m.name)}</b>${m.coleccion ? ' · ' + escHtml(m.coleccion) : ''}</span>
+    </label>`).join('');
+
+  document.getElementById('split-copy-items').checked = true;
+  document.getElementById('split-copy-images').checked = true;
+  document.getElementById('split-new-title').value = nave.consola || '';
+  updateSplitInfo();
+  document.getElementById('modal-split-nave').classList.add('open');
+}
+
+function updateSplitInfo() {
+  const nave = data.naves.find(n => n.id === splitNaveId);
+  const info = document.getElementById('split-info');
+  const btn = document.getElementById('split-confirm-btn');
+  if (!nave || !info) return;
+  const sel = document.querySelectorAll('.split-model-chk:checked').length;
+  const total = nave.models.length;
+  if (sel === 0) {
+    info.textContent = 'Marca los modelos que quieres sacar del grupo.';
+    btn.disabled = true;
+  } else if (sel >= total) {
+    info.textContent = 'Deja al menos un modelo en el grupo original.';
+    btn.disabled = true;
+  } else {
+    info.textContent = `Se sacarán ${sel} modelo(s) y se quedarán ${total - sel} en el grupo original.`;
+    btn.disabled = false;
+  }
+}
+
+function confirmSplitNave() {
+  if (!isEditableMode) return;
+  const idx = data.naves.findIndex(n => n.id === splitNaveId);
+  if (idx < 0) return;
+  const nave = data.naves[idx];
+
+  const selected = Array.from(document.querySelectorAll('.split-model-chk:checked')).map(c => parseInt(c.value));
+  if (!selected.length || selected.length >= nave.models.length) return;
+
+  const copyItems = document.getElementById('split-copy-items').checked;
+  const copyImages = document.getElementById('split-copy-images').checked;
+  const newTitle = document.getElementById('split-new-title').value.trim() || nave.consola;
+
+  const movedModels = selected.map(i => JSON.parse(JSON.stringify(nave.models[i])));
+  const newItems = copyItems
+    ? nave.items.map(it => { const c = JSON.parse(JSON.stringify(it)); c.id = uid(); return c; })
+    : [];
+
+  const nuevo = {
+    id: uid(),
+    nave: nave.nave,
+    consola: newTitle,
+    tipo: nave.tipo,
+    models: movedModels,
+    images: copyImages && Array.isArray(nave.images) ? nave.images.slice() : [],
+    items: newItems,
+    createdAt: Date.now()
+  };
+
+  // Quitar los modelos del grupo original (sus cambios se quedan intactos)
+  nave.models = nave.models.filter((_, i) => !selected.includes(i));
+  // Poner el mueble nuevo justo debajo del original
+  data.naves.splice(idx + 1, 0, nuevo);
+
+  closeModal('modal-split-nave');
+  render();
+  setTimeout(() => {
+    const el = document.getElementById('nave-' + nuevo.id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 100);
 }
 
 function selectEditNaveOpt(el, val) {

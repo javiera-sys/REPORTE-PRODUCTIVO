@@ -2409,6 +2409,9 @@ function renderPdView() {
       renderPdPdfView();
     } else {
       renderPdTable();
+      if (sm && sm.excelOriginal) {
+        pdGetBlob(sm.excelOriginal, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').catch(() => {});
+      }
     }
   }
 }
@@ -2805,7 +2808,16 @@ function renderPdPdfView() {
   const hasFile = !!sm.pdfContent;
   if (viewerWrap) viewerWrap.style.display = hasFile ? 'block' : 'none';
   if (emptyState) emptyState.style.display = hasFile ? 'none' : 'block';
-  if (viewer) viewer.src = hasFile ? sm.pdfContent : 'about:blank';
+  if (viewer) {
+    if (!hasFile) {
+      viewer.src = 'about:blank';
+    } else {
+      const smId = sm.id;
+      pdGetBlobUrl(sm.pdfContent, 'application/pdf')
+        .then(url => { if (pdCurrentSubmoduleId === smId) viewer.src = url; })
+        .catch(() => { if (pdCurrentSubmoduleId === smId) viewer.src = sm.pdfContent; });
+    }
+  }
 
   if (uploadBtn) uploadBtn.style.display = (!hasFile && isEditableMode) ? 'inline-flex' : 'none';
   if (downloadBtn) downloadBtn.style.display = hasFile ? 'inline-flex' : 'none';
@@ -2856,15 +2868,69 @@ function handlePdPdfUpload(e) {
   reader.readAsDataURL(file);
 }
 
+// ⚡ Descargas rápidas (Procesos de diseño): el archivo se baja UNA sola vez,
+// se guarda en memoria como Blob y se reutiliza para el visor y para la descarga.
+const pdBlobCache = new Map();     // origen -> Promise<Blob>
+const pdBlobUrlCache = new Map();  // origen -> blob:URL
+
+function pdGetBlob(src, mimeFallback) {
+  if (pdBlobCache.has(src)) return pdBlobCache.get(src);
+  const p = (async () => {
+    if (src.startsWith('data:')) {
+      const comma = src.indexOf(',');
+      const mime = (src.slice(5, comma).split(';')[0]) || mimeFallback || 'application/octet-stream';
+      const bin = atob(src.slice(comma + 1));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new Blob([bytes], { type: mime });
+    }
+    const res = await fetch(src, { cache: 'force-cache' }); // nombres únicos (uid) => caché seguro
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const b = await res.blob();
+    return b.type ? b : new Blob([b], { type: mimeFallback || 'application/octet-stream' });
+  })();
+  p.catch(() => pdBlobCache.delete(src));
+  pdBlobCache.set(src, p);
+  return p;
+}
+
+async function pdGetBlobUrl(src, mimeFallback) {
+  if (pdBlobUrlCache.has(src)) return pdBlobUrlCache.get(src);
+  const blob = await pdGetBlob(src, mimeFallback);
+  const url = URL.createObjectURL(blob);
+  pdBlobUrlCache.set(src, url);
+  return url;
+}
+
+async function pdDownloadFile(src, fileName, mimeFallback, btn) {
+  const oldHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2"></i> Preparando...'; }
+  try {
+    const url = await pdGetBlobUrl(src, mimeFallback);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (err) {
+    console.warn('Descarga rápida falló, usando método directo:', err);
+    const a = document.createElement('a');
+    a.href = src;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+  }
+}
+
 function downloadPdPdf() {
   const sm = getPdSubmodule(pdCurrentSubmoduleId);
   if (!sm || !sm.pdfContent) return;
-  const a = document.createElement('a');
-  a.href = sm.pdfContent;
-  a.download = sm.pdfName || (sm.label + '.pdf');
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  const btn = document.getElementById('pd-pdf-download-btn');
+  pdDownloadFile(sm.pdfContent, sm.pdfName || (sm.label + '.pdf'), 'application/pdf', btn);
 }
 
 async function deletePdPdf() {
@@ -2990,12 +3056,13 @@ function exportPdExcel() {
   if (!sm) return;
 
   if (sm.excelOriginal) {
-    const a = document.createElement('a');
-    a.href = sm.excelOriginal;
-    a.download = sm.excelOriginalName || `${sm.label}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const btn = document.querySelector('#pd-excel-view .btn-excel');
+    pdDownloadFile(
+      sm.excelOriginal,
+      sm.excelOriginalName || `${sm.label}.xlsx`,
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      btn
+    );
     return;
   }
 

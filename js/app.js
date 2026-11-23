@@ -731,30 +731,88 @@ function toggleCancelado(naveId, itemId, event) {
     render();
   }
 
-function compressImageDataUrl(dataUrl, maxDim = 1600, quality = 0.82) {
+// ===== Configuración de calidad de fotografías (cambia solo aquí) =====
+const IMG_MAX_DIM = 2048;   // lado más largo máximo, en píxeles
+const IMG_QUALITY = 0.88;   // calidad JPEG (0 a 1)
+const IMG_DEBUG = false;    // true = muestra en consola peso y tiempo de cada foto
+let _imgQueue = Promise.resolve();
+
+// Procesa UNA foto a la vez (evita picos de memoria con varias fotos).
+function compressImageDataUrl(dataUrl, maxDim = IMG_MAX_DIM, quality = IMG_QUALITY) {
+  const tarea = _imgQueue.then(() => _compressImageDataUrlNow(dataUrl, maxDim, quality));
+  _imgQueue = tarea.catch(() => {});
+  return tarea;
+}
+
+function _compressImageDataUrlNow(dataUrl, maxDim, quality) {
   return new Promise((resolve) => {
+    const t0 = performance.now();
     const img = new Image();
+    let canvas = null;
+
+    function limpiar() {
+      img.onload = null;
+      img.onerror = null;
+      img.src = '';
+      if (canvas) { canvas.width = 0; canvas.height = 0; canvas = null; }
+    }
+
     img.onload = () => {
       try {
         let { width, height } = img;
+        const anchoOriginal = width;
+        const altoOriginal = height;
+        let redimensionada = false;
         if (width > maxDim || height > maxDim) {
           const scale = Math.min(maxDim / width, maxDim / height);
           width = Math.round(width * scale);
           height = Math.round(height * scale);
+          redimensionada = true;
         }
-        const canvas = document.createElement('canvas');
+        canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+
+        const terminar = (resultado) => {
+          // Si ya era un JPEG chico y recomprimir no mejora, se conserva el original.
+          if (!redimensionada && dataUrl.startsWith('data:image/jpeg') && resultado.length >= dataUrl.length) {
+            resultado = dataUrl;
+          }
+          if (IMG_DEBUG) {
+            console.log('[Foto] ' + anchoOriginal + 'x' + altoOriginal + ' -> ' + width + 'x' + height +
+              ' | antes: ' + Math.round(dataUrl.length * 0.75 / 1024) + ' KB' +
+              ' | después: ' + Math.round(resultado.length * 0.75 / 1024) + ' KB' +
+              ' | ' + Math.round(performance.now() - t0) + ' ms');
+          }
+          limpiar();
+          resolve(resultado);
+        };
+
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            terminar(canvas.toDataURL('image/jpeg', quality));
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = () => terminar(reader.result);
+          reader.onerror = () => terminar(canvas.toDataURL('image/jpeg', quality));
+          reader.readAsDataURL(blob);
+        }, 'image/jpeg', quality);
       } catch (e) {
         console.warn('No se pudo comprimir la imagen, se usa el original:', e);
+        limpiar();
         resolve(dataUrl);
       }
     };
     img.onerror = () => {
       console.warn('No se pudo procesar la imagen para comprimir, se usa el original.');
+      limpiar();
       resolve(dataUrl);
     };
     img.src = dataUrl;

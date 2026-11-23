@@ -14,6 +14,30 @@
   const seleccion = new Set();   // claves 'i:ID' (cambio de nave) o 'p:ID' (pendiente general)
   let ocupado = false;
 
+  /* ---------- Calidad de imagen (cambia solo aquí) ---------- */
+  const ESCALA_OBJETIVO = 3;                       // 3 = imagen de 3240 px de ancho
+  const MAX_PIXELES = (navigator.deviceMemory && navigator.deviceMemory <= 2)
+    ? 8e6      // móviles con poca RAM
+    : 16e6;    // resto de equipos (límite seguro en Android/iOS)
+  const MAX_LADO = 8192;                           // lado máximo permitido por canvas
+  const COMPARTIR_DEBUG = false;                   // true = muestra medidas en consola
+
+  // Escala dinámica: 3x, pero baja si la tarjeta es muy alta para no agotar memoria.
+  function calcularEscala(W, H) {
+    const porArea = Math.sqrt(MAX_PIXELES / (W * H));
+    const porLado = MAX_LADO / Math.max(W, H);
+    return Math.max(1, Math.min(ESCALA_OBJETIVO, porArea, porLado));
+  }
+
+  // Asegura que TODOS los pesos de Inter estén cargados antes de dibujar.
+  async function cargarFuentes() {
+    if (!document.fonts || !document.fonts.load) return;
+    try {
+      await Promise.all(['400', '500', '600', '700', '800'].map(p =>
+        document.fonts.load(p + ' 32px "Inter"', 'AaÁáÑñ0123')));
+      await document.fonts.ready;
+    } catch (e) {}
+  }
   /* ---------- Estilos (se inyectan solos) ---------- */
   const css = `
 .share-row{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-shrink:0}
@@ -153,11 +177,13 @@
     });
   }
 
-  function dibujarContener(ctx, im, x, y, w, h) {
+     function dibujarContener(ctx, im, x, y, w, h) {
     ctx.fillStyle = '#f1f5f9';
     ctx.fillRect(x, y, w, h);
     const r = Math.min(w / im.width, h / im.height);
     const dw = im.width * r, dh = im.height * r;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(im, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
   }
 
@@ -281,34 +307,52 @@
     return y + 60;
   }
 
-  async function generarPaginas(recs) {
-    if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
+   async function generarPaginas(recs, procesar) {
+    await cargarFuentes();
     const W = 1080, paginas = [];
+
     const crear = (dibujar) => {
       const c = document.createElement('canvas');
       c.width = W; c.height = 100;
-      const h = dibujar(c.getContext('2d'), true);      // 1ª pasada: solo medir
-      c.height = Math.ceil(h);
+      const h = dibujar(c.getContext('2d'), true);      // 1ª pasada: solo medir (a escala 1)
+      const S = calcularEscala(W, h);
+      c.width = Math.round(W * S);
+      c.height = Math.ceil(h * S);
       const ctx = c.getContext('2d');
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, c.height);
-      dibujar(ctx, false);                                // 2ª pasada: dibujar
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.setTransform(S, 0, 0, S, 0, 0);               // el diseño sigue en coordenadas de 1080 px
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      dibujar(ctx, false);                              // 2ª pasada: dibujar en alta resolución
+      if (COMPARTIR_DEBUG) {
+        console.log('[Compartir] escala ' + S.toFixed(2) + 'x | ' + c.width + ' x ' + c.height +
+          ' px | ' + (c.width * c.height / 1e6).toFixed(1) + ' MP');
+      }
       return c;
     };
+
+    // Si se recibe "procesar" (convertir a Blob), cada página se procesa y se libera
+    // antes de crear la siguiente: así nunca hay varios canvas grandes en memoria.
+    const entregar = async (c) => {
+      if (!procesar) { paginas.push(c); return; }
+      paginas.push(await procesar(c));
+      c.width = 0; c.height = 0;
+    };
+
     if (recs.length === 1) {
       const imgs = (await Promise.all(recs[0].imgs.slice(0, 5).map(cargarImg))).filter(Boolean);
-      paginas.push(crear((ctx, seco) => dibujarUno(ctx, W, recs[0], imgs, seco)));
+      await entregar(crear((ctx, seco) => dibujarUno(ctx, W, recs[0], imgs, seco)));
     } else {
       const POR = 6, total = Math.ceil(recs.length / POR);
       for (let p = 0; p < total; p++) {
         const lote = recs.slice(p * POR, (p + 1) * POR);
         const lista = await Promise.all(lote.map(r =>
           Promise.all(r.imgs.slice(0, 2).map(cargarImg)).then(a => a.filter(Boolean))));
-        paginas.push(crear((ctx, seco) => dibujarVarios(ctx, W, lote, lista, seco, p + 1, total)));
+        await entregar(crear((ctx, seco) => dibujarVarios(ctx, W, lote, lista, seco, p + 1, total)));
       }
     }
     return paginas;
   }
-
   /* ---------- Compartir ---------- */
   const aBlob = c => new Promise((ok, mal) =>
     c.toBlob(b => b ? ok(b) : mal(new Error('No se pudo crear la imagen')), 'image/png'));
@@ -347,8 +391,7 @@
     ocupado = true;
     try {
       aviso('Preparando imagen…', 'info');
-      const canvases = await generarPaginas(recs);
-      const blobs = await Promise.all(canvases.map(aBlob));
+      const blobs = await generarPaginas(recs, aBlob);
       const stamp = new Date().toISOString().slice(0, 10);
       const archivos = blobs.map((b, i) => new File([b],
         'cambio-' + stamp + (blobs.length > 1 ? '-' + (i + 1) : '') + '.png', { type: 'image/png' }));

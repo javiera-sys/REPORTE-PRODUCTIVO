@@ -1232,7 +1232,7 @@ function renderAdjuntosPG(pg) {
     const thumb = esPdf
       ? `<div class="pg-adjunto-pdf" title="PDF"><i class="ti ti-file-type-pdf"></i></div>`
       : `<img src="${adj}" alt="adjunto" loading="lazy">`;
-    const clickAction = esPdf ? `abrirPdfPG('${pg.id}', ${idx})` : `viewImage('${adj}')`;
+    const clickAction = esPdf ? `abrirPdfPG('${pg.id}', ${idx})` : `viewImage(this.querySelector('img').src)`;
     html += `
       <div class="pg-adjunto-item">
         <div class="pg-adjunto-thumb" onclick="${clickAction}" title="${esPdf ? 'Ver PDF' : 'Ver imagen'}">
@@ -6294,7 +6294,7 @@ function renderRutas() {
     if (ruta.imagenes && ruta.imagenes.length > 0) {
       imagenesHtml = '<div class="ruta-imagenes">' + ruta.imagenes.map((img, idx) => `
         <div class="ruta-imagen-item">
-          <img src="${img}" onclick="viewImage('${img}')" title="Ver imagen">
+          <img src="${img}" onclick="viewImage(this.src)" title="Ver imagen">
           <button class="btn-eliminar-adjunto only-editable" onclick="eliminarImagenRuta('${ruta.id}', ${idx}, event)" title="Eliminar imagen"><i class="ti ti-x"></i></button>
         </div>
       `).join('') + '</div>';

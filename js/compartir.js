@@ -9,7 +9,7 @@
   'use strict';
 
   const F = '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-  const COLORES = { error: '#dc2626', ajuste: '#d97706', mejora: '#0f6e8c', pg: '#7c3aed' };
+  const COLORES = { error: '#dc2626', ajuste: '#d97706', mejora: '#0f6e8c', pg: '#7c3aed', ruta: '#0d9488' };
   const ETIQUETAS = { error: 'ERROR', ajuste: 'AJUSTE', mejora: 'MEJORA' };
   const seleccion = new Set();   // claves 'i:ID' (cambio de nave) o 'p:ID' (pendiente general)
   let ocupado = false;
@@ -124,12 +124,30 @@
     };
   }
 
+  function recRuta(ru) {
+    return {
+      tipo: 'ruta',
+      etiqueta: 'RUTA',
+      estado: ru.terminado === true ? 'TERMINADO' : 'PENDIENTE',
+      title: ru.titulo || '(sin título)',
+      desc: aTexto(ru.descripcion),
+      fecha: ru.createdAt ? new Date(ru.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '',
+      contexto: '',
+      modelos: [],
+      extra: '',
+      imgs: imgsValidas(ru.imagenes)
+    };
+  }
   function buscar(clave) {
     const k = String(clave);
     const tipo = k.charAt(0), id = k.slice(2);
     if (tipo === 'p') {
       const pg = (data.pendientesGenerales || []).find(p => p.id === id);
       return pg ? recPG(pg) : null;
+    }
+         if (tipo === 'r') {
+      const ru = (data.rutas || []).find(r => r.id === id);
+      return ru ? recRuta(ru) : null;
     }
     for (const n of (data.naves || [])) {
       const it = (n.items || []).find(i => i.id === id);

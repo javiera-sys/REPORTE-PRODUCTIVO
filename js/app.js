@@ -1780,6 +1780,7 @@ function renderItemCard(item, naveId){
             ${metaHtml}
           </div>
           <div class="item-actions-row only-editable">
+            <button class="btn btn-ghost" title="Copiar a otros muebles" onclick="openCopyItem('${naveId}','${item.id}', event)"><i class="ti ti-copy" style="font-size:13px"></i></button>
             <button class="btn ${item.cancelado ? 'btn-ghost' : 'btn-danger-ghost'}" title="${item.cancelado ? 'Reactivar cambio' : 'Cancelar cambio'}" onclick="toggleCancelado('${naveId}','${item.id}', event)"><i class="ti ${item.cancelado ? 'ti-rotate' : 'ti-ban'}" style="font-size:13px"></i></button>
             <button class="btn btn-ghost" title="Editar" onclick="startEdit('${item.id}')"><i class="ti ti-pencil" style="font-size:13px"></i></button>
             <button class="btn btn-danger-ghost" title="Eliminar" onclick="removeItem('${naveId}','${item.id}')"><i class="ti ti-trash" style="font-size:13px"></i></button>
@@ -2188,6 +2189,106 @@ function confirmSplitNave() {
     const el = document.getElementById('nave-' + nuevo.id);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 100);
+}
+
+/* ===== COPIAR UN CAMBIO A OTROS MUEBLES ===== */
+let copyItemNaveId = null, copyItemId = null;
+const copyItemSel = new Set();
+
+function openCopyItem(naveId, itemId, event) {
+  if (event) event.stopPropagation();
+  if (!isEditableMode) return;
+  const nave = data.naves.find(n => n.id === naveId);
+  const item = nave && nave.items.find(i => i.id === itemId);
+  if (!item) return;
+  copyItemNaveId = naveId;
+  copyItemId = itemId;
+  copyItemSel.clear();
+  document.getElementById('copy-item-title').textContent = item.title || '(sin título)';
+  document.getElementById('copy-item-search').value = '';
+  document.getElementById('copy-item-photos').checked = true;
+  document.getElementById('copy-item-fecha').checked = false;
+  renderCopyItemList();
+  document.getElementById('modal-copy-item').classList.add('open');
+}
+
+function renderCopyItemList() {
+  const origen = data.naves.find(n => n.id === copyItemNaveId);
+  const item = origen && origen.items.find(i => i.id === copyItemId);
+  if (!item) return;
+  const q = (document.getElementById('copy-item-search').value || '').trim().toLowerCase();
+  const titulo = (item.title || '').trim().toLowerCase();
+  const html = data.naves
+    .filter(n => n.id !== copyItemNaveId)
+    .filter(n => {
+      if (!q) return true;
+      const txt = [n.nave, n.consola].concat((n.models || []).map(m => m.name + ' ' + (m.coleccion || ''))).join(' ').toLowerCase();
+      return txt.includes(q);
+    })
+    .map(n => {
+      const yaTiene = (n.items || []).some(i => (i.title || '').trim().toLowerCase() === titulo);
+      const modelos = (n.models || []).map(m => m.name).filter(Boolean).join(', ');
+      return `<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 4px;cursor:pointer;">
+        <input type="checkbox" ${copyItemSel.has(n.id) ? 'checked' : ''} onchange="toggleCopyDest('${n.id}')">
+        <span><b>${escHtml(n.consola)}</b> <span style="color:var(--color-text-secondary)">· ${escHtml(n.nave)}</span>
+        ${modelos ? `<br><span style="font-size:11px;color:var(--color-text-secondary)">${escHtml(modelos)}</span>` : ''}
+        ${yaTiene ? '<br><span style="font-size:11px;color:#b45309">⚠ Ya tiene un cambio con este mismo título</span>' : ''}</span>
+      </label>`;
+    }).join('');
+  document.getElementById('copy-item-list').innerHTML = html || '<div style="padding:8px;font-size:12px;color:var(--color-text-secondary)">No hay muebles que coincidan.</div>';
+  updateCopyItemInfo();
+}
+
+function toggleCopyDest(id) {
+  if (copyItemSel.has(id)) copyItemSel.delete(id); else copyItemSel.add(id);
+  updateCopyItemInfo();
+}
+
+function updateCopyItemInfo() {
+  const n = copyItemSel.size;
+  document.getElementById('copy-item-info').textContent = n
+    ? 'Se copiará a ' + n + ' mueble' + (n === 1 ? '' : 's') + '.'
+    : 'Marca al menos un mueble destino.';
+  document.getElementById('copy-item-confirm').disabled = n === 0;
+}
+
+function confirmCopyItem() {
+  if (!isEditableMode) return;
+  const origen = data.naves.find(n => n.id === copyItemNaveId);
+  const item = origen && origen.items.find(i => i.id === copyItemId);
+  if (!item || !copyItemSel.size) return;
+
+  const conFotos = document.getElementById('copy-item-photos').checked;
+  const conFecha = document.getElementById('copy-item-fecha').checked;
+  const user = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+  const hoy = new Date();
+  const hoyStr = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
+  let total = 0;
+
+  copyItemSel.forEach(destId => {
+    const destino = data.naves.find(n => n.id === destId);
+    if (!destino) return;
+    const c = JSON.parse(JSON.stringify(item));
+    c.id = uid();
+    c.createdAt = Date.now();
+    c.createdBy = user ? user.username : 'anonimo';
+    c.createdByName = user ? user.nombre : 'Anónimo';
+    c.modifiedBy = null; c.modifiedByName = null; c.modifiedAt = null;
+    c.proceso = { habilitado: false, planos: false, etiquetas: false, planoTerminado: false };
+    c.cancelado = false;
+    c.validadoPorAdmin = false;
+    ['cancelledAt', 'completedAt', 'marcadoTerminadoPorUsuarioAt', 'validatedAt', 'validatedBy', 'validatedByName'].forEach(k => delete c[k]);
+    if (!conFecha) { c.fecha = hoyStr; c.odt = ''; }
+    if (!conFotos) c.adjuntos = ['', '', '', '', ''];
+    destino.items.unshift(c);
+    if (destino.tipo === 'errores' && c.type === 'mejora') destino.tipo = 'ambos';
+    if (destino.tipo === 'mejoras' && (c.type === 'error' || c.type === 'ajuste')) destino.tipo = 'ambos';
+    total++;
+  });
+
+  closeModal('modal-copy-item');
+  render();
+  if (typeof showToast === 'function') showToast('Cambio copiado a ' + total + ' mueble' + (total === 1 ? '' : 's') + '.', 'success');
 }
 
 function selectEditNaveOpt(el, val) {

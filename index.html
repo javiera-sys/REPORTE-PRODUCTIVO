@@ -735,7 +735,33 @@
     </div>
   </div>
 </div>
-
+<div class="modal-bg" id="modal-copy-item">
+  <div class="modal" style="width:460px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Copiar cambio a otros muebles</h2>
+      <button type="button" class="btn-ghost btn" onclick="closeModal('modal-copy-item')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Cambio a copiar</label>
+      <div id="copy-item-title" style="font-weight:700;font-size:14px;"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Elige los muebles destino</label>
+      <input class="form-input" type="text" id="copy-item-search" placeholder="Buscar por mueble, nave o modelo…" autocomplete="off" oninput="renderCopyItemList()">
+      <div id="copy-item-list" style="border:1px solid var(--color-border-tertiary);border-radius:8px;padding:4px 8px;margin-top:8px;max-height:260px;overflow-y:auto;"></div>
+      <div id="copy-item-info" style="font-size:12px;margin-top:6px;color:var(--color-text-secondary);"></div>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="copy-item-photos" checked> Copiar también las fotos</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;"><input type="checkbox" id="copy-item-fecha"> Conservar fecha y ODT originales (si no, se pone la fecha de hoy y ODT vacío)</label>
+    </div>
+    <div class="form-footer">
+      <button type="button" class="btn" onclick="closeModal('modal-copy-item')">Cancelar</button>
+      <button type="button" class="btn btn-green" id="copy-item-confirm" onclick="confirmCopyItem()">Copiar</button>
+    </div>
+  </div>
+</div>
+  
 <div class="modal-bg" id="modal-edit-model">
   <div class="modal" style="width:400px" onclick="event.stopPropagation()">
     <div class="modal-header">

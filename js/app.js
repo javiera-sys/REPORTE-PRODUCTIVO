@@ -6317,7 +6317,8 @@ function renderRutas() {
       <div class="ruta-item ${isDone ? 'is-done' : ''}">
         <div class="ruta-header">
           <div class="ruta-title">${escHtml(ruta.titulo || 'Sin título')}</div>
-          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+            <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+            ${typeof shareControlsHtml === 'function' ? shareControlsHtml('r', ruta.id) : ''}
             <span class="ruta-badge ${isDone ? 'done' : 'pending'}" onclick="toggleRutaTerminado('${ruta.id}', event)" title="${isDone ? 'Clic para marcar como pendiente' : 'Clic para marcar como terminado'}">
               <i class="ti ${isDone ? 'ti-circle-check' : 'ti-clock'}"></i>
               ${isDone ? 'TERMINADO' : 'PENDIENTE'}

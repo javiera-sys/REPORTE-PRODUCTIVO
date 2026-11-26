@@ -2268,7 +2268,10 @@ function confirmCopyItem() {
   copyItemSel.forEach(destId => {
     const destino = data.naves.find(n => n.id === destId);
     if (!destino) return;
-    const c = JSON.parse(JSON.stringify(item));
+    // Se copia todo MENOS las fotos; las fotos se reutilizan tal cual (sin duplicarlas en memoria)
+    const { adjuntos: adjOrigen, ...resto } = item;
+    const c = JSON.parse(JSON.stringify(resto));
+    c.adjuntos = conFotos ? (adjOrigen || []).slice() : ['', '', '', '', ''];
     c.id = uid();
     c.createdAt = Date.now();
     c.createdBy = user ? user.username : 'anonimo';
@@ -2279,7 +2282,6 @@ function confirmCopyItem() {
     c.validadoPorAdmin = false;
     ['cancelledAt', 'completedAt', 'marcadoTerminadoPorUsuarioAt', 'validatedAt', 'validatedBy', 'validatedByName'].forEach(k => delete c[k]);
     if (!conFecha) { c.fecha = hoyStr; c.odt = ''; }
-    if (!conFotos) c.adjuntos = ['', '', '', '', ''];
     destino.items.unshift(c);
     if (destino.tipo === 'errores' && c.type === 'mejora') destino.tipo = 'ambos';
     if (destino.tipo === 'mejoras' && (c.type === 'error' || c.type === 'ajuste')) destino.tipo = 'ambos';
@@ -4335,6 +4337,7 @@ async function pushToGithub() {
 
     const blobTasks = [];
     const finalEntries = [];
+    const imagenesSubidas = new Map(); // foto (data:image) -> archivo ya preparado, para no subirla dos veces
 
     function addBlobEntry(repoPath, contentBase64, afterSha) {
       blobTasks.push({
@@ -4362,12 +4365,23 @@ async function pushToGithub() {
           if (Array.isArray(item.adjuntos)) {
             for (let j = 0; j < item.adjuntos.length; j++) {
               const adj = item.adjuntos[j];
-              if (typeof adj === 'string' && adj.startsWith('data:image')) {
-                const ext = extFromDataUri(adj);
-                const fileName = `adj_${item.id}_${uid()}.${ext}`;
-                const b64 = adj.split(',', 2)[1];
-                const repoPath = baseDir + 'data/images/' + fileName;
-                addBlobEntry(repoPath, b64, () => { item.adjuntos[j] = 'data/images/' + fileName; });
+                            if (typeof adj === 'string' && adj.startsWith('data:image')) {
+                const yaPreparada = imagenesSubidas.get(adj);
+                if (yaPreparada) {
+                  // Misma foto que otro cambio: no se sube otro archivo, solo se apunta al mismo
+                  yaPreparada.alias.push(() => { item.adjuntos[j] = 'data/images/' + yaPreparada.fileName; });
+                } else {
+                  const ext = extFromDataUri(adj);
+                  const fileName = `adj_${item.id}_${uid()}.${ext}`;
+                  const b64 = adj.split(',', 2)[1];
+                  const repoPath = baseDir + 'data/images/' + fileName;
+                  const entrada = { fileName, alias: [] };
+                  imagenesSubidas.set(adj, entrada);
+                  addBlobEntry(repoPath, b64, () => {
+                    item.adjuntos[j] = 'data/images/' + fileName;
+                    entrada.alias.forEach(fn => fn());
+                  });
+                }
               }
             }
           }
